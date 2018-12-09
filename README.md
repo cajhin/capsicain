@@ -7,7 +7,7 @@ C++ tool that uses the Interception driver https://github.com/oblitum/Intercepti
 I touch type. I code. I need a keyboard setup where I can keep my fingers on the home row all the time.  
 The position of Left/Right, Home/End, Insert/Delete and so on is bad. On laptops, it's awful.  
 Also, I need to type Ümläuts quite often, which is a pain on US standard layout - the only sane layout for writing C-style code.  
-While I'm at it, I like to have standard hotkeys on all my machines to start Firefox/Notepad++/Calculator/, and other niceties like Window minimize/maximize.
+While I'm at it, I like to have standard hotkeys on all my machines to start Firefox/Notepad++/dosbox, and other niceties like Window minimize/maximize.
 
 **AutoHotKey** is nice, did it for 10 years, but it runs in userspace and fails whenever the target gets key input from low level (VMs, RDP fullscreen, security boxes, games). I still use it as a deputy for capsicain, doing Windowsy userspace tasks.  
 
@@ -18,11 +18,11 @@ While I'm at it, I like to have standard hotkeys on all my machines to start Fir
 ## Features
 
 - optional basic key remapping   
-    LShift + RShift = CapsLock ON
-    RShift + LShift = CapsLock OFF
+    LShift + RShift = CapsLock ON  
+    RShift + LShift = CapsLock OFF  
     Y<>Z (for ze Germans)  
     WIN<>ALT on non-Apple keyboards (the Apple way is better)  
-    \ and / to Shift ('\\' on ISO (Euro) keyboards is left Shift on ANSI (US) boards. / is its physical counterpart, it should have been right shift all along. Try it, it's comfortable).    
+    \ and / to Shift ('\\' on ISO (Euro) keyboards is left Shift on ANSI (US) boards. / is its physical counterpart, it should have been right shift all along. Try it, it's comfortable. Caps+/ is /).    
     
 - Hold CapsLock + right hand -> Cursor control layer  
     [I][J][K][L] = Cursor  
