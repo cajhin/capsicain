@@ -4,7 +4,7 @@ void makeBreakKeyMacro(unsigned short scancode);
 
 void createMacroKeyCombo(int a, int b, int c, int d);
 void createMacroKeyComboRemoveShift(int a, int b, int c, int d);
-void createMacroKeyCombo10timesIfAltDown(int a, int b, int c, int d, unsigned short modifiers);
+void createMacroKeyCombo10timesIfWinDown(int a, int b, int c, int d, unsigned short modifiers);
 void createMacroKeyComboNtimes(int a, int b, int c, int d, int repeat);
 
 void createMacroAltNumpad(unsigned short a, unsigned short b, unsigned short c, unsigned short d);
@@ -50,4 +50,5 @@ void reset();
 #define IS_RSHIFT_DOWN (state.modifiers & 0x10)
 #define IS_LCONTROL_DOWN (state.modifiers & 0x02)
 #define IS_LALT_DOWN (state.modifiers & 0x04)
+#define IS_LWIN_DOWN (state.modifiers & 0x08)
 

@@ -16,7 +16,7 @@
 
 using namespace std;
 
-string version = "13";
+string version = "14";
 
 enum KEYSTATE
 {
@@ -356,23 +356,23 @@ void processLayoutIndependentAction()
             break;
         case SC_J:
             if (state.isDownstroke)
-                createMacroKeyCombo10timesIfAltDown(SC_LEFT, 0, 0, 0, state.modifiers);
+                createMacroKeyCombo10timesIfWinDown(SC_LEFT, 0, 0, 0, state.modifiers);
             break;
         case SC_L:
             if (state.isDownstroke)
-                createMacroKeyCombo10timesIfAltDown(SC_RIGHT, 0, 0, 0, state.modifiers);
+                createMacroKeyCombo10timesIfWinDown(SC_RIGHT, 0, 0, 0, state.modifiers);
             break;
         case SC_K:
             if (state.isDownstroke)
-                createMacroKeyCombo10timesIfAltDown(SC_DOWN, 0, 0, 0, state.modifiers);
+                createMacroKeyCombo10timesIfWinDown(SC_DOWN, 0, 0, 0, state.modifiers);
             break;
         case SC_I:
             if (state.isDownstroke)
-                createMacroKeyCombo10timesIfAltDown(SC_UP, 0, 0, 0, state.modifiers);
+                createMacroKeyCombo10timesIfWinDown(SC_UP, 0, 0, 0, state.modifiers);
             break;
         case SC_O:
             if (state.isDownstroke)
-                createMacroKeyCombo10timesIfAltDown(SC_PGUP, 0, 0, 0, state.modifiers);
+                createMacroKeyCombo10timesIfWinDown(SC_PGUP, 0, 0, 0, state.modifiers);
             break;
         case SC_SEMICOLON:
             if (state.isDownstroke)
@@ -380,7 +380,7 @@ void processLayoutIndependentAction()
             break;
         case SC_DOT:
             if (state.isDownstroke)
-                createMacroKeyCombo10timesIfAltDown(SC_PGDOWN, 0, 0, 0, state.modifiers);
+                createMacroKeyCombo10timesIfWinDown(SC_PGDOWN, 0, 0, 0, state.modifiers);
             break;
         case SC_Y:
             if (state.isDownstroke)
@@ -392,11 +392,11 @@ void processLayoutIndependentAction()
             break;
         case SC_N:
             if (state.isDownstroke)
-                createMacroKeyCombo10timesIfAltDown(SC_LCONTROL, SC_LEFT, 0, 0, state.modifiers);
+                createMacroKeyCombo10timesIfWinDown(SC_LCONTROL, SC_LEFT, 0, 0, state.modifiers);
             break;
         case SC_M:
             if (state.isDownstroke)
-                createMacroKeyCombo10timesIfAltDown(SC_LCONTROL, SC_RIGHT, 0, 0, state.modifiers);
+                createMacroKeyCombo10timesIfWinDown(SC_LCONTROL, SC_RIGHT, 0, 0, state.modifiers);
             break;
         case SC_0:
         case SC_1:
@@ -475,21 +475,8 @@ void processTrackModifierState()
         else
             state.modifiers &= ~BITMASK_RSHIFT;
         break;
-    case SC_LALT:  //suppress LALT in CAPS+LALT combos
-        if (state.isDownstroke)
-        {
-            if (IS_LALT_DOWN)
-                state.blockKey = true;
-            else if (state.isCapsDown)
-                state.blockKey = true;
-            state.modifiers |= BITMASK_LALT;
-        }
-        else
-        {
-            if (!(state.modifiers & BITMASK_LALT))
-                state.blockKey = true;
-            state.modifiers &= ~BITMASK_LALT;
-        }
+    case SC_LALT:
+        state.isDownstroke ? state.modifiers |= BITMASK_LALT : state.modifiers &= ~BITMASK_LALT;
         break;
     case SC_RALT:
         state.isDownstroke ? state.modifiers |= BITMASK_RALT : state.modifiers &= ~BITMASK_RALT;
@@ -500,8 +487,20 @@ void processTrackModifierState()
     case SC_RCONTROL:
         state.isDownstroke ? state.modifiers |= BITMASK_RCONTROL : state.modifiers &= ~BITMASK_RCONTROL;
         break;
-    case SC_LWIN:
-        state.isDownstroke ? state.modifiers |= BITMASK_LWIN : state.modifiers &= ~BITMASK_LWIN;
+    case SC_LWIN:  //suppress LWIN in CAPS+LWIN combos
+        if (state.isDownstroke)
+        {
+            if (IS_LWIN_DOWN || state.isCapsDown)
+                state.blockKey = true;
+            state.modifiers |= BITMASK_LWIN;
+        }
+        else
+        {
+            if (IS_LWIN_DOWN)
+                state.modifiers &= ~BITMASK_LWIN;
+            else
+                state.blockKey = true;
+        }
         break;
     case SC_RWIN:
         state.isDownstroke ? state.modifiers |= BITMASK_RWIN : state.modifiers &= ~BITMASK_RWIN;
@@ -808,9 +807,9 @@ void createMacroKeyCombo(int a, int b, int c, int d)
 {
     createMacroKeyComboNtimes(a, b, c, d, 1);
 }
-void createMacroKeyCombo10timesIfAltDown(int a, int b, int c, int d, unsigned short modifiers)
+void createMacroKeyCombo10timesIfWinDown(int a, int b, int c, int d, unsigned short modifiers)
 {
-    if (modifiers & BITMASK_LALT || modifiers & BITMASK_RALT)
+    if (modifiers & BITMASK_LWIN)
         createMacroKeyComboNtimes(a, b, c, d, 10);
     else
         createMacroKeyComboNtimes(a, b, c, d, 1);
