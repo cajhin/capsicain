@@ -14,14 +14,14 @@ While I'm at it, I like to have standard shortcuts on all my machines to start b
 
 **KeyTweak** works better, but it supports only basic key remapping, and requires a reboot for every change.  
 
-**Capsicain** does everything I want.  
+**Capsicain** does everything I want. Reliably, everywhere.  
 
 ## Features
 
 - optional basic key remapping   
     Y<>Z (for ze Germans)  
     WIN<>ALT on non-Apple keyboards (the Apple way is better)  
-    \ and / to Shift ('\' on ISO (Euro) keyboards is left Shift on ANSI (US) boards. / is its physical counterpart, it should have been right shift all along. Try it, it's comfortable).    
+    \ and / to Shift ('\\' on ISO (Euro) keyboards is left Shift on ANSI (US) boards. / is its physical counterpart, it should have been right shift all along. Try it, it's comfortable).    
     
 - Hold CapsLock + right hand -> Cursor control layer  
     [I][J][K][L] = Cursor  
