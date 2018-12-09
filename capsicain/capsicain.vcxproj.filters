@@ -27,7 +27,7 @@
     <ClInclude Include="scancodes.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="interception\interception.h">
+    <ClInclude Include="interception.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
