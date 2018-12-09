@@ -31,3 +31,5 @@ Features:
 
 
 NOTE: v1..12 was created in capsicain_interception repo. This was a non-VS project, now obsolete except for the history.
+
+Why the name? This tool defines a lot of CapsLock Hotkeys. 'Capsicain' is the chemical stuff that makes chilis hot, so that was my first association...
