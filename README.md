@@ -18,6 +18,8 @@ While I'm at it, I like to have standard hotkeys on all my machines to start Fir
 ## Features
 
 - optional basic key remapping   
+    LShift + RShift = CapsLock ON
+    RShift + LShift = CapsLock OFF
     Y<>Z (for ze Germans)  
     WIN<>ALT on non-Apple keyboards (the Apple way is better)  
     \ and / to Shift ('\\' on ISO (Euro) keyboards is left Shift on ANSI (US) boards. / is its physical counterpart, it should have been right shift all along. Try it, it's comfortable).    
@@ -25,16 +27,16 @@ While I'm at it, I like to have standard hotkeys on all my machines to start Fir
 - Hold CapsLock + right hand -> Cursor control layer  
     [I][J][K][L] = Cursor  
     [Z][U] = Home/End   
-    [O][>] = PgUp/Down    
+    [O][.] = PgUp/Down    
     [H]['] = Backspace/Delete  
     [N][M] = Ctrl+Left/Right  
     [=] = Insert  
     [P] '[' and ']' = Print/ScrLock/Pause  
-    [ALT]+[Cursor] = 10 times  
+    [WIN]+[Cursor] = move 10 times  
     
-- Hold CapsLock + left hand -> Clipboard functions  
+- Hold CapsLock + left hand -> Copy&Paste  
     [A][S][D][F] = Undo/Cut/Copy/Paste (I never learned to hit Ctrl-Z/X/C/V reliably)  
-    [Backspace] = Undo  
+    [Backspace] = Undo  (totally makes sense, but, uh, I don't use it. Caps+A is easier).
     [Shift+Backspace] = Redo 
     
 - Tap CapsLock (Press+Release) -> Special character layer  
