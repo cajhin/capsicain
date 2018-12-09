@@ -1,6 +1,6 @@
 # capsicain
 
-C++ tool that uses the Interception driver to monitor and modify keypresses, at a very low level.
+C++ tool that uses the Interception driver https://github.com/oblitum/Interception to monitor and modify keypresses, at a very low level.
 
 AutoHotKey is nice but fails whenever the target gets key input from low level (VMs, RDP, security boxes).
 KeyTweak works better, but supports only basic key remapping, and requires a reboot for every change.
