@@ -7,8 +7,11 @@ KeyTweak works better, but supports only basic key remapping, and requires a reb
 
 Features:
 
-- optional basic key remapping (Y<>Z, WIN<>ALT on non-Apple keyboards, \ and / to Shift)
-- CapsLock -> Cursor control layer 
+- optional basic key remapping   
+    Y<>Z (for ze Germans)  
+    WIN<>ALT on non-Apple keyboards (the Apple way is better)  
+    \ and / to Shift (\ is Shift on ANSI (US) keyboards, / is its physical counterpart. Try it, it's comfortable).    
+- CapsLock -> Cursor control layer  
     [I][J][K][L] = Cursor  
     [Z][U] = Home/End   
     [O][>] = PgUp/Down    
@@ -28,6 +31,9 @@ Features:
 - 10 Clipboards (requires AHK script)   
     Caps+[0]..[9] copies to clipboard #n   
     Tapping Caps + [0]..[9] pastes from clipboard #n  
+- Core commands, triggered with RControl + Caps + {key}  
+    [ESC] Quit capsicain
+    [H] Help - list available commands
 
 
 NOTE: v1..12 was created in capsicain_interception repo. This was a non-VS project, now obsolete except for the history.
