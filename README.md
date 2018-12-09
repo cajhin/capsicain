@@ -2,7 +2,7 @@
 
 C++ tool that uses the Interception driver https://github.com/oblitum/Interception to monitor and modify keypresses, at a very low level.
 
-##Why?
+## Why?
 
 I touch type. I code. US standard layout is the only sane layout for writing C-style code.  
 I need a keyboard setup where I can keep my fingers on the home row all the time.  
@@ -13,7 +13,7 @@ While I'm at it, I like to have standard shortcuts on all my machines to start b
 AutoHotKey is nice, did it for 10 years, but it fails whenever the target gets key input from low level (VMs, RDP, security boxes).  
 KeyTweak works better, but it supports only basic key remapping, and requires a reboot for every change.
 
-##Features
+## Features
 
 - optional basic key remapping   
     Y<>Z (for ze Germans)  
@@ -47,3 +47,10 @@ KeyTweak works better, but it supports only basic key remapping, and requires a 
 NOTE: v1..12 was created in capsicain_interception repo. This was a non-VS project, now obsolete except for the history.
 
 Why the name? This tool defines a lot of CapsLock Hotkeys. 'Capsaicin' is the chemical stuff that makes chilis hot, capsicain just has a better flow to it...
+
+## About Interception  
+This is a signed low-level driver ("keyboard driver upper filter"), another project on github. It must be installed for capsicain to work. It also provides a DLL to interface with the driver (you could access it directly but then maybe every bug kills the keyboard driver stack).  
+The driver does nothing (just forwards all key events from the keyboard driver to the next higher driver) unless a client wants to hook into all keyboard events.    
+The DLL is free and open source, the driver is free but closed source, sources available for $1000 (the guy wants to make some money from commercial projects).  
+
+But but rootkit keylogger exposing all my sekrits? True that. I don't know the source, I don't know the guy, but I sniffed around a bit and decided to trust him. Well, everytime you run a binary with admin priviledges, it can do all this and more.  
