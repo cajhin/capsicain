@@ -207,7 +207,7 @@ int main()
             && (globalState.keysDownReceived[SC_CAPS] && globalState.keysDownReceived[SC_RCONTROL])
             )
         {
-            if (state.scancode == SC_ESCAPE)
+            if (state.scancode == SC_X)  // apple keyboard cannot do RCTRL+CAPS+ESC :(
             {
                 break;  //break the main while() loop, exit
             }
