@@ -163,8 +163,8 @@
       <AdditionalLibraryDirectories>$(ProjectDir)interception;</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy /y /d  "$(ProjectDir)interception\interception.dll" "$(OutDir)"
-xcopy /y /d  "$(OutDir)capsicain.exe" "c:\app\mine\capsicain\"</Command>
+      <Command>xcopy /y /d  "$(ProjectDir)interception.dll" "$(OutDir)"
+xcopy /y /d  "$(OutDir)capsicain.exe" "c:\app\capsicain\"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
