@@ -17,22 +17,9 @@
 
 using namespace std;
 
-string version = "15";
+string version = "16";
 
-enum KEYSTATE
-{
-    KEYSTATE_DOWN = 0,
-    KEYSTATE_UP = 1,
-    KEYSTATE_EXT_DOWN = 2,
-    KEYSTATE_EXT_UP = 3,
-};
 
-enum CREATE_CHARACTER_MODE
-{
-    IBM,   //alt + 123
-    ANSI,  //alt + 0123
-    AHK,   //F14|F15 + char, let AHK handle it
-};
 
 const int MAX_KEYMACRO_LENGTH = 10000;  //for testing; in real life, 100 keys = 200 up/downs should be enough
 
@@ -62,6 +49,7 @@ struct GlobalState
     InterceptionDevice interceptionDevice = NULL;
     string deviceIdKeyboard = "";
     bool deviceIsAppleKeyboard = false;
+	unsigned short bufferedScancode = 0; //hack to evaluate interleaved combos
 } globalState;
 
 struct State
@@ -160,11 +148,6 @@ chrono::steady_clock::time_point timepointNow()
 	return std::chrono::steady_clock::now();
 }
 
-struct {
-	bool isActive = false;
-	InterceptionKeyStroke bufferedStroke;
-} futureKey;
-
 
 int main()
 {
@@ -246,29 +229,53 @@ int main()
         IFDEBUG cout << endl << " [" << hex << state.stroke.code << "/" << hex << state.scancode << " " << state.stroke.information << " " << state.stroke.state << "]";
 
 
-		//Catch fast typed interleaved caps+key.
+		///////////////////////////////////////////////////////////////////////
+		//TODO cleanup
+		//Catch fast typed interleaved caps+key. React to the previous key now that we know what came next.
 		//This is a nasty hack, but buffering doesn't fit into the concept.
-		if (futureKey.isActive)
+		if (globalState.bufferedScancode != 0)
 		{
-			futureKey.isActive = false;
+			IFDEBUG cout << endl << "Processing a buffered scancode: " << hex << globalState.bufferedScancode;
 			state.keyMacroLength = 0;
-			if (futureKey.bufferedStroke.code == SC_O)
+			switch (globalState.bufferedScancode)
+			{
+			case SC_A:
+			{
+				if (state.scancode == SC_A && !state.isDownstroke)
+					createMacroKeyCombo(SC_LCONTROL, SC_Z,0,0);
+				else if (state.scancode == SC_CAPS && !state.isDownstroke)
+					processCapsTapped(SC_A, mode.characterCreationMode);
+				break;
+			}
+			case SC_O:
 			{
 				if (state.scancode == SC_O && !state.isDownstroke)
 					makeBreakKeyMacro(SC_PGUP);
-				else if (state.scancode == SC_CAPS && !state.isDownstroke) //TODO this only does char create mode 1
-				{
-					if (IS_SHIFT_DOWN)
-						createMacroAltNumpad(SC_NUMPAD1, SC_NUMPAD5, SC_NUMPAD3, 0);
-					else
-						createMacroAltNumpad(SC_NUMPAD1, SC_NUMPAD4, SC_NUMPAD8, 0);
-				}
-				playMacro(state.keyMacro, state.keyMacroLength);
+				else if (state.scancode == SC_CAPS && !state.isDownstroke)
+					processCapsTapped(SC_O, mode.characterCreationMode);
+				break;
 			}
-			else
-				IFDEBUG cout << endl << "futureKey discarded";
-			state.keyMacroLength = 0;
+			case SC_U:
+			{
+				if (state.scancode == SC_U && !state.isDownstroke)
+					makeBreakKeyMacro(SC_END);
+				else if (state.scancode == SC_CAPS && !state.isDownstroke)
+					processCapsTapped(SC_U, mode.characterCreationMode);
+				break;
+			}
+			default:
+				IFDEBUG cout << endl << "buffered scancode discarded";
+				break;
+			}
+
+			if (state.keyMacroLength > 0)
+			{
+				playMacro(state.keyMacro, state.keyMacroLength);
+				state.keyMacroLength = 0;
+			}
+			globalState.bufferedScancode = 0;
 		}
+///////////////////////////////////////////////////////////////////////
 
         //CapsLock action: track but never forward 
         if (state.scancode == SC_CAPS) {
@@ -384,8 +391,19 @@ void processLayoutIndependentAction()
             }
             break;
         case SC_A:
-            if (state.isDownstroke)
-                createMacroKeyCombo(SC_LCONTROL, SC_Z, 0, 0);
+			if (state.isDownstroke)
+			{
+				if (millisecondsSince(capsDownTimestamp) > WAIT_FOR_INTERLEAVED_KEYS_MS)
+				{
+					IFDEBUG cout << endl << "Long press: Caps A";
+					createMacroKeyCombo(SC_LCONTROL, SC_Z, 0, 0);
+				}
+				else
+				{
+					IFDEBUG cout << endl << "?Short press: Caps A? (" << dec << millisecondsSince(capsDownTimestamp) << "ms)" << " -> Buffering key...";
+					globalState.bufferedScancode = state.scancode;
+				}
+			}
             break;
         case SC_S:
             if (state.isDownstroke)
@@ -436,15 +454,13 @@ void processLayoutIndependentAction()
 			{
 				if (millisecondsSince(capsDownTimestamp) > WAIT_FOR_INTERLEAVED_KEYS_MS)
 				{
-					IFDEBUG cout << endl << "Clear case: Page Up";
+					IFDEBUG cout << endl << "Long press: Page Up";
 					createMacroKeyCombo10timesIfWinDown(SC_PGUP, 0, 0, 0, state.modifiers);
 				}
 				else
 				{
-					IFDEBUG cout << endl << "?Page Up? (" << dec << millisecondsSince(capsDownTimestamp) << "ms)" << "Creating future key...";
-					futureKey.isActive = true;
-					//when PAGEUP_UP comes next
-					futureKey.bufferedStroke = state.stroke;
+					IFDEBUG cout << endl << "?Short press: Page Up? (" << dec << millisecondsSince(capsDownTimestamp) << "ms)" << " -> Buffering key...";
+					globalState.bufferedScancode = state.scancode;
 				}
 			}
             break;
@@ -461,8 +477,19 @@ void processLayoutIndependentAction()
                 createMacroKeyCombo(SC_HOME, 0, 0, 0);
             break;
         case SC_U:
-            if (state.isDownstroke)
-                createMacroKeyCombo(SC_END, 0, 0, 0);
+			if (state.isDownstroke)
+			{
+				if (millisecondsSince(capsDownTimestamp) > WAIT_FOR_INTERLEAVED_KEYS_MS)
+				{
+					IFDEBUG cout << endl << "Long press: End";
+					createMacroKeyCombo(SC_END, 0, 0, 0);
+				}
+				else
+				{
+					IFDEBUG cout << endl << "?Short press: End? (" << dec << millisecondsSince(capsDownTimestamp) << "ms)" << " -> Buffering key...";
+					globalState.bufferedScancode = state.scancode;
+				}
+			}
             break;
         case SC_N:
             if (state.isDownstroke)
@@ -515,7 +542,7 @@ void processLayoutDependentActions()
         if (state.scancode != SC_LSHIFT && state.scancode != SC_RSHIFT)  //shift does not break the tapped status so I can type äÄ
         {
             if (state.isDownstroke)
-                processCapsTapped();
+                processCapsTapped(state.scancode, mode.characterCreationMode);
             else
             {
                 state.isCapsTapped = false;
@@ -705,7 +732,7 @@ void processCoreCommands()
 void playMacro(InterceptionKeyStroke macro[], int macroLength)
 {
     unsigned int delay = mode.delayBetweenMacroKeysMS;
-    IFDEBUG cout << " -> SEND MACRO (" << macroLength << ")";
+    IFDEBUG cout << " -> PLAY MACRO (" << macroLength << ")";
     for (int i = 0; i < macroLength; i++)
     {
         normalizeKeyStroke(macro[i]);
@@ -955,13 +982,13 @@ void createMacroAltNumpad(unsigned short a, unsigned short b, unsigned short c, 
    3. AHK: Sends F14|F15 + 1 base character. Requires an AHK script that translates these comobos to characters.
    This is Windows only. For Linux, the combo is [Ctrl]+[Shift]+[U] , {unicode E4 is ö} , [Enter]
 */
-void processCapsTapped()
+void processCapsTapped(unsigned short scancd, CREATE_CHARACTER_MODE charCrtMode)
 {
     bool shiftXorCaps = IS_SHIFT_DOWN != ((GetKeyState(VK_CAPITAL) & 0x0001) != 0);
 
-    if (mode.characterCreationMode == IBM)
+    if (charCrtMode == IBM)
     {
-        switch (state.scancode)
+        switch (scancd)
         {
         case SC_O:
             if (shiftXorCaps)
@@ -1037,9 +1064,9 @@ void processCapsTapped()
         }
         }
     }
-    else if (mode.characterCreationMode == ANSI)
+    else if (charCrtMode == ANSI)
     {
-        switch (state.scancode)
+        switch (scancd)
         {
         case SC_O:
             if (shiftXorCaps)
@@ -1070,27 +1097,27 @@ void processCapsTapped()
             break;
         }
     }
-    else if (mode.characterCreationMode == AHK)
+    else if (charCrtMode == AHK)
     {
-        switch (state.scancode)
+        switch (scancd)
         {
         case SC_A:
         case SC_O:
         case SC_U:
-            createMacroKeyCombo(shiftXorCaps ? AHK_HOTKEY2 : AHK_HOTKEY1, state.scancode, 0, 0);
+            createMacroKeyCombo(shiftXorCaps ? AHK_HOTKEY2 : AHK_HOTKEY1, scancd, 0, 0);
             break;
         case SC_S:
         case SC_E:
         case SC_D:
         case SC_C:
-            createMacroKeyCombo(AHK_HOTKEY1, state.scancode, 0, 0);
+            createMacroKeyCombo(AHK_HOTKEY1, scancd, 0, 0);
             break;
         }
     }
 
     if (state.keyMacroLength == 0)
     {
-        switch (state.scancode) {
+        switch (scancd) {
         case SC_0:
         case SC_1:
         case SC_2:
@@ -1101,7 +1128,7 @@ void processCapsTapped()
         case SC_7:
         case SC_8:
         case SC_9:
-            createMacroKeyCombo(AHK_HOTKEY2, state.scancode, 0, 0);
+            createMacroKeyCombo(AHK_HOTKEY2, scancd, 0, 0);
             break;
         }
     }

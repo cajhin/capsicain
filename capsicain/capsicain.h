@@ -1,3 +1,18 @@
+enum KEYSTATE
+{
+	KEYSTATE_DOWN = 0,
+	KEYSTATE_UP = 1,
+	KEYSTATE_EXT_DOWN = 2,
+	KEYSTATE_EXT_UP = 3,
+};
+
+enum CREATE_CHARACTER_MODE
+{
+	IBM,   //alt + 123
+	ANSI,  //alt + 0123
+	AHK,   //F14|F15 + char, let AHK handle it
+}; 
+
 void makeKeyMacro(unsigned short scancode);
 void breakKeyMacro(unsigned short scancode);
 void makeBreakKeyMacro(unsigned short scancode);
@@ -8,7 +23,7 @@ void createMacroKeyCombo10timesIfWinDown(int a, int b, int c, int d, unsigned sh
 void createMacroKeyComboNtimes(int a, int b, int c, int d, int repeat);
 
 void createMacroAltNumpad(unsigned short a, unsigned short b, unsigned short c, unsigned short d);
-void processCapsTapped();
+void processCapsTapped(unsigned short scancd, CREATE_CHARACTER_MODE charCrtMode);
 
 void playMacro(InterceptionKeyStroke macro[], int macroLength);
 
