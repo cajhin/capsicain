@@ -280,7 +280,7 @@ int main()
         //CapsLock action: track but never forward 
         if (state.scancode == SC_CAPS) {
 			if (state.isDownstroke)
-				cout << endl << "CAPS DOWN";
+				IFDEBUG cout << endl << "CAPS DOWN";
 			else
 			{
 				if (state.previousStroke.code == SC_CAPS)
