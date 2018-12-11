@@ -1,5 +1,6 @@
 #include "pch.h"
 #include <iostream>
+#include <chrono>
 
 //TODO 
 //alt + cursor = 10
@@ -16,7 +17,7 @@
 
 using namespace std;
 
-string version = "14";
+string version = "15";
 
 enum KEYSTATE
 {
@@ -37,6 +38,7 @@ const int MAX_KEYMACRO_LENGTH = 10000;  //for testing; in real life, 100 keys = 
 
 const int DEFAULT_DELAY_SENDMACRO = 5;  //local needs ~1ms, Linux VM 5+ms, RDP fullscreen 10+ for 100% reliable keystroke detection
 const int DELAY_FOR_AHK = 100;
+const int WAIT_FOR_INTERLEAVED_KEYS_MS = 200;  //when caps_down, key_down, caps_up, key_up : some keys wait for the next event
 
 const unsigned short AHK_HOTKEY1 = SC_F14;  //this key triggers supporting AHK script
 const unsigned short AHK_HOTKEY2 = SC_F15;
@@ -144,6 +146,26 @@ void PrintHello()
     cout << endl << endl << "capsicain running..." << endl;
 }
 
+
+//catch fast interleaved typed ö
+chrono::steady_clock::time_point capsDownTimestamp;
+chrono::steady_clock::time_point timestamp;
+
+unsigned int millisecondsSince(chrono::steady_clock::time_point timepoint)
+{
+	return (int)chrono::duration_cast<chrono::milliseconds>(std::chrono::steady_clock::now() - timepoint).count();
+}
+chrono::steady_clock::time_point timepointNow()
+{
+	return std::chrono::steady_clock::now();
+}
+
+struct {
+	bool isActive = false;
+	InterceptionKeyStroke bufferedStroke;
+} futureKey;
+
+
 int main()
 {
     SetModeDefaults();
@@ -152,7 +174,7 @@ int main()
     SetupConsoleWindow();
 
     Sleep(700); //time to release shortcut keys that started capsicain
-    raise_process_priority(); //careful: if we spam key events, other processes get no timeslots to process them. Sleep a bit...
+	raise_process_priority(); //careful: if we spam key events, other processes get no timeslots to process them. Sleep a bit...
 
     globalState.interceptionContext = interception_create_context();
     interception_set_filter(globalState.interceptionContext, interception_is_keyboard, INTERCEPTION_FILTER_KEY_ALL);
@@ -180,8 +202,8 @@ int main()
             cout << endl << (globalState.deviceIsAppleKeyboard ? "APPLE keyboard" : "IBM keyboard (flipping Win<>Alt)");
         }
 
-        //evaluate and normalize the stroke
-        state.isDownstroke = (state.stroke.state & 1) == 1 ? false : true;
+        //evaluate and normalize the stroke         
+		state.isDownstroke = (state.stroke.state & 1) == 1 ? false : true;
         state.isExtendedCode = (state.stroke.state & 2) == 2;
 
         if (state.stroke.code > 0xFF)
@@ -207,7 +229,7 @@ int main()
             && (globalState.keysDownReceived[SC_CAPS] && globalState.keysDownReceived[SC_RCONTROL])
             )
         {
-            if (state.scancode == SC_X)  // apple keyboard cannot do RCTRL+CAPS+ESC :(
+            if (state.scancode == SC_Q)  // apple keyboard cannot do RCTRL+CAPS+ESC, Dell cant do ctrl-caps-x :(
             {
                 break;  //break the main while() loop, exit
             }
@@ -223,11 +245,49 @@ int main()
 
         IFDEBUG cout << endl << " [" << hex << state.stroke.code << "/" << hex << state.scancode << " " << state.stroke.information << " " << state.stroke.state << "]";
 
+
+		//Catch fast typed interleaved caps+key.
+		//This is a nasty hack, but buffering doesn't fit into the concept.
+		if (futureKey.isActive)
+		{
+			futureKey.isActive = false;
+			state.keyMacroLength = 0;
+			if (futureKey.bufferedStroke.code == SC_O)
+			{
+				if (state.scancode == SC_O && !state.isDownstroke)
+					makeBreakKeyMacro(SC_PGUP);
+				else if (state.scancode == SC_CAPS && !state.isDownstroke) //TODO this only does char create mode 1
+				{
+					if (IS_SHIFT_DOWN)
+						createMacroAltNumpad(SC_NUMPAD1, SC_NUMPAD5, SC_NUMPAD3, 0);
+					else
+						createMacroAltNumpad(SC_NUMPAD1, SC_NUMPAD4, SC_NUMPAD8, 0);
+				}
+				playMacro(state.keyMacro, state.keyMacroLength);
+			}
+			else
+				IFDEBUG cout << endl << "futureKey discarded";
+			state.keyMacroLength = 0;
+		}
+
         //CapsLock action: track but never forward 
         if (state.scancode == SC_CAPS) {
-            processCaps();
+			if (state.isDownstroke)
+				cout << endl << "CAPS DOWN";
+			else
+			{
+				if (state.previousStroke.code == SC_CAPS)
+					IFDEBUG cout << endl << "CAPS Tap Time = " << dec << millisecondsSince(capsDownTimestamp);
+				else
+					IFDEBUG cout << endl << "CAPS Down Time = " << dec << millisecondsSince(capsDownTimestamp);
+			}
+			processCaps();
             continue;
         }
+		else
+		{
+			IFDEBUG cout << endl << "Time since capsdown= " << dec << millisecondsSince(capsDownTimestamp);
+		}
 
         //process the key stroke
         processRemapModifiers();
@@ -242,7 +302,8 @@ int main()
             processLayoutDependentActions();
 
         sendResultingKeyOrMacro();
-    }
+		state.previousStroke = state.stroke;
+	}
 
     interception_destroy_context(globalState.interceptionContext);
 
@@ -254,6 +315,7 @@ void processCaps()
 {
     if (state.isDownstroke) {
         state.isCapsDown = true;
+		capsDownTimestamp = timepointNow();
     }
     else
     {
@@ -270,10 +332,9 @@ void processCaps()
 
 void sendResultingKeyOrMacro()
 {
-    state.previousStroke = state.stroke;
     if (state.keyMacroLength > 0)
     {
-        playMacro();
+        playMacro(state.keyMacro, state.keyMacroLength);
     }
     else
     {
@@ -371,8 +432,21 @@ void processLayoutIndependentAction()
                 createMacroKeyCombo10timesIfWinDown(SC_UP, 0, 0, 0, state.modifiers);
             break;
         case SC_O:
-            if (state.isDownstroke)
-                createMacroKeyCombo10timesIfWinDown(SC_PGUP, 0, 0, 0, state.modifiers);
+			if (state.isDownstroke)
+			{
+				if (millisecondsSince(capsDownTimestamp) > WAIT_FOR_INTERLEAVED_KEYS_MS)
+				{
+					IFDEBUG cout << endl << "Clear case: Page Up";
+					createMacroKeyCombo10timesIfWinDown(SC_PGUP, 0, 0, 0, state.modifiers);
+				}
+				else
+				{
+					IFDEBUG cout << endl << "?Page Up? (" << dec << millisecondsSince(capsDownTimestamp) << "ms)" << "Creating future key...";
+					futureKey.isActive = true;
+					//when PAGEUP_UP comes next
+					futureKey.bufferedStroke = state.stroke;
+				}
+			}
             break;
         case SC_SEMICOLON:
             if (state.isDownstroke)
@@ -628,16 +702,16 @@ void processCoreCommands()
     }
 }
 
-void playMacro()
+void playMacro(InterceptionKeyStroke macro[], int macroLength)
 {
     unsigned int delay = mode.delayBetweenMacroKeysMS;
-    IFDEBUG cout << " -> SEND MACRO (" << state.keyMacroLength << ")";
-    for (int i = 0; i < state.keyMacroLength; i++)
+    IFDEBUG cout << " -> SEND MACRO (" << macroLength << ")";
+    for (int i = 0; i < macroLength; i++)
     {
-        normalizeKeyStroke(state.keyMacro[i]);
-        IFDEBUG cout << " " << state.keyMacro[i].code << ":" << state.keyMacro[i].state;
-        sendStroke(state.keyMacro[i]);
-        if (state.keyMacro[i].code == AHK_HOTKEY1 || state.keyMacro[i].code == AHK_HOTKEY2)
+        normalizeKeyStroke(macro[i]);
+        IFDEBUG cout << " " << macro[i].code << ":" << macro[i].state;
+        sendStroke(macro[i]);
+        if (macro[i].code == AHK_HOTKEY1 || macro[i].code == AHK_HOTKEY2)
             delay = DELAY_FOR_AHK;
         Sleep(delay);  //local sys needs ~1ms, RDP fullscreen ~3 ms delay so they can keep up with macro key action
     }
@@ -728,6 +802,12 @@ void scancode2stroke(unsigned short &scancode, InterceptionKeyStroke &istroke)
         istroke.state &= 0xFD;
     }
 }
+void stroke2scancode(InterceptionKeyStroke &istroke, unsigned short &scancode)
+{
+	scancode = istroke.code;
+	if ((istroke.state & 2) == 2)
+		scancode |= 0x80;
+}
 
 void sendStroke(InterceptionKeyStroke stroke)
 {
@@ -765,7 +845,7 @@ void reset()
     breakKeyMacro(AHK_HOTKEY1);
     breakKeyMacro(AHK_HOTKEY2);
 
-    playMacro();
+    playMacro(state.keyMacro, state.keyMacroLength);
 }
 
 

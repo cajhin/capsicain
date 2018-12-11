@@ -10,7 +10,7 @@ void createMacroKeyComboNtimes(int a, int b, int c, int d, int repeat);
 void createMacroAltNumpad(unsigned short a, unsigned short b, unsigned short c, unsigned short d);
 void processCapsTapped();
 
-void playMacro();
+void playMacro(InterceptionKeyStroke macro[], int macroLength);
 
 void processCoreCommands();
 void processRemapModifiers();
@@ -27,6 +27,8 @@ void sendResultingKeyOrMacro();
 void processLayoutDependentActions();
 
 void scancode2stroke(unsigned short &scancode, InterceptionKeyStroke &istroke);
+void stroke2scancode(InterceptionKeyStroke &stroke, unsigned short &scancode);
+
 void normalizeKeyStroke(InterceptionKeyStroke &istroke);
 void getHardwareId();
 void sendStroke(InterceptionKeyStroke stroke);
