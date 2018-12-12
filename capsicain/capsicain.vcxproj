@@ -170,12 +170,15 @@ xcopy /y /d  "$(OutDir)capsicain.exe" "c:\app\capsicain\"</Command>
   <ItemGroup>
     <ClInclude Include="capsicain.h" />
     <ClInclude Include="interception.h" />
+    <ClInclude Include="mappings.h" />
     <ClInclude Include="pch.h" />
+    <ClInclude Include="reference\WINUSER.H" />
     <ClInclude Include="scancodes.h" />
     <ClInclude Include="utils.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="capsicain.cpp" />
+    <ClCompile Include="mappings.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
@@ -192,6 +195,9 @@ xcopy /y /d  "$(OutDir)capsicain.exe" "c:\app\capsicain\"</Command>
   </ItemGroup>
   <ItemGroup>
     <Image Include="capslock.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="layoutTest.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

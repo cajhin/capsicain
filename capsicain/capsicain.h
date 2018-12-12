@@ -19,7 +19,7 @@ void makeBreakKeyMacro(unsigned short scancode);
 
 void createMacroKeyCombo(int a, int b, int c, int d);
 void createMacroKeyComboRemoveShift(int a, int b, int c, int d);
-void createMacroKeyCombo10timesIfWinDown(int a, int b, int c, int d, unsigned short modifiers);
+void createMacroKeyCombo10timesIfAltDown(int a, int b, int c, int d, unsigned short modifiers);
 void createMacroKeyComboNtimes(int a, int b, int c, int d, int repeat);
 
 void createMacroAltNumpad(unsigned short a, unsigned short b, unsigned short c, unsigned short d);
@@ -31,12 +31,12 @@ void processCoreCommands();
 void processRemapModifiers();
 void processTrackModifierState();
 void processLayoutIndependentAction();
-void processRemapCharacterLayout();
 
 void PrintHello();
 
 void processCaps();
 
+void sendStroke(InterceptionKeyStroke stroke);
 void sendResultingKeyOrMacro();
 
 void processLayoutDependentActions();
@@ -46,7 +46,6 @@ void stroke2scancode(InterceptionKeyStroke &stroke, unsigned short &scancode);
 
 void normalizeKeyStroke(InterceptionKeyStroke &istroke);
 void getHardwareId();
-void sendStroke(InterceptionKeyStroke stroke);
 
 void printStatus();
 void printHelp();

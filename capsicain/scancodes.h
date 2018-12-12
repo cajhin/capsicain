@@ -6,7 +6,7 @@
 
 //! Keyboard scan codes
 enum ScanCode {
-    SC_UNASSIGNED = 0x00,
+    SC_NOP = 0x00,  //unassigned, unknonw, NoOPeration
     SC_ESCAPE = 0x01,
     SC_1 = 0x02,
     SC_2 = 0x03,
@@ -32,10 +32,10 @@ enum ScanCode {
     SC_I = 0x17,
     SC_O = 0x18,
     SC_P = 0x19,
-    SC_LBRACKET = 0x1A,
-    SC_RBRACKET = 0x1B,
+    SC_LBRACK = 0x1A, // left bracket [
+    SC_RBRACK = 0x1B,
     SC_RETURN = 0x1C, // Enter on main keyboard
-    SC_LCONTROL = 0x1D,
+    SC_LCTRL = 0x1D,
     SC_A = 0x1E,
     SC_S = 0x1F,
     SC_D = 0x20,
@@ -45,11 +45,11 @@ enum ScanCode {
     SC_J = 0x24,
     SC_K = 0x25,
     SC_L = 0x26,
-    SC_SEMICOLON = 0x27,
-    SC_APOSTROPHE = 0x28,
-    SC_GRAVE = 0x29, // accent
+    SC_SEMI = 0x27,  // semicolon ;
+    SC_APOS = 0x28,  // apostrophe '
+    SC_GRAVE = 0x29, // accent `
     SC_LSHIFT = 0x2A,
-    SC_BACKSLASH = 0x2B,
+    SC_BSLASH = 0x2B,
     SC_Z = 0x2C,
     SC_X = 0x2D,
     SC_C = 0x2E,
@@ -61,7 +61,7 @@ enum ScanCode {
     SC_DOT = 0x34, // . on main keyboard
     SC_SLASH = 0x35, // / on main keyboard
     SC_RSHIFT = 0x36,
-    SC_MULTIPLY = 0x37, // * on numeric keypad
+    SC_MULT = 0x37, // * on numeric keypad
     SC_LALT = 0x38, // left Alt
     SC_SPACE = 0x39,
     SC_CAPS = 0x3A,
@@ -75,21 +75,21 @@ enum ScanCode {
     SC_F8 = 0x42,
     SC_F9 = 0x43,
     SC_F10 = 0x44,
-    SC_NUMLOCK = 0x45,
-    SC_SCROLL = 0x46, // Scroll Lock
-    SC_NUMPAD7 = 0x47,
-    SC_NUMPAD8 = 0x48,
-    SC_NUMPAD9 = 0x49,
-    SC_SUBTRACT = 0x4A, // - on numeric keypad
-    SC_NUMPAD4 = 0x4B,
-    SC_NUMPAD5 = 0x4C,
-    SC_NUMPAD6 = 0x4D,
+    SC_NUMLOCK = 0x45, // also, 1dv 45v 1d^ 45^ is [Pause]
+    SC_SCRLOCK = 0x46, // Scroll Lock
+    SC_NP7 = 0x47,
+    SC_NP8 = 0x48,
+    SC_NP9 = 0x49,
+    SC_NPSUBT = 0x4A, // - on numeric keypad
+    SC_NP4 = 0x4B,
+    SC_NP5 = 0x4C,
+    SC_NP6 = 0x4D,
     SC_ADD = 0x4E, // + on numeric keypad
-    SC_NUMPAD1 = 0x4F,
-    SC_NUMPAD2 = 0x50,
-    SC_NUMPAD3 = 0x51,
-    SC_NUMPAD0 = 0x52,
-    SC_NUMPAD_DOT = 0x53, // . on numeric keypad
+    SC_NP1 = 0x4F,
+    SC_NP2 = 0x50,
+    SC_NP3 = 0x51,
+    SC_NP0 = 0x52,
+    SC_NPDOT = 0x53, // . on numeric keypad
     SC_LBSLASH = 0x56, //  Left BackSlash \  or < > |  right of left shift on UK/Germany keyboards
     SC_F11 = 0x57,
     SC_F12 = 0x58,
@@ -102,7 +102,7 @@ enum ScanCode {
     SC_NOCONVERT = 0x7B, // (Japanese keyboard)
     SC_YEN = 0x7D, // (Japanese keyboard)
     SC_ABNT_C2 = 0x7E, // Numpad . on Portugese (Brazilian) keyboards
-    SC_NUMPADEQUALS = 0x8D, // = on numeric keypad (NEC PC98)
+    SC_NPEQUALS = 0x8D, // = on numeric keypad (NEC PC98)
     SC_PREVTRACK = 0x90, // Previous Track (SC_CIRCUMFLEX on Japanese keyboard)
     SC_AT = 0x91, //                     (NEC PC98)
     SC_COLON = 0x92, //                     (NEC PC98)
@@ -112,7 +112,7 @@ enum ScanCode {
     SC_AX = 0x96, //                     (Japan AX)
     SC_UNLABELED = 0x97, //                        (J3100)
     SC_NEXTTRACK = 0x99, // Next Track
-    SC_NUMPADENTER = 0x9C, // Enter on numeric keypad
+    SC_NPENTER = 0x9C, // Enter on numeric keypad
     SC_RCONTROL = 0x9D,
     SC_MUTE = 0xA0, // Mute
     SC_CALCULATOR = 0xA1, // Calculator
@@ -124,7 +124,7 @@ enum ScanCode {
     SC_WEBHOME = 0xB2, // Web home
     SC_NUMPADCOMMA = 0xB3, // , on numeric keypad (NEC PC98)
     SC_DIVIDE = 0xB5, // / on numeric keypad
-    SC_SYSRQ = 0xB7,
+    SC_SYSRQ = 0xB7,  // Print, sends Shift+Print 2A B7
     SC_RALT = 0xB8, // right Alt
     SC_PAUSE = 0xC5, // Pause
     SC_HOME = 0xC7, // Home on arrow keypad

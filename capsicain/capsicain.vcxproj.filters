@@ -30,6 +30,12 @@
     <ClInclude Include="interception.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="reference\WINUSER.H">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="mappings.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -39,6 +45,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="utils.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="mappings.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -51,5 +60,8 @@
     <Image Include="capslock.ico">
       <Filter>Resource Files</Filter>
     </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="layoutTest.txt" />
   </ItemGroup>
 </Project>

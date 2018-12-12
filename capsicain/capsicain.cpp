@@ -12,12 +12,13 @@
 #include "interception.h"
 #include "utils.h"
 
-#include "scancodes.h"
 #include "capsicain.h"
+#include "scancodes.h"
+#include "mappings.h"
 
 using namespace std;
 
-string version = "16";
+string version = "17";
 
 
 
@@ -79,7 +80,7 @@ void error(string txt)
 void SetModeDefaults()
 {
     mode.debug = false;
-    mode.activeLayer = 1;
+    mode.activeLayer = 2;
     mode.characterCreationMode = IBM;
     mode.delayBetweenMacroKeysMS = DEFAULT_DELAY_SENDMACRO;  //AHK drops keys when they are sent too fast
     mode.slashShift = true;
@@ -126,8 +127,8 @@ void SetupConsoleWindow()
 void PrintHello()
 {
     cout << "Capsicain v" << version << endl << endl
-        << "[LCTRL] + [CAPS] + [ESC] to stop." << endl
-        << "[LCTRL] + [CAPS] + [H] for Help";
+        << "[ESC] + [CAPS] + [Q] to stop." << endl
+        << "[ESC] + [CAPS] + [P] for Help";
 
     cout << endl << endl << (mode.slashShift ? "ON :" : "OFF:") << "Slashes -> Shift ";
     cout << endl << (mode.flipZy ? "ON :" : "OFF:") << "Z<->Y ";
@@ -181,8 +182,8 @@ int main()
         {
             cout << endl << "detecting keyboard...";
             getHardwareId();
-            mode.flipAltWin = !globalState.deviceIsAppleKeyboard;
-            cout << endl << (globalState.deviceIsAppleKeyboard ? "APPLE keyboard" : "IBM keyboard (flipping Win<>Alt)");
+            mode.flipAltWin = globalState.deviceIsAppleKeyboard;
+            cout << endl << (globalState.deviceIsAppleKeyboard ? "APPLE keyboard (flipping Win<>Alt)" : "IBM keyboard");
         }
 
         //evaluate and normalize the stroke         
@@ -206,13 +207,19 @@ int main()
 
         globalState.keysDownReceived[state.scancode] = state.isDownstroke;
 
-        //command stroke: RCTRL + CAPS + stroke
+        //command stroke: ESC + CAPS + stroke
+		// some major key shadowing here...
+		// - cherry is good
+		// - apple keyboard cannot do RCTRL+CAPS+ESC and Caps shadows the entire row a-s-d-f-g-....
+		// - Dell cant do ctrl-caps-x
+		// - Cypher has no RControl... :(
+		// - HP shadows the 2-w-s-x and 3-e-d-c lines
         if (state.isDownstroke
-            && (state.scancode != SC_CAPS && state.scancode != SC_RCONTROL)
-            && (globalState.keysDownReceived[SC_CAPS] && globalState.keysDownReceived[SC_RCONTROL])
+            && (state.scancode != SC_CAPS && state.scancode != SC_ESCAPE)
+            && (globalState.keysDownReceived[SC_CAPS] && globalState.keysDownReceived[SC_ESCAPE])
             )
         {
-            if (state.scancode == SC_Q)  // apple keyboard cannot do RCTRL+CAPS+ESC, Dell cant do ctrl-caps-x :(
+            if (state.scancode == SC_Q)  
             {
                 break;  //break the main while() loop, exit
             }
@@ -242,7 +249,7 @@ int main()
 			case SC_A:
 			{
 				if (state.scancode == SC_A && !state.isDownstroke)
-					createMacroKeyCombo(SC_LCONTROL, SC_Z,0,0);
+					createMacroKeyCombo(SC_LCTRL, SC_Z,0,0);
 				else if (state.scancode == SC_CAPS && !state.isDownstroke)
 					processCapsTapped(SC_A, mode.characterCreationMode);
 				break;
@@ -302,9 +309,20 @@ int main()
         IFDEBUG cout << " [" << hex << state.modifiers << (state.isCapsDown ? " C" : " _") << (state.isCapsTapped ? "T" : "_") << "] ";
 
         if (!state.isFinalScancode)
-            processLayoutIndependentAction();
-        if (!state.isFinalScancode)
-            processRemapCharacterLayout();
+            processLayoutIndependentAction();  //like caps+J
+
+		if (!state.isFinalScancode && !IS_LCONTROL_DOWN) //basic char layout. Don't remap the Ctrl combos?
+		{
+			switch(mode.activeLayer)
+			{
+			case 2:
+				map_Qwerty_Qwertz(state.scancode);
+				break;
+			case 3: 
+				map_Qwerty_WorkmanJ(state.scancode);
+				break;
+			}
+		}
         if (!state.isFinalScancode)
             processLayoutDependentActions();
 
@@ -358,20 +376,6 @@ void sendResultingKeyOrMacro()
             }
     }
 }
-void processRemapCharacterLayout()
-{
-    switch (state.scancode)
-    {
-    case SC_Z:
-        if (mode.flipZy && !IS_LCONTROL_DOWN) //do not remap LCTRL+Z/Y (undo/redo)
-            state.scancode = SC_Y;
-        break;
-    case SC_Y:
-        if (mode.flipZy && !IS_LCONTROL_DOWN)
-            state.scancode = SC_Z;
-        break;
-    }
-}
 
 void processLayoutIndependentAction()
 {
@@ -385,9 +389,9 @@ void processLayoutIndependentAction()
         case SC_BACK:
             if (state.isDownstroke) {
                 if (IS_SHIFT_DOWN)
-                    createMacroKeyComboRemoveShift(SC_LCONTROL, SC_Y, 0, 0);
+                    createMacroKeyComboRemoveShift(SC_LCTRL, SC_Y, 0, 0);
                 else
-                    createMacroKeyCombo(SC_LCONTROL, SC_Z, 0, 0);
+                    createMacroKeyCombo(SC_LCTRL, SC_Z, 0, 0);
             }
             break;
         case SC_A:
@@ -396,7 +400,7 @@ void processLayoutIndependentAction()
 				if (millisecondsSince(capsDownTimestamp) > WAIT_FOR_INTERLEAVED_KEYS_MS)
 				{
 					IFDEBUG cout << endl << "Long press: Caps A";
-					createMacroKeyCombo(SC_LCONTROL, SC_Z, 0, 0);
+					createMacroKeyCombo(SC_LCTRL, SC_Z, 0, 0);
 				}
 				else
 				{
@@ -407,25 +411,25 @@ void processLayoutIndependentAction()
             break;
         case SC_S:
             if (state.isDownstroke)
-                createMacroKeyCombo(SC_LCONTROL, SC_X, 0, 0);
+                createMacroKeyCombo(SC_LCTRL, SC_X, 0, 0);
             break;
         case SC_D:
             if (state.isDownstroke)
-                createMacroKeyCombo(SC_LCONTROL, SC_C, 0, 0);
+                createMacroKeyCombo(SC_LCTRL, SC_C, 0, 0);
             break;
         case SC_F:
             if (state.isDownstroke)
-                createMacroKeyCombo(SC_LCONTROL, SC_V, 0, 0);
+                createMacroKeyCombo(SC_LCTRL, SC_V, 0, 0);
             break;
         case SC_P:
             if (state.isDownstroke)
                 createMacroKeyCombo(SC_NUMLOCK, 0, 0, 0);
             break;
-        case SC_LBRACKET:
+        case SC_LBRACK:
             if (state.isDownstroke)
-                createMacroKeyCombo(SC_SCROLL, 0, 0, 0);
+                createMacroKeyCombo(SC_SCRLOCK, 0, 0, 0);
             break;
-        case SC_RBRACKET:
+        case SC_RBRACK:
             if (state.isDownstroke)
                 createMacroKeyCombo(SC_SYSRQ, 0, 0, 0);
             break;
@@ -435,19 +439,19 @@ void processLayoutIndependentAction()
             break;
         case SC_J:
             if (state.isDownstroke)
-                createMacroKeyCombo10timesIfWinDown(SC_LEFT, 0, 0, 0, state.modifiers);
+                createMacroKeyCombo10timesIfAltDown(SC_LEFT, 0, 0, 0, state.modifiers);
             break;
         case SC_L:
             if (state.isDownstroke)
-                createMacroKeyCombo10timesIfWinDown(SC_RIGHT, 0, 0, 0, state.modifiers);
+				createMacroKeyCombo10timesIfAltDown(SC_RIGHT, 0, 0, 0, state.modifiers);
             break;
         case SC_K:
             if (state.isDownstroke)
-                createMacroKeyCombo10timesIfWinDown(SC_DOWN, 0, 0, 0, state.modifiers);
+				createMacroKeyCombo10timesIfAltDown(SC_DOWN, 0, 0, 0, state.modifiers);
             break;
         case SC_I:
             if (state.isDownstroke)
-                createMacroKeyCombo10timesIfWinDown(SC_UP, 0, 0, 0, state.modifiers);
+				createMacroKeyCombo10timesIfAltDown(SC_UP, 0, 0, 0, state.modifiers);
             break;
         case SC_O:
 			if (state.isDownstroke)
@@ -455,7 +459,7 @@ void processLayoutIndependentAction()
 				if (millisecondsSince(capsDownTimestamp) > WAIT_FOR_INTERLEAVED_KEYS_MS)
 				{
 					IFDEBUG cout << endl << "Long press: Page Up";
-					createMacroKeyCombo10timesIfWinDown(SC_PGUP, 0, 0, 0, state.modifiers);
+					createMacroKeyCombo10timesIfAltDown(SC_PGUP, 0, 0, 0, state.modifiers);
 				}
 				else
 				{
@@ -464,13 +468,13 @@ void processLayoutIndependentAction()
 				}
 			}
             break;
-        case SC_SEMICOLON:
+        case SC_SEMI:
             if (state.isDownstroke)
                 createMacroKeyCombo(SC_DELETE, 0, 0, 0);
             break;
         case SC_DOT:
             if (state.isDownstroke)
-                createMacroKeyCombo10timesIfWinDown(SC_PGDOWN, 0, 0, 0, state.modifiers);
+				createMacroKeyCombo10timesIfAltDown(SC_PGDOWN, 0, 0, 0, state.modifiers);
             break;
         case SC_Y:
             if (state.isDownstroke)
@@ -493,11 +497,11 @@ void processLayoutIndependentAction()
             break;
         case SC_N:
             if (state.isDownstroke)
-                createMacroKeyCombo10timesIfWinDown(SC_LCONTROL, SC_LEFT, 0, 0, state.modifiers);
+				createMacroKeyCombo10timesIfAltDown(SC_LCTRL, SC_LEFT, 0, 0, state.modifiers);
             break;
         case SC_M:
             if (state.isDownstroke)
-                createMacroKeyCombo10timesIfWinDown(SC_LCONTROL, SC_RIGHT, 0, 0, state.modifiers);
+				createMacroKeyCombo10timesIfAltDown(SC_LCTRL, SC_RIGHT, 0, 0, state.modifiers);
             break;
         case SC_0:
         case SC_1:
@@ -526,7 +530,7 @@ void processLayoutIndependentAction()
                 state.scancode = SC_BACK;
                 state.isFinalScancode = true;
                 break;
-            case SC_BACKSLASH:
+            case SC_BSLASH:
                 state.scancode = SC_SLASH;
                 state.isFinalScancode = true;
                 break;
@@ -576,29 +580,29 @@ void processTrackModifierState()
         else
             state.modifiers &= ~BITMASK_RSHIFT;
         break;
-    case SC_LALT:
-        state.isDownstroke ? state.modifiers |= BITMASK_LALT : state.modifiers &= ~BITMASK_LALT;
+    case SC_LWIN:
+        state.isDownstroke ? state.modifiers |= BITMASK_LWIN : state.modifiers &= ~BITMASK_LWIN;
         break;
     case SC_RALT:
         state.isDownstroke ? state.modifiers |= BITMASK_RALT : state.modifiers &= ~BITMASK_RALT;
         break;
-    case SC_LCONTROL:
+    case SC_LCTRL:
         state.isDownstroke ? state.modifiers |= BITMASK_LCONTROL : state.modifiers &= ~BITMASK_LCONTROL;
         break;
     case SC_RCONTROL:
         state.isDownstroke ? state.modifiers |= BITMASK_RCONTROL : state.modifiers &= ~BITMASK_RCONTROL;
         break;
-    case SC_LWIN:  //suppress LWIN in CAPS+LWIN combos
+    case SC_LALT:  //suppress LALT in CAPS+LALT combos
         if (state.isDownstroke)
         {
-            if (IS_LWIN_DOWN || state.isCapsDown)
+            if (IS_LALT_DOWN || state.isCapsDown)
                 state.blockKey = true;
-            state.modifiers |= BITMASK_LWIN;
+            state.modifiers |= BITMASK_LALT;
         }
         else
         {
-            if (IS_LWIN_DOWN)
-                state.modifiers &= ~BITMASK_LWIN;
+            if (IS_LALT_DOWN)
+                state.modifiers &= ~BITMASK_LALT;
             else
                 state.blockKey = true;
         }
@@ -622,17 +626,17 @@ void processRemapModifiers()
         if (mode.slashShift && !state.isCapsDown)
             state.scancode = SC_RSHIFT;
         break;
-    case SC_LWIN:
+    case SC_LALT:
         if (mode.flipAltWin)
-            state.scancode = SC_LALT;
+            state.scancode = SC_LWIN;
         break;
     case SC_RWIN:
         if (mode.flipAltWin)
             state.scancode = SC_RALT;
         break;
-    case SC_LALT:
+    case SC_LWIN:
         if (mode.flipAltWin)
-            state.scancode = SC_LWIN;
+            state.scancode = SC_LALT;
         break;
     case SC_RALT:
         if (mode.flipAltWin)
@@ -651,16 +655,20 @@ void processCoreCommands()
     {
     case SC_0:
         mode.activeLayer = 0;
-        cout << "LAYER 0 active";
+        cout << "LAYER 0: No changes at all (except core commands)";
         break;
     case SC_1:
         mode.activeLayer = 1;
-        cout << "LAYER 1 active";
+        cout << "LAYER 1: No layout changes";
         break;
-    case SC_2:
-        mode.activeLayer = 2;
-        cout << "LAYER 2 active";
-        break;
+	case SC_2:
+		mode.activeLayer = 2;
+		cout << "LAYER 2: QWERTZ on US keyboard";
+		break;
+	case SC_3:
+		mode.activeLayer = 3;
+		cout << "LAYER 3: WorkmanJ";
+		break;
     case SC_R:
         reset();
         state.isCapsDown = false;
@@ -669,7 +677,7 @@ void processCoreCommands()
         mode.flipAltWin = !globalState.deviceIsAppleKeyboard;
         cout << "RESET" << endl << (globalState.deviceIsAppleKeyboard ? "APPLE keyboard" : "PC keyboard (flipping Win<>Alt)");
         break;
-    case SC_D:
+    case SC_B:
         mode.debug = !mode.debug;
         cout << "DEBUG mode: " << (mode.debug ? "ON" : "OFF");
         break;
@@ -681,20 +689,20 @@ void processCoreCommands()
         mode.flipZy = !mode.flipZy;
         cout << "Flip Z<>Y mode: " << (mode.flipZy ? "ON" : "OFF");
         break;
-    case SC_W:
+    case SC_I:
         mode.flipAltWin = !mode.flipAltWin;
         cout << "Flip ALT<>WIN mode: " << (mode.flipAltWin ? "ON" : "OFF") << endl;
         break;
-    case SC_E:
+    case SC_N:
         cout << "ERROR LOG: " << endl << errorLog << endl;
         break;
-    case SC_S:
+    case SC_T:
         printStatus();
         break;
-    case SC_H:
+    case SC_P:
         printHelp();
         break;
-    case SC_C:
+	case SC_U:
         cout << "Character creation mode: ";
         switch (mode.characterCreationMode)
         {
@@ -713,12 +721,12 @@ void processCoreCommands()
         }
         cout << " (" << mode.characterCreationMode << ")";
         break;
-    case SC_LBRACKET:
+    case SC_LBRACK:
         if (mode.delayBetweenMacroKeysMS >= 2)
             mode.delayBetweenMacroKeysMS -= 1;
         cout << "delay between characters in macros (ms): " << dec << mode.delayBetweenMacroKeysMS;
         break;
-    case SC_RBRACKET:
+    case SC_RBRACK:
         if (mode.delayBetweenMacroKeysMS <= 100)
             mode.delayBetweenMacroKeysMS += 1;
         cout << "delay between characters in macros (ms): " << dec << mode.delayBetweenMacroKeysMS;
@@ -770,17 +778,17 @@ void getHardwareId()
 void printHelp()
 {
     cout << "HELP" << endl << endl
-        << "[LEFTCTRL] + [CAPS] + [{key}] for core commands" << endl
-        << "[ESC] quit" << endl
-        << "[S] Status" << endl
+        << "[CAPS] + [ESC] + [{key}] for core commands" << endl
+        << "[Q] Quit" << endl
+        << "[T] sTatus" << endl
         << "[R] Reset" << endl
-        << "[E] Error log" << endl
-        << "[D] Debug mode output" << endl
+		<< "[B] deBug mode output" << endl
+		<< "[N] error log" << endl
         << "[0]..[9] switch layers" << endl
         << "[Z] (or Y on GER keyboard): flip Y<>Z keys" << endl
-        << "[W] flip ALT <> WIN" << endl
+        << "[I] flip ALT <> WIN" << endl
         << "[/] (is [-] on GER keyboard): Slash -> Shift" << endl
-        << "[C] switch character creation mode (Alt+Numpad or AHK)" << endl
+        << "[U] switch character creation mode (Alt+Numpad or AHK)" << endl
         << "[ and ]: pause between macro keys sent -/+ 10ms " << endl
         ;
 }
@@ -862,11 +870,11 @@ void reset()
 
     breakKeyMacro(SC_LSHIFT);
     breakKeyMacro(SC_RSHIFT);
-    breakKeyMacro(SC_LCONTROL);
+    breakKeyMacro(SC_LCTRL);
     breakKeyMacro(SC_RCONTROL);
-    breakKeyMacro(SC_LALT);
-    breakKeyMacro(SC_RALT);
     breakKeyMacro(SC_LWIN);
+    breakKeyMacro(SC_RALT);
+    breakKeyMacro(SC_LALT);
     breakKeyMacro(SC_RWIN);
     breakKeyMacro(SC_CAPS);
     breakKeyMacro(AHK_HOTKEY1);
@@ -914,9 +922,9 @@ void createMacroKeyCombo(int a, int b, int c, int d)
 {
     createMacroKeyComboNtimes(a, b, c, d, 1);
 }
-void createMacroKeyCombo10timesIfWinDown(int a, int b, int c, int d, unsigned short modifiers)
+void createMacroKeyCombo10timesIfAltDown(int a, int b, int c, int d, unsigned short modifiers)
 {
-    if (modifiers & BITMASK_LWIN)
+    if (modifiers & BITMASK_LALT)
         createMacroKeyComboNtimes(a, b, c, d, 10);
     else
         createMacroKeyComboNtimes(a, b, c, d, 1);
@@ -930,7 +938,7 @@ void createMacroKeyComboNtimes(int a, int b, int c, int d, int repeat)
         {
             if (scancodes[i] == 0)
                 break;
-            if (scancodes[i] == SC_LCONTROL && IS_LCONTROL_DOWN)
+            if (scancodes[i] == SC_LCTRL && IS_LCONTROL_DOWN)
                 continue;
             if (scancodes[i] == SC_LSHIFT && IS_LSHIFT_DOWN)
                 continue;
@@ -941,7 +949,7 @@ void createMacroKeyComboNtimes(int a, int b, int c, int d, int repeat)
         {
             if (scancodes[i] == 0)
                 continue;
-            if (scancodes[i] == SC_LCONTROL && IS_LCONTROL_DOWN)
+            if (scancodes[i] == SC_LCTRL && IS_LCONTROL_DOWN)
                 continue;
             if (scancodes[i] == SC_LSHIFT && IS_LSHIFT_DOWN)
                 continue;
@@ -990,32 +998,43 @@ void processCapsTapped(unsigned short scancd, CREATE_CHARACTER_MODE charCrtMode)
     {
         switch (scancd)
         {
+		case SC_V:  //test Virtual Key
+			IFDEBUG cout << endl << "Test VK_RETURN";
+			state.stroke.code = 0x0D;  // vk = return, sc = equals
+			state.stroke.code = 0x20;
+			sendStroke(state.stroke);
+			state.stroke.code = 0x21;
+			sendStroke(state.stroke);
+
+			state.blockKey = true;
+			state.isFinalScancode = true;
+			break;
         case SC_O:
             if (shiftXorCaps)
-                createMacroAltNumpad(SC_NUMPAD1, SC_NUMPAD5, SC_NUMPAD3, 0);
+                createMacroAltNumpad(SC_NP1, SC_NP5, SC_NP3, 0);
             else
-                createMacroAltNumpad(SC_NUMPAD1, SC_NUMPAD4, SC_NUMPAD8, 0);
+                createMacroAltNumpad(SC_NP1, SC_NP4, SC_NP8, 0);
             break;
         case SC_A:
             if (shiftXorCaps)
-                createMacroAltNumpad(SC_NUMPAD1, SC_NUMPAD4, SC_NUMPAD2, 0);
+                createMacroAltNumpad(SC_NP1, SC_NP4, SC_NP2, 0);
             else
-                createMacroAltNumpad(SC_NUMPAD1, SC_NUMPAD3, SC_NUMPAD2, 0);
+                createMacroAltNumpad(SC_NP1, SC_NP3, SC_NP2, 0);
             break;
         case SC_U:
             if (shiftXorCaps)
-                createMacroAltNumpad(SC_NUMPAD1, SC_NUMPAD5, SC_NUMPAD4, 0);
+                createMacroAltNumpad(SC_NP1, SC_NP5, SC_NP4, 0);
             else
-                createMacroAltNumpad(SC_NUMPAD1, SC_NUMPAD2, SC_NUMPAD9, 0);
+                createMacroAltNumpad(SC_NP1, SC_NP2, SC_NP9, 0);
             break;
         case SC_S:
-            createMacroAltNumpad(SC_NUMPAD2, SC_NUMPAD2, SC_NUMPAD5, 0);
+            createMacroAltNumpad(SC_NP2, SC_NP2, SC_NP5, 0);
             break;
         case SC_E:
-            createMacroAltNumpad(SC_NUMPAD0, SC_NUMPAD1, SC_NUMPAD2, SC_NUMPAD8);
+            createMacroAltNumpad(SC_NP0, SC_NP1, SC_NP2, SC_NP8);
             break;
         case SC_D:
-            createMacroAltNumpad(SC_NUMPAD1, SC_NUMPAD6, SC_NUMPAD7, 0);
+            createMacroAltNumpad(SC_NP1, SC_NP6, SC_NP7, 0);
             break;
         case SC_T: // test print from [1] to [Enter]
         {
@@ -1031,9 +1050,9 @@ void processCapsTapped(unsigned short scancd, CREATE_CHARACTER_MODE charCrtMode)
                 {
 
                     makeKeyMacro(SC_LALT);
-                    makeBreakKeyMacro(SC_NUMPAD1);
-                    makeBreakKeyMacro(SC_NUMPAD3);
-                    makeBreakKeyMacro(SC_NUMPAD2);
+                    makeBreakKeyMacro(SC_NP1);
+                    makeBreakKeyMacro(SC_NP3);
+                    makeBreakKeyMacro(SC_NP2);
                     breakKeyMacro(SC_LALT);
                 }
 
@@ -1048,12 +1067,12 @@ void processCapsTapped(unsigned short scancd, CREATE_CHARACTER_MODE charCrtMode)
                 for (unsigned short i = 0; i < 40; i++)
                 {
 
-                    makeKeyMacro(SC_LCONTROL);
+                    makeKeyMacro(SC_LCTRL);
                     makeKeyMacro(SC_LSHIFT);
                     makeKeyMacro(SC_U);
                     breakKeyMacro(SC_U);
                     breakKeyMacro(SC_LSHIFT);
-                    breakKeyMacro(SC_LCONTROL);
+                    breakKeyMacro(SC_LCTRL);
                     makeBreakKeyMacro(SC_E);
                     makeBreakKeyMacro(SC_4);
                     makeBreakKeyMacro(SC_RETURN);
@@ -1070,30 +1089,30 @@ void processCapsTapped(unsigned short scancd, CREATE_CHARACTER_MODE charCrtMode)
         {
         case SC_O:
             if (shiftXorCaps)
-                createMacroAltNumpad(SC_NUMPAD0, SC_NUMPAD2, SC_NUMPAD1, SC_NUMPAD4);
+                createMacroAltNumpad(SC_NP0, SC_NP2, SC_NP1, SC_NP4);
             else
-                createMacroAltNumpad(SC_NUMPAD0, SC_NUMPAD2, SC_NUMPAD4, SC_NUMPAD6);
+                createMacroAltNumpad(SC_NP0, SC_NP2, SC_NP4, SC_NP6);
             break;
         case SC_A:
             if (shiftXorCaps)
-                createMacroAltNumpad(SC_NUMPAD0, SC_NUMPAD1, SC_NUMPAD9, SC_NUMPAD6);
+                createMacroAltNumpad(SC_NP0, SC_NP1, SC_NP9, SC_NP6);
             else
-                createMacroAltNumpad(SC_NUMPAD0, SC_NUMPAD2, SC_NUMPAD2, SC_NUMPAD8);
+                createMacroAltNumpad(SC_NP0, SC_NP2, SC_NP2, SC_NP8);
             break;
         case SC_U:
             if (shiftXorCaps)
-                createMacroAltNumpad(SC_NUMPAD0, SC_NUMPAD2, SC_NUMPAD2, SC_NUMPAD0);
+                createMacroAltNumpad(SC_NP0, SC_NP2, SC_NP2, SC_NP0);
             else
-                createMacroAltNumpad(SC_NUMPAD0, SC_NUMPAD2, SC_NUMPAD5, SC_NUMPAD2);
+                createMacroAltNumpad(SC_NP0, SC_NP2, SC_NP5, SC_NP2);
             break;
         case SC_S:
-            createMacroAltNumpad(SC_NUMPAD0, SC_NUMPAD2, SC_NUMPAD2, SC_NUMPAD3);
+            createMacroAltNumpad(SC_NP0, SC_NP2, SC_NP2, SC_NP3);
             break;
         case SC_E:
-            createMacroAltNumpad(SC_NUMPAD0, SC_NUMPAD1, SC_NUMPAD2, SC_NUMPAD8);
+            createMacroAltNumpad(SC_NP0, SC_NP1, SC_NP2, SC_NP8);
             break;
         case SC_D:
-            createMacroAltNumpad(SC_NUMPAD1, SC_NUMPAD7, SC_NUMPAD6, 0);
+            createMacroAltNumpad(SC_NP1, SC_NP7, SC_NP6, 0);
             break;
         }
     }
