@@ -6,9 +6,7 @@
 //alt + cursor = 10
 //config file
 
-#ifndef STRING
 #include <string>
-#endif
 #include <Windows.h>  //for Sleep()
 
 #include "capsicain.h"
@@ -160,14 +158,9 @@ chrono::steady_clock::time_point timepointNow()
 
 int main()
 {
-	initScanCodeLabel(); //test
-	cout << "SC for 1 is: " << SC_1
-		<< endl << "its label is " << SCL[SC_1]
-
-
-		<< endl << "code for 'SC_1' is : " << (SCL[SC_1] == "SC_1" ? SC_1 : -1) 
-		<< endl;
-
+	string arr[256];
+	initScancodeLabels(arr);
+	cout << "gaaaah:" << arr[SC_ESCAPE];
 
     SetModeDefaults();
     SetGlobalStateDefaults();
