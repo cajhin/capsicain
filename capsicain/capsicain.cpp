@@ -27,6 +27,7 @@ const int WAIT_FOR_INTERLEAVED_KEYS_MS = 200;  //when caps_down, key_down, caps_
 
 const unsigned short AHK_HOTKEY1 = SC_F14;  //this key triggers supporting AHK script
 const unsigned short AHK_HOTKEY2 = SC_F15;
+string scLabels[256]; // contains [01]="ESCAPE" instead of SC_ESCAPE 
 
 struct Mode
 {
@@ -158,9 +159,7 @@ chrono::steady_clock::time_point timepointNow()
 
 int main()
 {
-	string arr[256];
-	initScancodeLabels(arr);
-	cout << "gaaaah:" << arr[SC_ESCAPE];
+	initScancodeLabels(scLabels);
 
     SetModeDefaults();
     SetGlobalStateDefaults();

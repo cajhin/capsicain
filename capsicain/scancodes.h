@@ -2,14 +2,15 @@
 
 #include <string>
 void initScancodeLabels(std::string arr[]);
-
+unsigned char getScancode(std::string label, std::string arr[]);
 
 // taken from https://github.com/wgois/OIS/blob/master/includes/OISKeyboard.h
 // assigns easy to remember labels to the PS2 scan codes set 1 (which the keyboard driver seems to use)
 
-//! Keyboard scan codes
+//Keyboard scan codes
+//Put a space after every SC_X, and do NOT put a second SC_ into a line, not in the comments either
 enum ScanCode {
-    SC_NOP = 0x00,  //unassigned, unknonw, NoOPeration
+    SC_NOP = 0x00,  //unassigned, unknown, NoOPeration
     SC_ESCAPE = 0x01,
     SC_1 = 0x02,
     SC_2 = 0x03,
@@ -106,7 +107,7 @@ enum ScanCode {
     SC_YEN = 0x7D, // (Japanese keyboard)
     SC_ABNT_C2 = 0x7E, // Numpad . on Portugese (Brazilian) keyboards
     SC_NPEQUALS = 0x8D, // = on numeric keypad (NEC PC98)
-    SC_PREVTRACK = 0x90, // Previous Track (SC_CIRCUMFLEX on Japanese keyboard)
+    SC_PREVTRACK = 0x90, // Previous Track (CIRCUMFLEX on Japanese keyboard)
     SC_AT = 0x91, //                     (NEC PC98)
     SC_COLON = 0x92, //                     (NEC PC98)
     SC_UNDERLINE = 0x93, //                     (NEC PC98)
