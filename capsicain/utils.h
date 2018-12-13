@@ -1,7 +1,6 @@
+#pragma once
 #include <string>
 
-using namespace std;
-
 void raise_process_priority(void);
-string startProgram(string path);
-string startProgram(string processname, string dir);
+std::string startProgram(std::string path);
+std::string startProgram(std::string processname, std::string dir);

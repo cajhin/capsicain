@@ -6,13 +6,15 @@
 //alt + cursor = 10
 //config file
 
+#ifndef STRING
 #include <string>
+#endif
 #include <Windows.h>  //for Sleep()
 
 #include "capsicain.h"
 #include "utils.h"
-#include "scancodes.h"
 #include "mappings.h"
+#include "scancodes.h"
 
 using namespace std;
 
@@ -76,7 +78,7 @@ void error(string txt)
 
 void SetModeDefaults()
 {
-    mode.debug = false;
+	mode.debug = false;
     mode.activeLayer = 2;
     mode.characterCreationMode = IBM;
     mode.delayBetweenMacroKeysMS = DEFAULT_DELAY_SENDMACRO;  //AHK drops keys when they are sent too fast
@@ -123,11 +125,21 @@ void SetupConsoleWindow()
 
 void PrintHello()
 {
-    cout << "Capsicain v" << version << endl << endl
-        << "[ESC] + [X] to stop." << endl
-        << "[ESC] + [H] for Help";
+	string line1 = "Capsicain v" + version;
+#ifdef NDEBUG
+	line1 += " (Release build)";
+#else
+	line1 += " (DEBUG build)";
+#endif
+	for (int i = 0; i < line1.length(); i++)
+		cout << "-";
+	cout << endl << line1 << endl;
+	for (int i = 0; i < line1.length(); i++)
+		cout << "-";
 
-    cout << endl << endl << (mode.slashShift ? "ON :" : "OFF:") << "Slashes -> Shift ";
+    cout << endl << endl << "[ESC] + [X] to stop." << endl
+        << "[ESC] + [H] for Help";
+    cout << endl << endl << "features:" << endl << (mode.slashShift ? "ON :" : "OFF:") << "Slashes -> Shift ";
     cout << endl << (mode.flipZy ? "ON :" : "OFF:") << "Z<->Y ";
 }
 
@@ -148,6 +160,15 @@ chrono::steady_clock::time_point timepointNow()
 
 int main()
 {
+	initScanCodeLabel(); //test
+	cout << "SC for 1 is: " << SC_1
+		<< endl << "its label is " << SCL[SC_1]
+
+
+		<< endl << "code for 'SC_1' is : " << (SCL[SC_1] == "SC_1" ? SC_1 : -1) 
+		<< endl;
+
+
     SetModeDefaults();
     SetGlobalStateDefaults();
     SetStateDefaults();
@@ -164,11 +185,11 @@ int main()
 	if (START_AHK_ON_STARTUP)
 	{
 		string msg = startProgram(PROGRAM_NAME_AHK);
-		cout << endl << endl << "Starting AHK... "; 
-		cout << (msg == "" ? "OK" : "No: " + msg);
+		cout << endl << endl << "starting AHK... "; 
+		cout << (msg == "" ? "OK" : "Not. '" + msg + "'");
 	}
 
-	cout << endl << endl << "capsicain running..." << endl;
+	cout << endl << endl << "detecting keyboard (waiting for the first key)... ";
 
 	while (interception_receive(
 		globalState.interceptionContext,
@@ -185,10 +206,10 @@ int main()
 		//check device ID
 		if (globalState.deviceIdKeyboard.length() < 2)
 		{
-			cout << endl << "detecting keyboard...";
 			getHardwareId();
 			mode.flipAltWin = globalState.deviceIsAppleKeyboard;
-			cout << endl << (globalState.deviceIsAppleKeyboard ? "APPLE keyboard (flipping Win<>Alt)" : "IBM keyboard");
+			cout << (globalState.deviceIsAppleKeyboard ? "Apple keyboard (flipping Win<>Alt)" : "IBM keyboard");
+			cout << endl << endl << "capsicain running...";
 		}
 
 		//evaluate and normalize the stroke         
@@ -306,19 +327,12 @@ int main()
 		}
 ///////////////////////////////////////////////////////////////////////
 
-        //CapsLock action: track but never forward 
-        if (state.scancode == SC_CAPS) {
-			if (state.isDownstroke)
-				IFDEBUG cout << endl << "CAPS DOWN";
-			else
-			{
-				if (state.previousStroke.code == SC_CAPS)
-					IFDEBUG cout << endl << "CAPS Tap Time = " << dec << millisecondsSince(capsDownTimestamp);
-				else
-					IFDEBUG cout << endl << "CAPS Down Time = " << dec << millisecondsSince(capsDownTimestamp);
-			}
+        //CapsLock strokes: track but never forward 
+        if (state.scancode == SC_CAPS) 
+		{
 			processCaps();
-            continue;
+			state.previousStroke = state.stroke;
+			continue;
         }
 		else
 		{
@@ -361,7 +375,8 @@ int main()
 void processCaps()
 {
     if (state.isDownstroke) {
-        state.isCapsDown = true;
+		IFDEBUG cout << endl << "CAPS DOWN";
+		state.isCapsDown = true;
 		capsDownTimestamp = timepointNow();
     }
     else
@@ -370,10 +385,10 @@ void processCaps()
         if (state.previousStroke.code == SC_CAPS)
         {
             state.isCapsTapped = !state.isCapsTapped;
-            IFDEBUG cout << " capsTap:" << (state.isCapsTapped ? "ON " : "OFF");
+            IFDEBUG cout << " capsTap:" << (state.isCapsTapped ? "ON " : "OFF")
+				<< " / TapTime = " << dec << millisecondsSince(capsDownTimestamp);
         }
     }
-    state.previousStroke = state.stroke;
 }
 
 
@@ -538,11 +553,14 @@ void processLayoutIndependentAction()
             if (state.isDownstroke)
                 createMacroKeyCombo(AHK_HOTKEY1, state.scancode, 0, 0);
             break;
-		case SC_T:
+		case SC_T: //TEST
+		{
 			if (state.isDownstroke)
-				startProgram(PROGRAM_NAME_AHK);
-			break;
+			{
 
+			}
+			break;
+		}
         default:
             blockingScancode = false;
         }
@@ -697,12 +715,13 @@ void processCoreCommands()
 		cout << "LAYER 3: WorkmanJ";
 		break;
     case SC_R:
+		cout << "RESET";
         reset();
         state.isCapsDown = false;
         state.isCapsTapped = false;
         getHardwareId();
         mode.flipAltWin = !globalState.deviceIsAppleKeyboard;
-        cout << "RESET" << endl << (globalState.deviceIsAppleKeyboard ? "APPLE keyboard" : "PC keyboard (flipping Win<>Alt)");
+        cout << endl << (globalState.deviceIsAppleKeyboard ? "APPLE keyboard" : "PC keyboard (flipping Win<>Alt)");
         break;
     case SC_D:
         mode.debug = !mode.debug;
@@ -814,7 +833,7 @@ void printHelp()
         << "[0]..[9] switch layers" << endl
         << "[Z] (labeled [Y] on GER keyboard): flip Y<>Z keys" << endl
         << "[W] flip ALT <> WIN" << endl
-		<< "[\] (labeled [<] on GER keyboard): ISO boards only: key cut out of left shift -> Left Shift" << endl
+		<< "[\\] (labeled [<] on GER keyboard): ISO boards only: key cut out of left shift -> Left Shift" << endl
 		<< "[/] (labeled [-] on GER keyboard): Slash -> Right Shift" << endl
 		<< "[U] switch character creation mode (Alt+Numpad or AHK)" << endl
         << "[ and ]: pause between macro keys sent -/+ 10ms " << endl

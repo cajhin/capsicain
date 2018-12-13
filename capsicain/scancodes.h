@@ -1,7 +1,18 @@
 #pragma once
 
+#ifndef STRING
+#define STRING
+#include <string>
+#endif
+
 // taken from https://github.com/wgois/OIS/blob/master/includes/OISKeyboard.h
 // assigns easy to remember labels to the PS2 scan codes set 1 (which the keyboard driver seems to use)
+
+#ifndef SCANCODES_H
+#define SCANCODES_H
+std::string SCL[0xFF];
+void initScanCodeLabel();
+#endif
 
 
 //! Keyboard scan codes

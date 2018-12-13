@@ -1,6 +1,11 @@
+#pragma once
 #include "pch.h"
-#include "scancodes.h"
+
+#ifndef MAPPINGS_H
+#define MAPPINGS_H
 #include "mappings.h"
+#endif
+
 
 
 //	`1234567890-=	~!@#$%^&*()_+
