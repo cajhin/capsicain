@@ -124,8 +124,8 @@ void SetupConsoleWindow()
 void PrintHello()
 {
     cout << "Capsicain v" << version << endl << endl
-        << "[ESC] + [CAPS] + [Q] to stop." << endl
-        << "[ESC] + [CAPS] + [P] for Help";
+        << "[ESC] + [X] to stop." << endl
+        << "[ESC] + [H] for Help";
 
     cout << endl << endl << (mode.slashShift ? "ON :" : "OFF:") << "Slashes -> Shift ";
     cout << endl << (mode.flipZy ? "ON :" : "OFF:") << "Z<->Y ";
@@ -170,69 +170,86 @@ int main()
 
 	cout << endl << endl << "capsicain running..." << endl;
 
-    while (interception_receive(
-        globalState.interceptionContext,
-        globalState.interceptionDevice = interception_wait(globalState.interceptionContext),
-        (InterceptionStroke *)&state.stroke, 1) > 0
-        )
-    {
-        state.keyMacroLength = 0;
-        state.blockKey = false;  //true: do not send the current key
-        state.isFinalScancode = false;  //true: don't remap the scancode anymore
-        state.isDownstroke = false;
-        state.isExtendedCode = false;
+	while (interception_receive(
+		globalState.interceptionContext,
+		globalState.interceptionDevice = interception_wait(globalState.interceptionContext),
+		(InterceptionStroke *)&state.stroke, 1) > 0
+		)
+	{
+		state.keyMacroLength = 0;
+		state.blockKey = false;  //true: do not send the current key
+		state.isFinalScancode = false;  //true: don't remap the scancode anymore
+		state.isDownstroke = false;
+		state.isExtendedCode = false;
 
-        //check device ID
-        if (globalState.deviceIdKeyboard.length() < 2)
-        {
-            cout << endl << "detecting keyboard...";
-            getHardwareId();
-            mode.flipAltWin = globalState.deviceIsAppleKeyboard;
-            cout << endl << (globalState.deviceIsAppleKeyboard ? "APPLE keyboard (flipping Win<>Alt)" : "IBM keyboard");
-        }
+		//check device ID
+		if (globalState.deviceIdKeyboard.length() < 2)
+		{
+			cout << endl << "detecting keyboard...";
+			getHardwareId();
+			mode.flipAltWin = globalState.deviceIsAppleKeyboard;
+			cout << endl << (globalState.deviceIsAppleKeyboard ? "APPLE keyboard (flipping Win<>Alt)" : "IBM keyboard");
+		}
 
-        //evaluate and normalize the stroke         
+		//evaluate and normalize the stroke         
 		state.isDownstroke = (state.stroke.state & 1) == 1 ? false : true;
-        state.isExtendedCode = (state.stroke.state & 2) == 2;
+		state.isExtendedCode = (state.stroke.state & 2) == 2;
 
-        if (state.stroke.code > 0xFF)
-        {
-            error("Received unexpected stroke.code > 255: " + state.stroke.code);
-            continue;
-        }
-        if (state.stroke.code & 0x80)
-        {
-            error("Received unexpected extended stroke.code > 0x79: " + state.stroke.code);
-            continue;
-        }
+		if (state.stroke.code > 0xFF)
+		{
+			error("Received unexpected stroke.code > 255: " + state.stroke.code);
+			continue;
+		}
+		if (state.stroke.code & 0x80)
+		{
+			error("Received unexpected extended stroke.code > 0x79: " + state.stroke.code);
+			continue;
+		}
 
-        state.scancode = state.stroke.code;  //scancode will be altered, stroke won't
-        if (state.isExtendedCode)  //I track the extended bit in the high bit of the scancode. Assuming Interception never sends stroke.code > 0x7F
-            state.scancode |= 0x80;
+		state.scancode = state.stroke.code;  //scancode will be altered, stroke won't
+		if (state.isExtendedCode)  //I track the extended bit in the high bit of the scancode. Assuming Interception never sends stroke.code > 0x7F
+			state.scancode |= 0x80;
 
-        globalState.keysDownReceived[state.scancode] = state.isDownstroke;
+		globalState.keysDownReceived[state.scancode] = state.isDownstroke;
 
-        //command stroke: ESC + CAPS + stroke
+		//command stroke: ESC + stroke
 		// some major key shadowing here...
 		// - cherry is good
 		// - apple keyboard cannot do RCTRL+CAPS+ESC and Caps shadows the entire row a-s-d-f-g-....
 		// - Dell cant do ctrl-caps-x
 		// - Cypher has no RControl... :(
 		// - HP shadows the 2-w-s-x and 3-e-d-c lines
-        if (state.isDownstroke
-            && (state.scancode != SC_CAPS && state.scancode != SC_ESCAPE)
-            && (globalState.keysDownReceived[SC_CAPS] && globalState.keysDownReceived[SC_ESCAPE])
-            )
-        {
-            if (state.scancode == SC_Q)  
-            {
-                break;  //break the main while() loop, exit
-            }
-            processCoreCommands();
-            continue;
-        }
+		if (state.scancode == SC_ESCAPE)
+		{
+			//ESC alone will send ESC; otherwise block
+			if (!state.isDownstroke && state.previousStroke.code == SC_ESCAPE)
+			{
+				IFDEBUG cout << " ESC ";
+				sendStroke(state.previousStroke);
+				sendStroke(state.stroke);
+			}
+			state.previousStroke = state.stroke;
+			continue;
+		}
+		else
+		{
+			if (state.isDownstroke && globalState.keysDownReceived[SC_ESCAPE])
+			{
+				if (state.scancode == SC_X)
+				{
+					break;  //break the main while() loop, exit
+				}
+				else
+				{
+					state.previousStroke = state.stroke;
+					processCoreCommands();
+					continue;
+				}
+			}
 
-        if (mode.activeLayer == 0)  //standard keyboard, except command strokes
+		}
+
+		if (mode.activeLayer == 0)  //standard keyboard, except command strokes
         {
             interception_send(globalState.interceptionContext, globalState.interceptionDevice, (InterceptionStroke *)&state.stroke, 1);
             continue;
@@ -687,7 +704,7 @@ void processCoreCommands()
         mode.flipAltWin = !globalState.deviceIsAppleKeyboard;
         cout << "RESET" << endl << (globalState.deviceIsAppleKeyboard ? "APPLE keyboard" : "PC keyboard (flipping Win<>Alt)");
         break;
-    case SC_B:
+    case SC_D:
         mode.debug = !mode.debug;
         cout << "DEBUG mode: " << (mode.debug ? "ON" : "OFF");
         break;
@@ -699,26 +716,26 @@ void processCoreCommands()
         mode.flipZy = !mode.flipZy;
         cout << "Flip Z<>Y mode: " << (mode.flipZy ? "ON" : "OFF");
         break;
-    case SC_I:
+    case SC_W:
         mode.flipAltWin = !mode.flipAltWin;
         cout << "Flip ALT<>WIN mode: " << (mode.flipAltWin ? "ON" : "OFF") << endl;
         break;
-    case SC_N:
+    case SC_E:
         cout << "ERROR LOG: " << endl << errorLog << endl;
         break;
-    case SC_T:
+    case SC_S:
         printStatus();
         break;
-    case SC_P:
+    case SC_H:
         printHelp();
         break;
-	case SC_U:
+	case SC_C:
         cout << "Character creation mode: ";
         switch (mode.characterCreationMode)
         {
         case IBM:
             mode.characterCreationMode = ANSI;
-            cout << "ANSI";
+            cout << "ANSI (Alt + Numpad 0nnn)";
             break;
         case ANSI:
             mode.characterCreationMode = AHK;
@@ -726,7 +743,7 @@ void processCoreCommands()
             break;
         case AHK:
             mode.characterCreationMode = IBM;
-            cout << "IBM";
+            cout << "IBM (Alt + Numpad nnn)";
             break;
         }
         cout << " (" << mode.characterCreationMode << ")";
@@ -788,17 +805,18 @@ void getHardwareId()
 void printHelp()
 {
     cout << "HELP" << endl << endl
-        << "[CAPS] + [ESC] + [{key}] for core commands" << endl
-        << "[Q] Quit" << endl
-        << "[T] sTatus" << endl
+        << "[ESC] + [{key}] for core commands" << endl
+        << "[X] Exit" << endl
+        << "[S] Status" << endl
         << "[R] Reset" << endl
-		<< "[B] deBug mode output" << endl
-		<< "[N] error log" << endl
+		<< "[D] Debug mode output" << endl
+		<< "[E] Error log" << endl
         << "[0]..[9] switch layers" << endl
-        << "[Z] (or Y on GER keyboard): flip Y<>Z keys" << endl
-        << "[I] flip ALT <> WIN" << endl
-        << "[/] (is [-] on GER keyboard): Slash -> Shift" << endl
-        << "[U] switch character creation mode (Alt+Numpad or AHK)" << endl
+        << "[Z] (labeled [Y] on GER keyboard): flip Y<>Z keys" << endl
+        << "[W] flip ALT <> WIN" << endl
+		<< "[\] (labeled [<] on GER keyboard): ISO boards only: key cut out of left shift -> Left Shift" << endl
+		<< "[/] (labeled [-] on GER keyboard): Slash -> Right Shift" << endl
+		<< "[U] switch character creation mode (Alt+Numpad or AHK)" << endl
         << "[ and ]: pause between macro keys sent -/+ 10ms " << endl
         ;
 }
