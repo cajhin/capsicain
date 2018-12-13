@@ -44,10 +44,10 @@
     <ClCompile Include="capsicain.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="utils.c">
+    <ClCompile Include="mappings.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="mappings.cpp">
+    <ClCompile Include="utils.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

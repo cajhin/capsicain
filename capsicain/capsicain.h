@@ -1,3 +1,6 @@
+#define PROGRAM_NAME_AHK "autohotkey.exe"
+#include "interception.h"
+
 enum KEYSTATE
 {
 	KEYSTATE_DOWN = 0,

@@ -9,19 +9,16 @@
 #include <string>
 #include <Windows.h>  //for Sleep()
 
-#include "interception.h"
-#include "utils.h"
-
 #include "capsicain.h"
+#include "utils.h"
 #include "scancodes.h"
 #include "mappings.h"
 
 using namespace std;
 
-string version = "17";
+string version = "18";
 
-
-
+const bool START_AHK_ON_STARTUP = true;
 const int MAX_KEYMACRO_LENGTH = 10000;  //for testing; in real life, 100 keys = 200 up/downs should be enough
 
 const int DEFAULT_DELAY_SENDMACRO = 5;  //local needs ~1ms, Linux VM 5+ms, RDP fullscreen 10+ for 100% reliable keystroke detection
@@ -121,7 +118,7 @@ void SetupConsoleWindow()
 
     system("color 8E");  //byte1=background, byte2=text
     string title = ("Capsicain v" + version);
-    SetConsoleTitle(wstring(title.begin(), title.end()).c_str());
+    SetConsoleTitle(title.c_str());
 }
 
 void PrintHello()
@@ -132,7 +129,6 @@ void PrintHello()
 
     cout << endl << endl << (mode.slashShift ? "ON :" : "OFF:") << "Slashes -> Shift ";
     cout << endl << (mode.flipZy ? "ON :" : "OFF:") << "Z<->Y ";
-    cout << endl << endl << "capsicain running..." << endl;
 }
 
 
@@ -164,6 +160,15 @@ int main()
     interception_set_filter(globalState.interceptionContext, interception_is_keyboard, INTERCEPTION_FILTER_KEY_ALL);
 
     PrintHello();
+
+	if (START_AHK_ON_STARTUP)
+	{
+		string msg = startProgram(PROGRAM_NAME_AHK);
+		cout << endl << endl << "Starting AHK... "; 
+		cout << (msg == "" ? "OK" : "No: " + msg);
+	}
+
+	cout << endl << endl << "capsicain running..." << endl;
 
     while (interception_receive(
         globalState.interceptionContext,
@@ -516,6 +521,11 @@ void processLayoutIndependentAction()
             if (state.isDownstroke)
                 createMacroKeyCombo(AHK_HOTKEY1, state.scancode, 0, 0);
             break;
+		case SC_T:
+			if (state.isDownstroke)
+				startProgram(PROGRAM_NAME_AHK);
+			break;
+
         default:
             blockingScancode = false;
         }
@@ -992,12 +1002,12 @@ void createMacroAltNumpad(unsigned short a, unsigned short b, unsigned short c, 
 */
 void processCapsTapped(unsigned short scancd, CREATE_CHARACTER_MODE charCrtMode)
 {
-    bool shiftXorCaps = IS_SHIFT_DOWN != ((GetKeyState(VK_CAPITAL) & 0x0001) != 0);
+	bool shiftXorCaps = IS_SHIFT_DOWN != ((GetKeyState(VK_CAPITAL) & 0x0001) != 0);
 
-    if (charCrtMode == IBM)
-    {
-        switch (scancd)
-        {
+	if (charCrtMode == IBM)
+	{
+		switch (scancd)
+		{
 		case SC_V:  //test Virtual Key
 			IFDEBUG cout << endl << "Test VK_RETURN";
 			state.stroke.code = 0x0D;  // vk = return, sc = equals
@@ -1009,147 +1019,147 @@ void processCapsTapped(unsigned short scancd, CREATE_CHARACTER_MODE charCrtMode)
 			state.blockKey = true;
 			state.isFinalScancode = true;
 			break;
-        case SC_O:
-            if (shiftXorCaps)
-                createMacroAltNumpad(SC_NP1, SC_NP5, SC_NP3, 0);
-            else
-                createMacroAltNumpad(SC_NP1, SC_NP4, SC_NP8, 0);
-            break;
-        case SC_A:
-            if (shiftXorCaps)
-                createMacroAltNumpad(SC_NP1, SC_NP4, SC_NP2, 0);
-            else
-                createMacroAltNumpad(SC_NP1, SC_NP3, SC_NP2, 0);
-            break;
-        case SC_U:
-            if (shiftXorCaps)
-                createMacroAltNumpad(SC_NP1, SC_NP5, SC_NP4, 0);
-            else
-                createMacroAltNumpad(SC_NP1, SC_NP2, SC_NP9, 0);
-            break;
-        case SC_S:
-            createMacroAltNumpad(SC_NP2, SC_NP2, SC_NP5, 0);
-            break;
-        case SC_E:
-            createMacroAltNumpad(SC_NP0, SC_NP1, SC_NP2, SC_NP8);
-            break;
-        case SC_D:
-            createMacroAltNumpad(SC_NP1, SC_NP6, SC_NP7, 0);
-            break;
-        case SC_T: // test print from [1] to [Enter]
-        {
-            for (unsigned short i = 2; i <= 0x1C; i++)
-                makeBreakKeyMacro(i);
-            break;
-        }
-        case SC_R: // test2: print 50x10 ä
-        {
-            for (int outer = 0; outer < 4; outer++)
-            {
-                for (unsigned short i = 0; i < 40; i++)
-                {
+		case SC_O:
+			if (shiftXorCaps)
+				createMacroAltNumpad(SC_NP1, SC_NP5, SC_NP3, 0);
+			else
+				createMacroAltNumpad(SC_NP1, SC_NP4, SC_NP8, 0);
+			break;
+		case SC_A:
+			if (shiftXorCaps)
+				createMacroAltNumpad(SC_NP1, SC_NP4, SC_NP2, 0);
+			else
+				createMacroAltNumpad(SC_NP1, SC_NP3, SC_NP2, 0);
+			break;
+		case SC_U:
+			if (shiftXorCaps)
+				createMacroAltNumpad(SC_NP1, SC_NP5, SC_NP4, 0);
+			else
+				createMacroAltNumpad(SC_NP1, SC_NP2, SC_NP9, 0);
+			break;
+		case SC_S:
+			createMacroAltNumpad(SC_NP2, SC_NP2, SC_NP5, 0);
+			break;
+		case SC_E:
+			createMacroAltNumpad(SC_NP0, SC_NP1, SC_NP2, SC_NP8);
+			break;
+		case SC_D:
+			createMacroAltNumpad(SC_NP1, SC_NP6, SC_NP7, 0);
+			break;
+		case SC_T: // test print from [1] to [Enter]
+		{
+			for (unsigned short i = 2; i <= 0x1C; i++)
+				makeBreakKeyMacro(i);
+			break;
+		}
+		case SC_R: // test2: print 50x10 ä
+		{
+			for (int outer = 0; outer < 4; outer++)
+			{
+				for (unsigned short i = 0; i < 40; i++)
+				{
 
-                    makeKeyMacro(SC_LALT);
-                    makeBreakKeyMacro(SC_NP1);
-                    makeBreakKeyMacro(SC_NP3);
-                    makeBreakKeyMacro(SC_NP2);
-                    breakKeyMacro(SC_LALT);
-                }
+					makeKeyMacro(SC_LALT);
+					makeBreakKeyMacro(SC_NP1);
+					makeBreakKeyMacro(SC_NP3);
+					makeBreakKeyMacro(SC_NP2);
+					breakKeyMacro(SC_LALT);
+				}
 
-                makeBreakKeyMacro(SC_RETURN);
-            }
-            break;
-        }
-        case SC_L: // Linux test: print 50x10 ä
-        {
-            for (int outer = 0; outer < 4; outer++)
-            {
-                for (unsigned short i = 0; i < 40; i++)
-                {
+				makeBreakKeyMacro(SC_RETURN);
+			}
+			break;
+		}
+		case SC_L: // Linux test: print 50x10 ä
+		{
+			for (int outer = 0; outer < 4; outer++)
+			{
+				for (unsigned short i = 0; i < 40; i++)
+				{
 
-                    makeKeyMacro(SC_LCTRL);
-                    makeKeyMacro(SC_LSHIFT);
-                    makeKeyMacro(SC_U);
-                    breakKeyMacro(SC_U);
-                    breakKeyMacro(SC_LSHIFT);
-                    breakKeyMacro(SC_LCTRL);
-                    makeBreakKeyMacro(SC_E);
-                    makeBreakKeyMacro(SC_4);
-                    makeBreakKeyMacro(SC_RETURN);
-                }
-                makeBreakKeyMacro(SC_RETURN);
-            }
-            break;
-        }
-        }
-    }
-    else if (charCrtMode == ANSI)
-    {
-        switch (scancd)
-        {
-        case SC_O:
-            if (shiftXorCaps)
-                createMacroAltNumpad(SC_NP0, SC_NP2, SC_NP1, SC_NP4);
-            else
-                createMacroAltNumpad(SC_NP0, SC_NP2, SC_NP4, SC_NP6);
-            break;
-        case SC_A:
-            if (shiftXorCaps)
-                createMacroAltNumpad(SC_NP0, SC_NP1, SC_NP9, SC_NP6);
-            else
-                createMacroAltNumpad(SC_NP0, SC_NP2, SC_NP2, SC_NP8);
-            break;
-        case SC_U:
-            if (shiftXorCaps)
-                createMacroAltNumpad(SC_NP0, SC_NP2, SC_NP2, SC_NP0);
-            else
-                createMacroAltNumpad(SC_NP0, SC_NP2, SC_NP5, SC_NP2);
-            break;
-        case SC_S:
-            createMacroAltNumpad(SC_NP0, SC_NP2, SC_NP2, SC_NP3);
-            break;
-        case SC_E:
-            createMacroAltNumpad(SC_NP0, SC_NP1, SC_NP2, SC_NP8);
-            break;
-        case SC_D:
-            createMacroAltNumpad(SC_NP1, SC_NP7, SC_NP6, 0);
-            break;
-        }
-    }
-    else if (charCrtMode == AHK)
-    {
-        switch (scancd)
-        {
-        case SC_A:
-        case SC_O:
-        case SC_U:
-            createMacroKeyCombo(shiftXorCaps ? AHK_HOTKEY2 : AHK_HOTKEY1, scancd, 0, 0);
-            break;
-        case SC_S:
-        case SC_E:
-        case SC_D:
-        case SC_C:
-            createMacroKeyCombo(AHK_HOTKEY1, scancd, 0, 0);
-            break;
-        }
-    }
+					makeKeyMacro(SC_LCTRL);
+					makeKeyMacro(SC_LSHIFT);
+					makeKeyMacro(SC_U);
+					breakKeyMacro(SC_U);
+					breakKeyMacro(SC_LSHIFT);
+					breakKeyMacro(SC_LCTRL);
+					makeBreakKeyMacro(SC_E);
+					makeBreakKeyMacro(SC_4);
+					makeBreakKeyMacro(SC_RETURN);
+				}
+				makeBreakKeyMacro(SC_RETURN);
+			}
+			break;
+		}
+		}
+	}
+	else if (charCrtMode == ANSI)
+	{
+		switch (scancd)
+		{
+		case SC_O:
+			if (shiftXorCaps)
+				createMacroAltNumpad(SC_NP0, SC_NP2, SC_NP1, SC_NP4);
+			else
+				createMacroAltNumpad(SC_NP0, SC_NP2, SC_NP4, SC_NP6);
+			break;
+		case SC_A:
+			if (shiftXorCaps)
+				createMacroAltNumpad(SC_NP0, SC_NP1, SC_NP9, SC_NP6);
+			else
+				createMacroAltNumpad(SC_NP0, SC_NP2, SC_NP2, SC_NP8);
+			break;
+		case SC_U:
+			if (shiftXorCaps)
+				createMacroAltNumpad(SC_NP0, SC_NP2, SC_NP2, SC_NP0);
+			else
+				createMacroAltNumpad(SC_NP0, SC_NP2, SC_NP5, SC_NP2);
+			break;
+		case SC_S:
+			createMacroAltNumpad(SC_NP0, SC_NP2, SC_NP2, SC_NP3);
+			break;
+		case SC_E:
+			createMacroAltNumpad(SC_NP0, SC_NP1, SC_NP2, SC_NP8);
+			break;
+		case SC_D:
+			createMacroAltNumpad(SC_NP1, SC_NP7, SC_NP6, 0);
+			break;
+		}
+	}
+	else if (charCrtMode == AHK)
+	{
+		switch (scancd)
+		{
+		case SC_A:
+		case SC_O:
+		case SC_U:
+			createMacroKeyCombo(shiftXorCaps ? AHK_HOTKEY2 : AHK_HOTKEY1, scancd, 0, 0);
+			break;
+		case SC_S:
+		case SC_E:
+		case SC_D:
+		case SC_C:
+			createMacroKeyCombo(AHK_HOTKEY1, scancd, 0, 0);
+			break;
+		}
+	}
 
-    if (state.keyMacroLength == 0)
-    {
-        switch (scancd) {
-        case SC_0:
-        case SC_1:
-        case SC_2:
-        case SC_3:
-        case SC_4:
-        case SC_5:
-        case SC_6:
-        case SC_7:
-        case SC_8:
-        case SC_9:
-            createMacroKeyCombo(AHK_HOTKEY2, scancd, 0, 0);
-            break;
-        }
-    }
+	if (state.keyMacroLength == 0)
+	{
+		switch (scancd) {
+		case SC_0:
+		case SC_1:
+		case SC_2:
+		case SC_3:
+		case SC_4:
+		case SC_5:
+		case SC_6:
+		case SC_7:
+		case SC_8:
+		case SC_9:
+			createMacroKeyCombo(AHK_HOTKEY2, scancd, 0, 0);
+			break;
+		}
+	}
 }
 
