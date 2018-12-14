@@ -28,6 +28,8 @@ void createMacroKeyComboNtimes(int a, int b, int c, int d, int repeat);
 void createMacroAltNumpad(unsigned short a, unsigned short b, unsigned short c, unsigned short d);
 void processCapsTapped(unsigned short scancd, CREATE_CHARACTER_MODE charCrtMode);
 
+std::string getSymbolForStrokeState(unsigned char state);
+
 void playMacro(InterceptionKeyStroke macro[], int macroLength);
 
 void processCoreCommands();

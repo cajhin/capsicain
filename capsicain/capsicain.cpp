@@ -258,8 +258,9 @@ int main()
             continue;
         }
 
-        IFDEBUG cout << endl << " [" << hex << state.stroke.code << "/" << hex << state.scancode << " " << state.stroke.information << " " << state.stroke.state << "]";
-
+		IFDEBUG{ cout << endl << " [" << scLabels[state.stroke.code] << getSymbolForStrokeState(state.stroke.state)
+			<< " =" << hex << state.scancode << " " << state.stroke.state << "]";
+		}
 
 		///////////////////////////////////////////////////////////////////////
 		//TODO cleanup
@@ -267,7 +268,7 @@ int main()
 		//This is a nasty hack, but buffering doesn't fit into the concept.
 		if (globalState.bufferedScancode != 0)
 		{
-			IFDEBUG cout << endl << "Processing a buffered scancode: " << hex << globalState.bufferedScancode;
+			IFDEBUG cout << " ***Processing a buffered scancode: " << hex << globalState.bufferedScancode;
 			state.keyMacroLength = 0;
 			switch (globalState.bufferedScancode)
 			{
@@ -296,7 +297,7 @@ int main()
 				break;
 			}
 			default:
-				IFDEBUG cout << endl << "buffered scancode discarded";
+				IFDEBUG cout << " ***buffered scancode discarded";
 				break;
 			}
 
@@ -314,12 +315,9 @@ int main()
 		{
 			processCaps();
 			state.previousStroke = state.stroke;
+			IFDEBUG cout << "\t--> BLOCKED";
 			continue;
         }
-		else
-		{
-			IFDEBUG cout << endl << "Time since capsdown= " << dec << millisecondsSince(capsDownTimestamp);
-		}
 
         //process the key stroke
         processRemapModifiers();
@@ -462,7 +460,6 @@ void processCoreCommands()
 void processCaps()
 {
     if (state.isDownstroke) {
-		IFDEBUG cout << endl << "CAPS DOWN";
 		state.isCapsDown = true;
 		capsDownTimestamp = timepointNow();
     }
@@ -481,24 +478,25 @@ void processCaps()
 
 void sendResultingKeyOrMacro()
 {
-    if (state.keyMacroLength > 0)
-    {
-        playMacro(state.keyMacro, state.keyMacroLength);
-    }
-    else
-    {
-        IFDEBUG
-        {
-            if (state.blockKey)
-            cout << " BLOCKED ";
-            else if (state.stroke.code != (state.scancode & 0x7F))
-                cout << " -> " << hex << state.stroke.code << "/" << hex << state.scancode << " " << state.stroke.state;
-        }
-            if (!state.blockKey) {
-                scancode2stroke(state.scancode, state.stroke);
-                sendStroke(state.stroke);
-            }
-    }
+	if (state.keyMacroLength > 0)
+	{
+		playMacro(state.keyMacro, state.keyMacroLength);
+	}
+	else
+	{
+		IFDEBUG
+		{
+			if (state.blockKey)
+				cout << "\t--> BLOCKED ";
+			else if (state.stroke.code != (state.scancode & 0x7F))
+				cout << "\t--> " << scLabels[state.scancode] << " " << getSymbolForStrokeState(state.stroke.state);
+		}
+		if (!state.blockKey) 
+		{
+			scancode2stroke(state.scancode, state.stroke);
+			sendStroke(state.stroke);
+		}
+	}
 }
 
 void processLayoutIndependentAction()
@@ -523,12 +521,12 @@ void processLayoutIndependentAction()
 			{
 				if (millisecondsSince(capsDownTimestamp) > WAIT_FOR_INTERLEAVED_KEYS_MS)
 				{
-					IFDEBUG cout << endl << "Long press: Caps A";
+					IFDEBUG cout << "  ***long press: Caps A";
 					createMacroKeyCombo(SC_LCTRL, SC_Z, 0, 0);
 				}
 				else
 				{
-					IFDEBUG cout << endl << "?Short press: Caps A? (" << dec << millisecondsSince(capsDownTimestamp) << "ms)" << " -> Buffering key...";
+					IFDEBUG cout << "  ???short press: Caps A? (" << dec << millisecondsSince(capsDownTimestamp) << "ms)" << " -> Buffering key...";
 					globalState.bufferedScancode = state.scancode;
 				}
 			}
@@ -582,12 +580,12 @@ void processLayoutIndependentAction()
 			{
 				if (millisecondsSince(capsDownTimestamp) > WAIT_FOR_INTERLEAVED_KEYS_MS)
 				{
-					IFDEBUG cout << endl << "Long press: Page Up";
+					IFDEBUG cout << "  ***Long press: Page Up";
 					createMacroKeyCombo10timesIfAltDown(SC_PGUP, 0, 0, 0, state.modifiers);
 				}
 				else
 				{
-					IFDEBUG cout << endl << "?Short press: Page Up? (" << dec << millisecondsSince(capsDownTimestamp) << "ms)" << " -> Buffering key...";
+					IFDEBUG cout <<  "  ???Short press: Page Up? (" << dec << millisecondsSince(capsDownTimestamp) << "ms)" << " -> Buffering key...";
 					globalState.bufferedScancode = state.scancode;
 				}
 			}
@@ -609,12 +607,12 @@ void processLayoutIndependentAction()
 			{
 				if (millisecondsSince(capsDownTimestamp) > WAIT_FOR_INTERLEAVED_KEYS_MS)
 				{
-					IFDEBUG cout << endl << "Long press: End";
+					IFDEBUG cout << "  ***Long press: End";
 					createMacroKeyCombo(SC_END, 0, 0, 0);
 				}
 				else
 				{
-					IFDEBUG cout << endl << "?Short press: End? (" << dec << millisecondsSince(capsDownTimestamp) << "ms)" << " -> Buffering key...";
+					IFDEBUG cout << " ???Short press: End? (" << dec << millisecondsSince(capsDownTimestamp) << "ms)" << " -> Buffering key...";
 					globalState.bufferedScancode = state.scancode;
 				}
 			}
@@ -782,11 +780,11 @@ void processRemapModifiers()
 void playMacro(InterceptionKeyStroke macro[], int macroLength)
 {
     unsigned int delay = mode.delayBetweenMacroKeysMS;
-    IFDEBUG cout << " -> PLAY MACRO (" << macroLength << ")";
+    IFDEBUG cout << "\t--> PLAY MACRO (" << macroLength << ")";
     for (int i = 0; i < macroLength; i++)
     {
         normalizeKeyStroke(macro[i]);
-        IFDEBUG cout << " " << macro[i].code << ":" << macro[i].state;
+		IFDEBUG cout << " " << scLabels[macro[i].code] << getSymbolForStrokeState(macro[i].state);
         sendStroke(macro[i]);
         if (macro[i].code == AHK_HOTKEY1 || macro[i].code == AHK_HOTKEY2)
             delay = DELAY_FOR_AHK;
@@ -850,7 +848,7 @@ void printHelp()
 		<< "[E] Error log" << endl
 		<< "[A] AHK start" << endl
 		<< "[K] AHK end" << endl
-        << "[0]..[9] switch layers" << endl
+        << "[0]..[9] switch layers. [0] is the 'do nothing but listen for commands' layer" << endl
         << "[Z] (labeled [Y] on GER keyboard): flip Y<>Z keys" << endl
         << "[W] flip ALT <> WIN" << endl
 		<< "[\\] (labeled [<] on GER keyboard): ISO boards only: key cut out of left shift -> Left Shift" << endl
@@ -1218,5 +1216,17 @@ void processCapsTapped(unsigned short scancd, CREATE_CHARACTER_MODE charCrtMode)
 			break;
 		}
 	}
+}
+
+string getSymbolForStrokeState(unsigned char state)
+{
+	switch (state)
+	{
+	case 0: return "v";
+	case 1: return "^";
+	case 2: return "*v";
+	case 3: return "*^";
+	}
+	return "???" + state;
 }
 
