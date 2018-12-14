@@ -1,4 +1,3 @@
-
 #pragma once
 #include "pch.h"
 #include <iostream>
@@ -9,7 +8,7 @@ using namespace std;
 
 unsigned char getScancode(string label, string* arr)
 {
-	for (unsigned char i = 0; i < 256; i++)
+	for (int i = 0; i < 256; i++)
 	{
 		cout << " " << arr[i];
 		if (arr[i] == label)
@@ -21,7 +20,7 @@ unsigned char getScancode(string label, string* arr)
 void checkAddLabel(int index, string label, string arr[])
 {
 	if (arr[index] != "")
-		cout << "ERROR duplicate scancode label index: " << index;
+		cout << endl << "ERROR initScancodeLabels: duplicate scancode in scancodes.h: 'SC_" << label << "' (index 0x" << hex << index << ")" << endl;
 	else
 		arr[index] = label;
 }

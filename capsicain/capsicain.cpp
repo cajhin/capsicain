@@ -16,7 +16,7 @@
 
 using namespace std;
 
-string version = "18";
+string version = "19";
 
 const bool START_AHK_ON_STARTUP = true;
 const int MAX_KEYMACRO_LENGTH = 10000;  //for testing; in real life, 100 keys = 200 up/downs should be enough
@@ -122,27 +122,6 @@ void SetupConsoleWindow()
     SetConsoleTitle(title.c_str());
 }
 
-void PrintHello()
-{
-	string line1 = "Capsicain v" + version;
-#ifdef NDEBUG
-	line1 += " (Release build)";
-#else
-	line1 += " (DEBUG build)";
-#endif
-	for (int i = 0; i < line1.length(); i++)
-		cout << "-";
-	cout << endl << line1 << endl;
-	for (int i = 0; i < line1.length(); i++)
-		cout << "-";
-
-    cout << endl << endl << "[ESC] + [X] to stop." << endl
-        << "[ESC] + [H] for Help";
-    cout << endl << endl << "features:" << endl << (mode.slashShift ? "ON :" : "OFF:") << "Slashes -> Shift ";
-    cout << endl << (mode.flipZy ? "ON :" : "OFF:") << "Z<->Y ";
-}
-
-
 //catch fast interleaved typed ö
 chrono::steady_clock::time_point capsDownTimestamp;
 chrono::steady_clock::time_point timestamp;
@@ -172,7 +151,7 @@ int main()
     globalState.interceptionContext = interception_create_context();
     interception_set_filter(globalState.interceptionContext, interception_is_keyboard, INTERCEPTION_FILTER_KEY_ALL);
 
-    PrintHello();
+    printHello();
 
 	if (START_AHK_ON_STARTUP)
 	{
@@ -252,6 +231,17 @@ int main()
 				{
 					break;  //break the main while() loop, exit
 				}
+				else if (state.scancode == SC_Q) //stop the debug client while the release build keeps running
+				{
+#ifndef NDEBUG
+					break; 
+#else
+					sendStroke(state.previousStroke);
+					sendStroke(state.stroke);
+					continue;
+#endif
+				}
+
 				else
 				{
 					state.previousStroke = state.stroke;
@@ -712,8 +702,8 @@ void processCoreCommands()
         state.isCapsDown = false;
         state.isCapsTapped = false;
         getHardwareId();
-        mode.flipAltWin = !globalState.deviceIsAppleKeyboard;
-        cout << endl << (globalState.deviceIsAppleKeyboard ? "APPLE keyboard" : "PC keyboard (flipping Win<>Alt)");
+        mode.flipAltWin = globalState.deviceIsAppleKeyboard;
+        cout << endl << (globalState.deviceIsAppleKeyboard ? "APPLE keyboard (flipping Win<>Alt)" : "PC keyboard");
         break;
     case SC_D:
         mode.debug = !mode.debug;
@@ -813,12 +803,34 @@ void getHardwareId()
     }
 }
 
+void printHello()
+{
+	string line1 = "Capsicain v" + version;
+#ifdef NDEBUG
+	line1 += " (Release build)";
+#else
+	line1 += " (DEBUG build)";
+#endif
+	cout << endl;
+	for (int i = 0; i < line1.length(); i++)
+		cout << "-";
+	cout << endl << line1 << endl;
+	for (int i = 0; i < line1.length(); i++)
+		cout << "-";
+
+	cout << endl << endl << "[ESC] + [X] to stop." << endl
+		<< "[ESC] + [H] for Help";
+	cout << endl << endl << "features:" << endl << (mode.slashShift ? "ON :" : "OFF:") << "Slashes -> Shift ";
+	cout << endl << (mode.flipZy ? "ON :" : "OFF:") << "Z<->Y ";
+}
+
 void printHelp()
 {
     cout << "HELP" << endl << endl
         << "[ESC] + [{key}] for core commands" << endl
-        << "[X] Exit" << endl
-        << "[S] Status" << endl
+		<< "[X] Exit" << endl
+		<< "[Q] (dev feature) Stop the debug build if both release and debug are running" << endl
+		<< "[S] Status" << endl
         << "[R] Reset" << endl
 		<< "[D] Debug mode output" << endl
 		<< "[E] Error log" << endl

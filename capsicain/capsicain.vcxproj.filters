@@ -30,9 +30,6 @@
     <ClInclude Include="interception.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="reference\WINUSER.H">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="mappings.h">
       <Filter>Header Files</Filter>
     </ClInclude>

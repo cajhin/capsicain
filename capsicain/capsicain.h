@@ -35,7 +35,7 @@ void processRemapModifiers();
 void processTrackModifierState();
 void processLayoutIndependentAction();
 
-void PrintHello();
+void printHello();
 
 void processCaps();
 

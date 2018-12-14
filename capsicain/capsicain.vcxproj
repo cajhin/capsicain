@@ -172,7 +172,6 @@ xcopy /y /d  "$(OutDir)capsicain.exe" "c:\app\capsicain\"</Command>
     <ClInclude Include="interception.h" />
     <ClInclude Include="mappings.h" />
     <ClInclude Include="pch.h" />
-    <ClInclude Include="reference\WINUSER.H" />
     <ClInclude Include="scancodes.h" />
     <ClInclude Include="utils.h" />
   </ItemGroup>
