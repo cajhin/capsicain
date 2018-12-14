@@ -155,7 +155,7 @@ int main()
 
 	if (START_AHK_ON_STARTUP)
 	{
-		string msg = startProgram(PROGRAM_NAME_AHK);
+		string msg = startProgramSameFolder(PROGRAM_NAME_AHK);
 		cout << endl << endl << "starting AHK... "; 
 		cout << (msg == "" ? "OK" : "Not. '" + msg + "'");
 	}
@@ -352,6 +352,111 @@ int main()
 
     cout << endl << "bye" << endl;
     return 0;
+}
+////////////////////////////////////END MAIN LOOP//////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+
+void processCoreCommands()
+{
+	cout << endl << endl << "::";
+
+	switch (state.scancode)
+	{
+	case SC_0:
+		mode.activeLayer = 0;
+		cout << "LAYER 0: No changes at all (except core commands)";
+		break;
+	case SC_1:
+		mode.activeLayer = 1;
+		cout << "LAYER 1: No layout changes";
+		break;
+	case SC_2:
+		mode.activeLayer = 2;
+		cout << "LAYER 2: QWERTZ on US keyboard";
+		break;
+	case SC_3:
+		mode.activeLayer = 3;
+		cout << "LAYER 3: WorkmanJ";
+		break;
+	case SC_R:
+		cout << "RESET";
+		reset();
+		state.isCapsDown = false;
+		state.isCapsTapped = false;
+		getHardwareId();
+		mode.flipAltWin = globalState.deviceIsAppleKeyboard;
+		cout << endl << (globalState.deviceIsAppleKeyboard ? "APPLE keyboard (flipping Win<>Alt)" : "PC keyboard");
+		break;
+	case SC_D:
+		mode.debug = !mode.debug;
+		cout << "DEBUG mode: " << (mode.debug ? "ON" : "OFF");
+		break;
+	case SC_SLASH:
+		mode.slashShift = !mode.slashShift;
+		cout << "Slash-Shift mode: " << (mode.slashShift ? "ON" : "OFF");
+		break;
+	case SC_Z:
+		mode.flipZy = !mode.flipZy;
+		cout << "Flip Z<>Y mode: " << (mode.flipZy ? "ON" : "OFF");
+		break;
+	case SC_W:
+		mode.flipAltWin = !mode.flipAltWin;
+		cout << "Flip ALT<>WIN mode: " << (mode.flipAltWin ? "ON" : "OFF") << endl;
+		break;
+	case SC_E:
+		cout << "ERROR LOG: " << endl << errorLog << endl;
+		break;
+	case SC_S:
+		printStatus();
+		break;
+	case SC_H:
+		printHelp();
+		break;
+	case SC_C:
+		cout << "Character creation mode: ";
+		switch (mode.characterCreationMode)
+		{
+		case IBM:
+			mode.characterCreationMode = ANSI;
+			cout << "ANSI (Alt + Numpad 0nnn)";
+			break;
+		case ANSI:
+			mode.characterCreationMode = AHK;
+			cout << "AHK";
+			break;
+		case AHK:
+			mode.characterCreationMode = IBM;
+			cout << "IBM (Alt + Numpad nnn)";
+			break;
+		}
+		cout << " (" << mode.characterCreationMode << ")";
+		break;
+	case SC_LBRACK:
+		if (mode.delayBetweenMacroKeysMS >= 2)
+			mode.delayBetweenMacroKeysMS -= 1;
+		cout << "delay between characters in macros (ms): " << dec << mode.delayBetweenMacroKeysMS;
+		break;
+	case SC_RBRACK:
+		if (mode.delayBetweenMacroKeysMS <= 100)
+			mode.delayBetweenMacroKeysMS += 1;
+		cout << "delay between characters in macros (ms): " << dec << mode.delayBetweenMacroKeysMS;
+		break;
+	case SC_A:
+	{
+		cout << "Start AHK";
+		string msg = startProgramSameFolder("autohotkey.exe");
+		if (msg != "")
+			cout << endl << "Cannot start: " << msg;
+		break;
+	}
+	case SC_K:
+		cout << "Stop AHK";
+		closeOrKillProgram("autohotkey.exe");
+		break;
+	default:
+		cout << "Unknown command";
+		break;
+	}
 }
 
 void processCaps()
@@ -674,97 +779,6 @@ void processRemapModifiers()
     }
 }
 
-void processCoreCommands()
-{
-    cout << endl << endl << "::";
-
-    switch (state.scancode)
-    {
-    case SC_0:
-        mode.activeLayer = 0;
-        cout << "LAYER 0: No changes at all (except core commands)";
-        break;
-    case SC_1:
-        mode.activeLayer = 1;
-        cout << "LAYER 1: No layout changes";
-        break;
-	case SC_2:
-		mode.activeLayer = 2;
-		cout << "LAYER 2: QWERTZ on US keyboard";
-		break;
-	case SC_3:
-		mode.activeLayer = 3;
-		cout << "LAYER 3: WorkmanJ";
-		break;
-    case SC_R:
-		cout << "RESET";
-        reset();
-        state.isCapsDown = false;
-        state.isCapsTapped = false;
-        getHardwareId();
-        mode.flipAltWin = globalState.deviceIsAppleKeyboard;
-        cout << endl << (globalState.deviceIsAppleKeyboard ? "APPLE keyboard (flipping Win<>Alt)" : "PC keyboard");
-        break;
-    case SC_D:
-        mode.debug = !mode.debug;
-        cout << "DEBUG mode: " << (mode.debug ? "ON" : "OFF");
-        break;
-    case SC_SLASH:
-        mode.slashShift = !mode.slashShift;
-        cout << "Slash-Shift mode: " << (mode.slashShift ? "ON" : "OFF");
-        break;
-    case SC_Z:
-        mode.flipZy = !mode.flipZy;
-        cout << "Flip Z<>Y mode: " << (mode.flipZy ? "ON" : "OFF");
-        break;
-    case SC_W:
-        mode.flipAltWin = !mode.flipAltWin;
-        cout << "Flip ALT<>WIN mode: " << (mode.flipAltWin ? "ON" : "OFF") << endl;
-        break;
-    case SC_E:
-        cout << "ERROR LOG: " << endl << errorLog << endl;
-        break;
-    case SC_S:
-        printStatus();
-        break;
-    case SC_H:
-        printHelp();
-        break;
-	case SC_C:
-        cout << "Character creation mode: ";
-        switch (mode.characterCreationMode)
-        {
-        case IBM:
-            mode.characterCreationMode = ANSI;
-            cout << "ANSI (Alt + Numpad 0nnn)";
-            break;
-        case ANSI:
-            mode.characterCreationMode = AHK;
-            cout << "AHK";
-            break;
-        case AHK:
-            mode.characterCreationMode = IBM;
-            cout << "IBM (Alt + Numpad nnn)";
-            break;
-        }
-        cout << " (" << mode.characterCreationMode << ")";
-        break;
-    case SC_LBRACK:
-        if (mode.delayBetweenMacroKeysMS >= 2)
-            mode.delayBetweenMacroKeysMS -= 1;
-        cout << "delay between characters in macros (ms): " << dec << mode.delayBetweenMacroKeysMS;
-        break;
-    case SC_RBRACK:
-        if (mode.delayBetweenMacroKeysMS <= 100)
-            mode.delayBetweenMacroKeysMS += 1;
-        cout << "delay between characters in macros (ms): " << dec << mode.delayBetweenMacroKeysMS;
-        break;
-    default:
-        cout << "Unknown command";
-        break;
-    }
-}
-
 void playMacro(InterceptionKeyStroke macro[], int macroLength)
 {
     unsigned int delay = mode.delayBetweenMacroKeysMS;
@@ -834,12 +848,14 @@ void printHelp()
         << "[R] Reset" << endl
 		<< "[D] Debug mode output" << endl
 		<< "[E] Error log" << endl
+		<< "[A] AHK start" << endl
+		<< "[K] AHK end" << endl
         << "[0]..[9] switch layers" << endl
         << "[Z] (labeled [Y] on GER keyboard): flip Y<>Z keys" << endl
         << "[W] flip ALT <> WIN" << endl
 		<< "[\\] (labeled [<] on GER keyboard): ISO boards only: key cut out of left shift -> Left Shift" << endl
 		<< "[/] (labeled [-] on GER keyboard): Slash -> Right Shift" << endl
-		<< "[U] switch character creation mode (Alt+Numpad or AHK)" << endl
+		<< "[C] switch character creation mode (Alt+Numpad or AHK)" << endl
         << "[ and ]: pause between macro keys sent -/+ 10ms " << endl
         ;
 }
