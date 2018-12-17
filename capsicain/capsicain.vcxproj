@@ -199,6 +199,9 @@ xcopy /y /d  "$(OutDir)capsicain.exe" "c:\app\capsicain\"</Command>
   <ItemGroup>
     <Text Include="layoutTest.txt" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="capsicain.ini" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

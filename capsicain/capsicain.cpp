@@ -1,6 +1,8 @@
 #include "pch.h"
 #include <iostream>
 #include <chrono>
+#include <vector>
+#include <algorithm>
 
 //TODO 
 //alt + cursor = 10
@@ -16,7 +18,7 @@
 
 using namespace std;
 
-string version = "19";
+string version = "20";
 
 const bool START_AHK_ON_STARTUP = true;
 const int MAX_KEYMACRO_LENGTH = 10000;  //for testing; in real life, 100 keys = 200 up/downs should be enough
@@ -28,16 +30,19 @@ const int CAPS_TAPPED_TIMEOUT_MS = 1000;    //"caps tapped" state disappears aft
 const unsigned short AHK_HOTKEY1 = SC_F14;  //this key triggers supporting AHK script
 const unsigned short AHK_HOTKEY2 = SC_F15;
 string scLabels[256]; // contains [01]="ESCAPE" instead of SC_ESCAPE 
+vector<string> iniLines; //sanitized content of the .ini file
 
 struct Mode
 {
 	bool debug;
 	int  activeLayer;
-	CREATE_CHARACTER_MODE characterCreationMode;
-	unsigned int delayBetweenMacroKeysMS;  //AHK drops keys when they are sent too fast
+	int characterCreationMode;
+	int delayBetweenMacroKeysMS;  //AHK drops keys when they are sent too fast
+	bool backslashShift;
 	bool slashShift;
 	bool flipZy;
-	bool flipAltWin;
+	bool flipAltWinOnPcKeyboards;
+	bool flipAltWinOnAppleKeyboards;
 } mode;
 
 struct GlobalState
@@ -75,18 +80,20 @@ void error(string txt)
 	errorLog += "\r\n" + txt;
 }
 
-void SetModeDefaults()
+void setModeDefaults()
 {
 	mode.debug = false;
 	mode.activeLayer = 2;
-	mode.characterCreationMode = IBM;
+	mode.characterCreationMode = 0;
 	mode.delayBetweenMacroKeysMS = DEFAULT_DELAY_SENDMACRO;  //AHK drops keys when they are sent too fast
+	mode.backslashShift = true;
 	mode.slashShift = true;
 	mode.flipZy = true;
-	mode.flipAltWin = true;
+	mode.flipAltWinOnPcKeyboards = false;
+	mode.flipAltWinOnAppleKeyboards = true;
 }
 
-void SetGlobalStateDefaults()
+void initGlobalStateDefaults()
 {
 	globalState.interceptionContext;
 	globalState.interceptionDevice;
@@ -94,7 +101,7 @@ void SetGlobalStateDefaults()
 	globalState.deviceIsAppleKeyboard = false;
 }
 
-void SetStateDefaults()
+void initStateDefaults()
 {
 	state.previousStroke.code = 0;
 	state.modifiers = 0;
@@ -107,7 +114,7 @@ void SetStateDefaults()
 	state.isCapsTapped = false;
 }
 
-void SetupConsoleWindow()
+void setupConsoleWindow()
 {
 	//disable quick edit; blocking the console window means the keyboard is dead
 	HANDLE Handle = GetStdHandle(STD_INPUT_HANDLE);
@@ -135,15 +142,75 @@ chrono::steady_clock::time_point timepointNow()
 	return std::chrono::steady_clock::now();
 }
 
+bool configHasKey(string section, string key)
+{
+	bool inSection = false;
+	std::transform(section.begin(), section.end(), section.begin(), ::tolower);
+	for (string line : iniLines)
+	{
+		std::transform(key.begin(), key.end(), key.begin(), ::tolower);
+		if (line == section)
+			inSection = true;
+		if (inSection && line == "[ENDSECTION]")
+			return false;
+		if (line == key)
+			return true;
+	}
+	return false;
+}
+
+int configReadInt(string section, string key, int &value)
+{
+	bool inSection = false;
+	std::transform(section.begin(), section.end(), section.begin(), ::tolower);
+	for (string line : iniLines)
+	{
+		std::transform(key.begin(), key.end(), key.begin(), ::tolower);
+		//key += " ";
+		if (line == section)
+			inSection = true;
+		if (inSection && line == "[ENDSECTION]")
+			return false;
+		if (line.compare(0, key.length(), key) == 0)
+		{
+			value = stoi(line.substr(line.find_last_of(' ') + 1));
+			return true;
+		}
+	}
+	return false;
+}
+
+void readIniFile()
+{
+	if (!parseConfig(iniLines))
+	{
+		cout << endl << "No capsicain.ini - using defaults";
+		setModeDefaults();
+		return;
+	}
+	mode.debug = configHasKey("DEFAULTS", "debug");
+	if (!configReadInt("DEFAULTS", "activeLayer", mode.activeLayer))
+		cout << "Invalid ini file: cannot read activeLayer";
+	if (!configReadInt("DEFAULTS", "characterCreationMode", mode.characterCreationMode))
+		cout << "Invalid ini file: cannot read characterCreationMode";
+	if (!configReadInt("DEFAULTS", "delayBetweenMacroKeysMS", mode.delayBetweenMacroKeysMS))
+		cout << "Invalid ini file: cannot read delayBetweenMacroKeysMS";
+	mode.backslashShift = configHasKey("FEATURES", "backslashShift");
+	mode.slashShift = configHasKey("FEATURES", "slashShift");
+	mode.flipZy = configHasKey("FEATURES", "flipZy");
+	mode.flipAltWinOnPcKeyboards = configHasKey("FEATURES", "flipAltWinOnPcKeyboards");
+	mode.flipAltWinOnAppleKeyboards = configHasKey("FEATURES", "flipAltWinOnAppleKeyboards");
+}
 
 int main()
 {
 	initScancodeLabels(scLabels);
 
-	SetModeDefaults();
-	SetGlobalStateDefaults();
-	SetStateDefaults();
-	SetupConsoleWindow();
+	readIniFile();
+
+	initGlobalStateDefaults();
+	initStateDefaults();
+	setupConsoleWindow();
 
 	Sleep(700); //time to release shortcut keys that started capsicain
 	raise_process_priority(); //careful: if we spam key events, other processes get no timeslots to process them. Sleep a bit...
@@ -178,7 +245,7 @@ int main()
 		if (globalState.deviceIdKeyboard.length() < 2)
 		{
 			getHardwareId();
-			mode.flipAltWin = globalState.deviceIsAppleKeyboard;
+			mode.flipAltWinOnPcKeyboards = globalState.deviceIsAppleKeyboard;
 			cout << (globalState.deviceIsAppleKeyboard ? "Apple keyboard (flipping Win<>Alt)" : "IBM keyboard");
 			cout << endl << endl << "capsicain running...";
 		}
@@ -385,7 +452,7 @@ int main()
 			state.isCapsDown = false;
 			state.isCapsTapped = false;
 			getHardwareId();
-			mode.flipAltWin = globalState.deviceIsAppleKeyboard;
+			mode.flipAltWinOnPcKeyboards = globalState.deviceIsAppleKeyboard;
 			cout << endl << (globalState.deviceIsAppleKeyboard ? "APPLE keyboard (flipping Win<>Alt)" : "PC keyboard");
 			break;
 		case SC_D:
@@ -396,13 +463,17 @@ int main()
 			mode.slashShift = !mode.slashShift;
 			cout << "Slash-Shift mode: " << (mode.slashShift ? "ON" : "OFF");
 			break;
+		case SC_LBSLASH:
+			mode.backslashShift = !mode.backslashShift;
+			cout << "Backslash-Shift mode: " << (mode.backslashShift ? "ON" : "OFF");
+			break;
 		case SC_Z:
 			mode.flipZy = !mode.flipZy;
 			cout << "Flip Z<>Y mode: " << (mode.flipZy ? "ON" : "OFF");
 			break;
 		case SC_W:
-			mode.flipAltWin = !mode.flipAltWin;
-			cout << "Flip ALT<>WIN mode: " << (mode.flipAltWin ? "ON" : "OFF") << endl;
+			mode.flipAltWinOnPcKeyboards = !mode.flipAltWinOnPcKeyboards;
+			cout << "Flip ALT<>WIN mode: " << (mode.flipAltWinOnPcKeyboards ? "ON" : "OFF") << endl;
 			break;
 		case SC_E:
 			cout << "ERROR LOG: " << endl << errorLog << endl;
@@ -417,16 +488,16 @@ int main()
 			cout << "Character creation mode: ";
 			switch (mode.characterCreationMode)
 			{
-			case IBM:
-				mode.characterCreationMode = ANSI;
+			case 0:
+				mode.characterCreationMode = 1;
 				cout << "ANSI (Alt + Numpad 0nnn)";
 				break;
-			case ANSI:
-				mode.characterCreationMode = AHK;
+			case 1:
+				mode.characterCreationMode = 2;
 				cout << "AHK";
 				break;
-			case AHK:
-				mode.characterCreationMode = IBM;
+			case 2:
+				mode.characterCreationMode = 0;
 				cout << "IBM (Alt + Numpad nnn)";
 				break;
 			}
@@ -757,7 +828,7 @@ int main()
 		switch (state.scancode)
 		{
 		case SC_LBSLASH:
-			if (mode.slashShift)
+			if (mode.backslashShift)
 				state.scancode = SC_LSHIFT;
 			break;
 		case SC_SLASH:
@@ -765,19 +836,19 @@ int main()
 				state.scancode = SC_RSHIFT;
 			break;
 		case SC_LALT:
-			if (mode.flipAltWin)
+			if (mode.flipAltWinOnPcKeyboards)
 				state.scancode = SC_LWIN;
 			break;
 		case SC_RWIN:
-			if (mode.flipAltWin)
+			if (mode.flipAltWinOnPcKeyboards)
 				state.scancode = SC_RALT;
 			break;
 		case SC_LWIN:
-			if (mode.flipAltWin)
+			if (mode.flipAltWinOnPcKeyboards)
 				state.scancode = SC_LALT;
 			break;
 		case SC_RALT:
-			if (mode.flipAltWin)
+			if (mode.flipAltWinOnPcKeyboards)
 				state.scancode = SC_RWIN;
 			break;
 		default:
@@ -840,8 +911,14 @@ int main()
 
 		cout << endl << endl << "[ESC] + [X] to stop." << endl
 			<< "[ESC] + [H] for Help";
-		cout << endl << endl << "features:" << endl << (mode.slashShift ? "ON :" : "OFF:") << "Slashes -> Shift ";
-		cout << endl << (mode.flipZy ? "ON :" : "OFF:") << "Z<->Y ";
+		cout << endl << endl << "FEATURES"
+			<< endl << (mode.backslashShift ? "ON :" : "OFF:") << "Backslash->Shift "
+			<< endl << (mode.slashShift ? "ON :" : "OFF:") << "Slash->Shift "
+			<< endl << (mode.flipZy ? "ON :" : "OFF:") << "Z<->Y "
+			<< endl << (mode.flipAltWinOnPcKeyboards ? "ON :" : "OFF:") << "Win<->Alt for PC keyboards"
+			<< endl << (mode.flipAltWinOnAppleKeyboards ? "ON :" : "OFF:") << "Win<->Alt for Apple keyboards"
+			;
+
 	}
 
 	void printHelp()
@@ -1063,11 +1140,11 @@ int main()
 	   3. AHK: Sends F14|F15 + 1 base character. Requires an AHK script that translates these comobos to characters.
 	   This is Windows only. For Linux, the combo is [Ctrl]+[Shift]+[U] , {unicode E4 is ö} , [Enter]
 	*/
-	void processCapsTapped(unsigned short scancd, CREATE_CHARACTER_MODE charCrtMode)
+	void processCapsTapped(unsigned short scancd, int charCrtMode)
 	{
 		bool shiftXorCaps = IS_SHIFT_DOWN != ((GetKeyState(VK_CAPITAL) & 0x0001) != 0);
 
-		if (charCrtMode == IBM)
+		if (charCrtMode == 0) //IBM
 		{
 			switch (scancd)
 			{
@@ -1156,7 +1233,7 @@ int main()
 			}
 			}
 		}
-		else if (charCrtMode == ANSI)
+		else if (charCrtMode == 1) //ANSI
 		{
 			switch (scancd)
 			{
@@ -1189,7 +1266,7 @@ int main()
 				break;
 			}
 		}
-		else if (charCrtMode == AHK)
+		else if (charCrtMode == 2) //AHK
 		{
 			switch (scancd)
 			{
@@ -1226,7 +1303,7 @@ int main()
 		}
 	}
 
-	string getSymbolForStrokeState(unsigned char state)
+	string getSymbolForStrokeState(unsigned short state)
 	{
 		switch (state)
 		{

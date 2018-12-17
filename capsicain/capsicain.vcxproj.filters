@@ -64,4 +64,9 @@
   <ItemGroup>
     <Text Include="layoutTest.txt" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="capsicain.ini">
+      <Filter>Source Files</Filter>
+    </None>
+  </ItemGroup>
 </Project>

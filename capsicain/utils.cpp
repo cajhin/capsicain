@@ -1,6 +1,7 @@
 #include <string>
 #include <filesystem>
 #include <iostream>
+#include <fstream>
 #include <windows.h>
 #include <tlhelp32.h>
 
@@ -122,4 +123,42 @@ void closeOrKillProgram(string processName)
 		cout << " Stopped.";
 	else if (result == 2)
 		cout << " Killed.";
+}
+
+void normalizeLine(string &line)
+{
+	replace(line.begin(), line.end(), '\t', ' ');
+	auto idxComment = line.find_first_of(';');
+	if(string::npos != idxComment)
+		line.erase(idxComment);
+	line.erase(0, line.find_first_not_of(' '));
+	line.erase(line.find_last_not_of(' ') + 1);
+	std::transform(line.begin(), line.end(), line.begin(), ::tolower);
+}
+
+bool parseConfig(vector<string> &config)
+{
+	string line;
+	int numlines = 0;
+	ifstream f("capsicain.ini");
+	if (!f.is_open())
+		return false;
+	while (getline(f, line)) {
+		normalizeLine(line);
+		if (line == "")
+			continue;
+		if (line.substr(0,1) == "["  && numlines>0)
+			config.push_back("[SECTIONEND]");
+		config.push_back(line);
+		numlines++;
+	}
+	if (f.bad())
+	{
+		cout << "error while reading .ini file";
+		return false;
+	}
+	else
+		config.push_back("[SECTIONEND]");
+
+	return true;
 }
