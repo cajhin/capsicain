@@ -162,3 +162,50 @@ bool parseConfig(vector<string> &config)
 
 	return true;
 }
+
+bool configHasKey(string section, string key, vector<string> iniLines)
+{
+	bool inSection = false;
+	std::transform(section.begin(), section.end(), section.begin(), ::tolower);
+	for (string line : iniLines)
+	{
+		std::transform(key.begin(), key.end(), key.begin(), ::tolower);
+		if (line == section)
+			inSection = true;
+		if (inSection && line == "[ENDSECTION]")
+			return false;
+		if (line == key)
+			return true;
+	}
+	return false;
+}
+
+int configReadInt(string section, string key, int &value, vector<string> iniLines)
+{
+	bool inSection = false;
+	std::transform(section.begin(), section.end(), section.begin(), ::tolower);
+	key += " ";
+	for (string line : iniLines)
+	{
+		std::transform(key.begin(), key.end(), key.begin(), ::tolower);
+		if (line == section)
+			inSection = true;
+		if (inSection && line == "[ENDSECTION]")
+			return false;
+		if (line.compare(0, key.length(), key) == 0)
+		{
+			value = stoi(line.substr(line.find_last_of(' ') + 1));
+			return true;
+		}
+	}
+	return false;
+}
+
+unsigned int millisecondsSinceTimepoint(chrono::steady_clock::time_point timepoint)
+{
+	return (int)chrono::duration_cast<chrono::milliseconds>(std::chrono::steady_clock::now() - timepoint).count();
+}
+std::chrono::steady_clock::time_point timepointNow()
+{
+	return std::chrono::steady_clock::now();
+}

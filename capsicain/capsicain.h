@@ -25,7 +25,8 @@ std::string getSymbolForStrokeState(unsigned short state);
 
 void playMacro(InterceptionKeyStroke macro[], int macroLength);
 
-void processCoreCommands();
+void processCommands();
+void processBufferedScancode();
 void processRemapModifiers();
 void processTrackModifierState();
 void processLayoutIndependentAction();
