@@ -163,6 +163,38 @@ bool parseConfig(vector<string> &config)
 	return true;
 }
 
+bool parseConfigSection(string sectionName, vector<string> &config)
+{
+	string line;
+	bool inSection = false;
+	ifstream f("capsicain.ini");
+	if (!f.is_open())
+		return false;
+	while (getline(f, line)) 
+	{
+		normalizeLine(line);
+		if (line == "")
+			continue;
+		if (stringStartsWith(line, "[" + sectionName + "]"))
+		{
+			inSection = true;
+			continue;
+		}
+		if (inSection)
+		{
+			if (stringStartsWith(line, "["))
+				return true;
+			config.push_back(line);
+		}
+	}
+	if (f.bad())
+	{
+		cout << "error while reading .ini file";
+		return false;
+	}
+	return false;
+}
+
 bool configHasKey(string section, string key, vector<string> iniLines)
 {
 	bool inSection = false;
@@ -183,11 +215,11 @@ bool configHasKey(string section, string key, vector<string> iniLines)
 int configReadInt(string section, string key, int &value, vector<string> iniLines)
 {
 	bool inSection = false;
-	std::transform(section.begin(), section.end(), section.begin(), ::tolower);
+	std::transform(section.begin(), section.end(), section.begin(), tolower);
 	key += " ";
 	for (string line : iniLines)
 	{
-		std::transform(key.begin(), key.end(), key.begin(), ::tolower);
+		std::transform(key.begin(), key.end(), key.begin(), tolower);
 		if (line == section)
 			inSection = true;
 		if (inSection && line == "[ENDSECTION]")
@@ -208,4 +240,28 @@ unsigned int millisecondsSinceTimepoint(chrono::steady_clock::time_point timepoi
 std::chrono::steady_clock::time_point timepointNow()
 {
 	return std::chrono::steady_clock::now();
+}
+
+bool stringStartsWith(string haystack, string needle)
+{
+	return (haystack.compare(0, needle.length(), needle) == 0);
+}
+
+std::string stringGetFirstToken(std::string line)
+{
+	return line.substr(0, line.find_first_of(' '));
+}
+std::string stringGetLastToken(std::string line)
+{
+	return line.substr(line.find_last_of(' ')+1);
+}
+std::string stringToLower(std::string str)
+{
+	std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+	return str;
+}
+std::string stringToUpper(std::string str)
+{
+	std::transform(str.begin(), str.end(), str.begin(), ::toupper);
+	return str;
 }

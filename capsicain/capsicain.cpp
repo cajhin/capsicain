@@ -44,6 +44,11 @@ struct Mode
 	bool flipAltWinOnAppleKeyboards = true;
 } mode;
 
+struct Mapping
+{
+	unsigned char alphamap[256] = { SC_NOP };
+} mapping;
+
 struct GlobalState
 {
 	bool keysDownReceived[256] = { false };
@@ -151,6 +156,31 @@ void readIniFile()
 	mode.flipZy = configHasKey("FEATURES", "flipZy", iniLines);
 	mode.flipAltWinOnPcKeyboards = configHasKey("FEATURES", "flipAltWinOnPcKeyboards", iniLines);
 	mode.flipAltWinOnAppleKeyboards = configHasKey("FEATURES", "flipAltWinOnAppleKeyboards", iniLines);
+}
+
+void resetAlphaMap()
+{
+	for (int i = 0; i < 256; i++)
+		mapping.alphamap[i] = i;
+}
+
+void readIniMappingLayer(int layer)
+{
+	vector<string> iniLines; //sanitized content of the .ini file
+	if (!parseConfigSection("layer" + std::to_string(layer), iniLines))
+	{
+		cout << endl << "No mapping defined for layer " << layer << endl;
+		return;
+	}
+	resetAlphaMap();
+	for (string line : iniLines)
+	{
+		string a = stringToUpper(stringGetFirstToken(line));
+		string b = stringToUpper(stringGetLastToken(line));
+		unsigned char from = getScancode(a, scLabels);
+		unsigned char to = getScancode(b, scLabels);
+		mapping.alphamap[from] = to;
+	}
 }
 
 int main()
@@ -261,7 +291,7 @@ int main()
 				else
 				{
 					state.previousStroke = state.stroke;
-					processCommands();
+					processCommand();
 					continue;
 				}
 			}
@@ -374,7 +404,7 @@ void processBufferedScancode()
 	globalState.bufferedScancode = 0;
 }
 
-void processCommands()
+void processCommand()
 {
 	cout << endl << endl << "::";
 
@@ -386,10 +416,12 @@ void processCommands()
 		break;
 	case SC_1:
 		mode.activeLayer = 1;
+		readIniMappingLayer(1);
 		cout << "LAYER 1: No layout changes";
 		break;
 	case SC_2:
 		mode.activeLayer = 2;
+		readIniMappingLayer(2);
 		cout << "LAYER 2: QWERTZ on US keyboard";
 		break;
 	case SC_3:
