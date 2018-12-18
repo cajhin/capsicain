@@ -136,13 +136,12 @@ void setupConsoleWindow()
 //catch fast interleaved typed ö
 chrono::steady_clock::time_point capsDownTimestamp;
 
-void readIniFile()
+bool readIniConfig()
 {
 	vector<string> iniLines; //sanitized content of the .ini file
 	if (!parseConfig(iniLines))
 	{
-		cout << endl << "No capsicain.ini - using defaults" << endl;
-		return;
+		return false;
 	}
 	mode.debug = configHasKey("DEFAULTS", "debug", iniLines);
 	if (!configReadInt("DEFAULTS", "activeLayer", mode.activeLayer, iniLines))
@@ -156,6 +155,7 @@ void readIniFile()
 	mode.flipZy = configHasKey("FEATURES", "flipZy", iniLines);
 	mode.flipAltWinOnPcKeyboards = configHasKey("FEATURES", "flipAltWinOnPcKeyboards", iniLines);
 	mode.flipAltWinOnAppleKeyboards = configHasKey("FEATURES", "flipAltWinOnAppleKeyboards", iniLines);
+	return true;
 }
 
 void resetAlphaMap()
@@ -164,13 +164,13 @@ void resetAlphaMap()
 		mapping.alphamap[i] = i;
 }
 
-void readIniMappingLayer(int layer)
+bool readIniMappingLayer(int layer)
 {
 	vector<string> iniLines; //sanitized content of the .ini file
 	if (!parseConfigSection("layer" + std::to_string(layer), iniLines))
 	{
-		cout << endl << "No mapping defined for layer " << layer << endl;
-		return;
+		IFDEBUG cout << endl << "No mapping defined for layer " << layer << endl;
+		return false;
 	}
 	resetAlphaMap();
 	for (string line : iniLines)
@@ -181,14 +181,21 @@ void readIniMappingLayer(int layer)
 		unsigned char to = getScancode(b, scLabels);
 		mapping.alphamap[from] = to;
 	}
+	return true;
 }
 
 int main()
 {
+	setupConsoleWindow();
 	initScancodeLabels(scLabels);
 	initAllStatesToDefault();
-	readIniFile();
-	setupConsoleWindow();
+	if (!readIniConfig())
+	{
+		cout << endl << "No capsicain.ini - exiting..." << endl;
+		Sleep(1000);
+		return -1;
+	}
+	readIniMappingLayer(mode.activeLayer);
 
 	Sleep(700); //time to release shortcut keys that started capsicain
 	raise_process_priority(); //careful: if we spam key events, other processes get no timeslots to process them. Sleep a bit...
@@ -213,6 +220,8 @@ int main()
 		(InterceptionStroke *)&state.stroke, 1) > 0
 		)
 	{
+		//IFDEBUG cout << endl << "{{" << state.stroke.code << "|" << state.stroke.state << "}}";
+
 		state.keyMacroLength = 0;
 		state.blockKey = false;  //true: do not send the current key
 		state.isFinalScancode = false;  //true: don't remap the scancode anymore
@@ -224,7 +233,7 @@ int main()
 		{
 			getHardwareId();
 			mode.flipAltWinOnPcKeyboards = globalState.deviceIsAppleKeyboard;
-			cout << (globalState.deviceIsAppleKeyboard ? "Apple keyboard (flipping Win<>Alt)" : "IBM keyboard");
+			cout << endl << (globalState.deviceIsAppleKeyboard ? "Apple keyboard" : "IBM keyboard");
 			resetCapsNumScrollLock();
 			cout << endl << endl << "capsicain running...";
 		}
@@ -337,16 +346,11 @@ int main()
 
 		if (!state.isFinalScancode && !IS_LCONTROL_DOWN) //basic char layout. Don't remap the Ctrl combos?
 		{
-			switch (mode.activeLayer)
-			{
-			case 2:
-				map_Qwerty_Qwertz(state.scancode);
-				break;
-			case 3:
-				map_Qwerty_WorkmanJ(state.scancode);
-				break;
-			}
+			processAlphaMappingTable(state.scancode);
+			if (mode.flipZy)
+				flipZY(state.scancode);
 		}
+
 		if (!state.isFinalScancode)
 			processLayoutDependentActions();
 
@@ -360,6 +364,18 @@ int main()
 }
 ////////////////////////////////////END MAIN//////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////
+
+void processAlphaMappingTable(unsigned short &scancode)
+{
+	if (scancode > 0xFF)
+	{
+		error("Unexpected scancode > 255 while mapping alphachars: " + std::to_string(scancode));
+	}
+	else
+	{
+		scancode = mapping.alphamap[scancode];
+	}
+}
 
 void processBufferedScancode()
 {
@@ -415,23 +431,29 @@ void processCommand()
 		cout << "LAYER 0: No changes at all (except core commands)";
 		break;
 	case SC_1:
-		mode.activeLayer = 1;
-		readIniMappingLayer(1);
-		cout << "LAYER 1: No layout changes";
-		break;
 	case SC_2:
-		mode.activeLayer = 2;
-		readIniMappingLayer(2);
-		cout << "LAYER 2: QWERTZ on US keyboard";
-		break;
 	case SC_3:
-		mode.activeLayer = 3;
-		cout << "LAYER 3: WorkmanJ";
+	case SC_4:
+	case SC_5:
+	case SC_6:
+	case SC_7:
+	case SC_8:
+	case SC_9:
+	{
+		int layer = state.scancode - 1;
+		if (readIniMappingLayer(layer))
+		{
+			mode.activeLayer = layer;
+			cout << "LAYER CHANGE: " << layer;
+		}
+		else
+			cout << "LAYER IS NOT DEFINED";
 		break;
+	}
 	case SC_R:
 		cout << "RESET";
 		reset();
-		readIniFile();
+		readIniConfig();
 		getHardwareId();
 		cout << endl << (globalState.deviceIsAppleKeyboard ? "APPLE keyboard (flipping Win<>Alt)" : "PC keyboard");
 		break;

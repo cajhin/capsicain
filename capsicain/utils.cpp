@@ -242,11 +242,11 @@ std::chrono::steady_clock::time_point timepointNow()
 	return std::chrono::steady_clock::now();
 }
 
+//String stuff
 bool stringStartsWith(string haystack, string needle)
 {
 	return (haystack.compare(0, needle.length(), needle) == 0);
 }
-
 std::string stringGetFirstToken(std::string line)
 {
 	return line.substr(0, line.find_first_of(' '));

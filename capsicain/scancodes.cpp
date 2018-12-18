@@ -10,7 +10,6 @@ unsigned char getScancode(string label, string* arr)
 {
 	for (int i = 0; i < 256; i++)
 	{
-		cout << " " << arr[i];
 		if (arr[i] == label)
 			return i;
 	}
