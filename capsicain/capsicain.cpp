@@ -18,7 +18,7 @@
 
 using namespace std;
 
-string version = "22";
+string version = "23";
 
 const bool START_AHK_ON_STARTUP = true;
 const int MAX_KEYMACRO_LENGTH = 10000;  //for testing; in real life, 100 keys = 200 up/downs should be enough
