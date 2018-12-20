@@ -120,6 +120,7 @@ void initScancodeLabels(string arr[])
 	checkAddLabel(SC_F13, "F13", arr);
 	checkAddLabel(SC_F14, "F14", arr);
 	checkAddLabel(SC_F15, "F15", arr);
+	checkAddLabel(SC_MOD12, "MOD12", arr);
 	checkAddLabel(SC_KANA, "KANA", arr);
 	checkAddLabel(SC_ABNT_C1, "ABNT_C1", arr);
 	checkAddLabel(SC_CONVERT, "CONVERT", arr);
@@ -137,7 +138,7 @@ void initScancodeLabels(string arr[])
 	checkAddLabel(SC_UNLABELED, "UNLABELED", arr);
 	checkAddLabel(SC_NEXTTRACK, "NEXTTRACK", arr);
 	checkAddLabel(SC_NPENTER, "NPENTER", arr);
-	checkAddLabel(SC_RCONTROL, "RCONTROL", arr);
+	checkAddLabel(SC_RCTRL, "RCONTROL", arr);
 	checkAddLabel(SC_MUTE, "MUTE", arr);
 	checkAddLabel(SC_CALCULATOR, "CALCULATOR", arr);
 	checkAddLabel(SC_PLAYPAUSE, "PLAYPAUSE", arr);

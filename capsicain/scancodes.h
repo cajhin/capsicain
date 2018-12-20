@@ -100,6 +100,7 @@ enum ScanCode {
     SC_F13 = 0x64, //                     (NEC PC98)
     SC_F14 = 0x65, //                     (NEC PC98)
     SC_F15 = 0x66, //                     (NEC PC98)
+	SC_MOD12 = 0x67, // virtual key, invented for capsicain
     SC_KANA = 0x70, // (Japanese keyboard)
     SC_ABNT_C1 = 0x73, // / ? on Portugese (Brazilian) keyboards
     SC_CONVERT = 0x79, // (Japanese keyboard)
@@ -117,7 +118,7 @@ enum ScanCode {
     SC_UNLABELED = 0x97, //                        (J3100)
     SC_NEXTTRACK = 0x99, // Next Track
     SC_NPENTER = 0x9C, // Enter on numeric keypad
-    SC_RCONTROL = 0x9D,
+    SC_RCTRL = 0x9D,
     SC_MUTE = 0xA0, // Mute
     SC_CALCULATOR = 0xA1, // Calculator
     SC_PLAYPAUSE = 0xA2, // Play / Pause
