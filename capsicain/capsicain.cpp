@@ -12,13 +12,12 @@
 #include <Windows.h>  //for Sleep()
 
 #include "capsicain.h"
-#include "utils.h"
 #include "mappings.h"
 #include "scancodes.h"
 
 using namespace std;
 
-string version = "23";
+string version = "24";
 
 const bool START_AHK_ON_STARTUP = true;
 const int MAX_KEYMACRO_LENGTH = 10000;  //for testing; in real life, 100 keys = 200 up/downs should be enough
@@ -30,6 +29,19 @@ const int CAPS_TAPPED_TIMEOUT_MS = 1000;    //"caps tapped" state disappears aft
 const unsigned short AHK_HOTKEY1 = SC_F14;  //this key triggers supporting AHK script
 const unsigned short AHK_HOTKEY2 = SC_F15;
 string scLabels[256]; // contains [01]="ESCAPE" instead of SC_ESCAPE 
+
+struct ModifierCombo
+{
+	unsigned short key = SC_NOP;
+	unsigned short modAnd = 0;
+	unsigned short modNot = 0;
+	unsigned short modNop = 0; //block these modifiers
+	unsigned short modFor = 0; //forward these modifiers
+	unsigned short modTap = 0;
+	vector<Stroke> strokeSequence;
+};
+vector<ModifierCombo> modCombosPre;
+vector<ModifierCombo> modCombosPost;
 
 struct Mode
 {
@@ -68,12 +80,14 @@ struct State
 
 	unsigned short modifiers;
 	bool blockKey;  //true: do not send the current key
-	bool isFinalScancode;  //true: don't remap the scancode anymore
-	bool isDownstroke;
-	bool isExtendedCode;
-	bool isCapsTapped;
+	bool isFinalScancode = false;  //true: don't remap the scancode anymore
+	bool isDownstroke = false;
+	bool isExtendedCode = false;
+	bool isCapsTapped = false;
 	InterceptionKeyStroke keyMacro[MAX_KEYMACRO_LENGTH];
 	int keyMacroLength;  // >0 triggers sending of macro instead of scancode. MUST match the actual # of chars in keyMacro
+
+	vector<Stroke> resultingStrokeSequence;
 } state;
 
 string errorLog = "";
@@ -162,10 +176,10 @@ void resetAlphaMap()
 		mapping.alphamap[i] = i;
 }
 
-bool readIniMappingLayer(int layer)
+bool readIniAlphaMappingLayer(int layer)
 {
 	vector<string> iniLines; //sanitized content of the .ini file
-	if (!parseConfigSection("layer" + std::to_string(layer), iniLines))
+	if (!parseConfigSection("LAYER" + std::to_string(layer), iniLines))
 	{
 		IFDEBUG cout << endl << "No mapping defined for layer " << layer << endl;
 		return false;
@@ -182,6 +196,33 @@ bool readIniMappingLayer(int layer)
 	return true;
 }
 
+bool readIniModCombos()
+{
+	vector<string> iniLines; //sanitized content of the .ini file
+	if (!parseConfigSection("LAYER_ALL_PRE", iniLines))
+	{
+		cout << endl << "No mapping defined for pre modifier combos." << endl;
+		return false;
+	}
+	modCombosPre.clear();
+	unsigned short mods[5] = { 0 }; //and, not, nop, for, tap
+	vector<Stroke> strokeSequence;
+
+	for (string line : iniLines)
+	{
+		unsigned short key;
+		if (parseModCombo(line, key, mods, strokeSequence, scLabels))
+		{
+			IFDEBUG cout << endl << "modComboPre: " << line << endl << "    ," << key << " -> " 
+				<< mods[0] << "," << mods[1] << "," << mods[1] << "," << mods[2] << "," << mods[3] << "," << mods[4] << "," << "sequence:" << strokeSequence.size();
+			modCombosPre.push_back({ key, mods[0], mods[1], mods[2], mods[3], mods[4], strokeSequence });
+		}
+		else
+			error ("\r\nError in .ini: cannot parse: " + line);
+	}
+	return true;
+}
+
 int main()
 {
 	setupConsoleWindow();
@@ -193,7 +234,9 @@ int main()
 		Sleep(1000);
 		return -1;
 	}
-	readIniMappingLayer(mode.activeLayer);
+
+	readIniModCombos();
+	readIniAlphaMappingLayer(mode.activeLayer);
 
 	Sleep(700); //time to release shortcut keys that started capsicain
 	raise_process_priority(); //careful: if we spam key events, other processes get no timeslots to process them. Sleep a bit...
@@ -225,6 +268,7 @@ int main()
 		state.isFinalScancode = false;  //true: don't remap the scancode anymore
 		state.isDownstroke = false;
 		state.isExtendedCode = false;
+		state.resultingStrokeSequence.clear();
 
 		//check device ID
 		if (globalState.deviceIdKeyboard.length() < 2)
@@ -304,13 +348,14 @@ int main()
 			continue;
 		}
 
+		/////CONFIGURED RULES//////
 		IFDEBUG cout << endl << " [" << scLabels[state.stroke.code] << getSymbolForStrokeState(state.stroke.state) 
 			<< " =" << hex << state.scancode << " " << state.stroke.state << "]";
 
 		if (state.isCapsTapped && millisecondsSinceTimepoint(capsDownTimestamp) > CAPS_TAPPED_TIMEOUT_MS)
 		{
 			state.isCapsTapped = false;
-			IFDEBUG cout << endl << "***Forgetting Caps tapped. Was " << dec << millisecondsSinceTimepoint(capsDownTimestamp) << "ms ago";
+			IFDEBUG cout <<  " [*Forgetting Caps tap. Was " << dec << millisecondsSinceTimepoint(capsDownTimestamp) << "ms ago] ";
 		}
 
 		//Catch fast typed interleaved caps+key. React to the previous key now that we know what came next.
@@ -332,6 +377,29 @@ int main()
 		processRemapModifiers();
 		processModifierState();
 		IFDEBUG cout << " [" << hex << state.modifiers << (state.isCapsTapped ? "T" : "_") << "] ";
+
+		//new rule based processing
+		if (!state.isFinalScancode)
+		{
+			for (ModifierCombo modcombo : modCombosPre)
+			{
+				if (modcombo.key == state.scancode)
+				{
+					if (
+						(state.modifiers & modcombo.modAnd) > 0 &&	//tapped combo?
+						(state.modifiers & modcombo.modAnd) == modcombo.modAnd &&
+						(state.modifiers & modcombo.modNot) == 0
+						)
+					{
+						if(state.isDownstroke)
+							state.resultingStrokeSequence = modcombo.strokeSequence;
+						state.isFinalScancode = true;
+						state.blockKey = true;
+						break;
+					}
+				}
+			}
+		}
 
 		if (!state.isFinalScancode)
 			processLayoutIndependentAction();  //like caps+J
@@ -433,7 +501,7 @@ void processCommand()
 	case SC_9:
 	{
 		int layer = state.scancode - 1;
-		if (readIniMappingLayer(layer))
+		if (readIniAlphaMappingLayer(layer))
 		{
 			mode.activeLayer = layer;
 			cout << "LAYER CHANGE: " << layer;
@@ -528,7 +596,11 @@ void processCommand()
 
 void sendResultingKeyOrMacro()
 {
-	if (state.keyMacroLength > 0)
+	if (state.resultingStrokeSequence.size() > 0)
+	{
+		playStrokeSequence(state.resultingStrokeSequence);
+	}
+	else if (state.keyMacroLength > 0)
 	{
 		playMacro(state.keyMacro, state.keyMacroLength);
 	}
@@ -540,8 +612,10 @@ void sendResultingKeyOrMacro()
 				cout << "\t--> BLOCKED ";
 			else if (state.stroke.code != (state.scancode & 0x7F))
 				cout << "\t--> " << scLabels[state.scancode] << " " << getSymbolForStrokeState(state.stroke.state);
+			else
+				cout << "\t--";
 		}
-		if (!state.blockKey)
+		if (!state.blockKey && !state.scancode == SC_NOP)
 		{
 			scancode2stroke(state.scancode, state.stroke);
 			sendStroke(state.stroke);
@@ -840,6 +914,24 @@ void processRemapModifiers()
 	}
 }
 
+void playStrokeSequence(vector<Stroke> strokeSequence)
+{
+	InterceptionKeyStroke iks;
+	unsigned int delay = mode.delayBetweenMacroKeysMS;
+	IFDEBUG cout << "\t--> PLAY STROKE SEQUENCE (" << strokeSequence.size() << ")";
+	for (Stroke stroke : strokeSequence)
+	{
+		iks.code = stroke.scancode & 0x7F;
+		iks.state = 0;
+		if (!stroke.downstroke)
+			iks.state = 1;
+		if (stroke.scancode > iks.code)
+			iks.state |= 2;
+		sendStroke(iks);
+		Sleep(delay);
+	}
+}
+
 void playMacro(InterceptionKeyStroke macro[], int macroLength)
 {
 	unsigned int delay = mode.delayBetweenMacroKeysMS;
@@ -847,7 +939,7 @@ void playMacro(InterceptionKeyStroke macro[], int macroLength)
 	for (int i = 0; i < macroLength; i++)
 	{
 		normalizeKeyStroke(macro[i]);
-		IFDEBUG cout << " " << scLabels[macro[i].code] << getSymbolForStrokeState(macro[i].state);
+		//IFDEBUG cout << " " << scLabels[macro[i].code] << getSymbolForStrokeState(macro[i].state);
 		sendStroke(macro[i]);
 		if (macro[i].code == AHK_HOTKEY1 || macro[i].code == AHK_HOTKEY2)
 			delay = DELAY_FOR_AHK;
@@ -983,10 +1075,17 @@ void sendStroke(InterceptionKeyStroke stroke)
 	if (stroke.code == 0xE4)
 		IFDEBUG cout << " (sending E4) ";
 	if (stroke.code > 0xFF)
+	{
 		error("Unexpected scancode > 255: " + stroke.code);
-	else
-globalState.keysDownSent[(unsigned char)stroke.code] = (stroke.state & 1) ? false : true;
-
+		return;
+	}
+	if ((stroke.state & 1) && !globalState.keysDownSent[(unsigned char)stroke.code])  //ignore up when down was not sent
+	{
+		IFDEBUG cout << " >(blocked " << scLabels[stroke.code] << " UP: was not down)>";
+		return;
+	}
+	globalState.keysDownSent[(unsigned char)stroke.code] = (stroke.state & 1) ? false : true;
+	IFDEBUG cout << " >" << scLabels[stroke.code] << (stroke.state & 1 ? "^" : "v" ) << ">";
 	interception_send(globalState.interceptionContext, globalState.interceptionDevice, (InterceptionStroke *)&stroke, 1);
 }
 

@@ -1,5 +1,6 @@
 #define PROGRAM_NAME_AHK "autohotkey.exe"
 #include "interception.h"
+#include "utils.h"
 
 enum KEYSTATE
 {
@@ -29,6 +30,7 @@ void processCommand();
 void processAlphaMappingTable(unsigned short & scancode);
 void processBufferedScancode();
 void processRemapModifiers();
+void playStrokeSequence(std::vector<Stroke> strokeSequence);
 void processModifierState();
 void processLayoutIndependentAction();
 

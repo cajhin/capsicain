@@ -7,6 +7,7 @@
 
 #include "capsicain.h"
 #include "utils.h"
+#include "scancodes.h"
 
 using namespace std;
 
@@ -165,6 +166,7 @@ bool parseConfig(vector<string> &config)
 
 bool parseConfigSection(string sectionName, vector<string> &config)
 {
+	string sectName = stringToLower(sectionName);
 	string line;
 	bool inSection = false;
 	ifstream f("capsicain.ini");
@@ -175,7 +177,7 @@ bool parseConfigSection(string sectionName, vector<string> &config)
 		normalizeLine(line);
 		if (line == "")
 			continue;
-		if (stringStartsWith(line, "[" + sectionName + "]"))
+		if (stringStartsWith(line, "[" + sectName + "]"))
 		{
 			inSection = true;
 			continue;
@@ -247,14 +249,6 @@ bool stringStartsWith(string haystack, string needle)
 {
 	return (haystack.compare(0, needle.length(), needle) == 0);
 }
-std::string stringGetFirstToken(std::string line)
-{
-	return line.substr(0, line.find_first_of(' '));
-}
-std::string stringGetLastToken(std::string line)
-{
-	return line.substr(line.find_last_of(' ')+1);
-}
 std::string stringToLower(std::string str)
 {
 	std::transform(str.begin(), str.end(), str.begin(), ::tolower);
@@ -264,4 +258,100 @@ std::string stringToUpper(std::string str)
 {
 	std::transform(str.begin(), str.end(), str.begin(), ::toupper);
 	return str;
+}
+
+//ini parsing
+std::string stringGetFirstToken(std::string line)
+{
+	return line.substr(0, line.find_first_of(" [>"));
+}
+std::string stringGetLastToken(std::string line)
+{
+	return line.substr(line.find_last_of(' ') + 1);
+}
+
+//convert ("xy^_v.", 'v') to 000010
+unsigned short parseModString(string modString, char filter)
+{
+	string binString = "";
+	for (int i = 0; i < modString.length(); i++)
+	{
+		if (modString[i] == filter)
+			binString += '1';
+		else
+			binString += '0';
+	}
+	return std::stoi(binString, nullptr, 2);
+}
+
+//parse H  [^^^v .--. ....] > key(BACK)
+bool parseModCombo(std::string line, unsigned short &key, unsigned short (&mods)[5], std::vector<Stroke> &strokeSequence, std::string scLabels[])
+{
+	line.erase(std::remove(line.begin(), line.end(), ' '), line.end());
+
+	string strkey = stringGetFirstToken(line);
+	if (strkey.length() < 1)
+		return false;
+	unsigned short tmpKey = getScancode(strkey, scLabels);
+	if (tmpKey == 0)
+		return false;
+	key = tmpKey;
+
+	size_t modIdx1 = line.find_first_of('[') +1;
+	size_t modIdx2 = line.find_first_of(']');
+	if (modIdx1 < 2 || modIdx2 < 3 || modIdx1 > modIdx2)
+		return false;
+	string mod = line.substr(modIdx1, modIdx2 - modIdx1);
+
+	mods[0] = parseModString(mod, 'v'); //and 
+	mods[1] = parseModString(mod, '!'); //not 
+	mods[2] = parseModString(mod, '-'); //nop
+	mods[3] = parseModString(mod, '.'); //for
+	mods[4] = parseModString(mod, 't'); //tap
+
+	//extract function name + param
+	size_t funcIdx1 = line.find_first_of('>') + 1;
+	if (funcIdx1 < 2)
+		return false;
+	size_t funcIdx2 = line.find_first_of('(');
+	if (funcIdx2 < funcIdx1 + 2)
+		return false;
+	size_t funcIdx3 = line.find_first_of(')');
+	if (funcIdx3 < funcIdx2 + 2)
+		return false;
+	string funcName = line.substr(funcIdx1, funcIdx2-funcIdx1);
+	funcIdx2++;
+	string funcParams = line.substr(funcIdx2, funcIdx3-funcIdx2);
+
+	//translate 'function' into a char sequence
+	vector<Stroke> seq;
+	if (funcName == "key")
+	{
+		unsigned short sc=getScancode(funcParams, scLabels);
+		if (sc == 0)
+			return false;
+		seq.push_back({ sc, true });
+		seq.push_back({ sc, false });
+	}
+	else if (funcName == "combo")
+	{
+
+	}
+	else if (funcName == "combontimes")
+	{
+
+	}
+	else if (funcName == "altchar")
+	{
+
+	}
+	else if (funcName == "type")
+	{
+
+	}
+	else
+		return false;
+
+	strokeSequence = seq;
+	return true;
 }

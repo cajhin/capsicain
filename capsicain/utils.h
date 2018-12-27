@@ -1,6 +1,13 @@
 #pragma once
 #include <string>
 #include <chrono>
+#include <vector>
+
+struct Stroke 
+{
+	unsigned short scancode = 0;
+	bool downstroke = true;
+};
 
 void raise_process_priority(void);
 std::string startProgramSameFolder(std::string path);
@@ -13,6 +20,7 @@ unsigned int millisecondsSinceTimepoint(std::chrono::steady_clock::time_point ti
 std::chrono::steady_clock::time_point timepointNow();
 bool stringStartsWith(std::string haystack, std::string needle);
 std::string stringGetLastToken(std::string line);
+bool parseModCombo(std::string line, unsigned short &key, unsigned short (&mods)[5], std::vector<Stroke> &strokeSequence, std::string scLabels[]);
 std::string stringGetFirstToken(std::string line);
 std::string stringToLower(std::string str);
 std::string stringToUpper(std::string str);

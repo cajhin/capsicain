@@ -3,14 +3,16 @@
 #include <iostream>
 
 #include "scancodes.h"
+#include "utils.h"
 
 using namespace std;
 
 unsigned char getScancode(string label, string* arr)
 {
+	string ucLabel = stringToUpper(label);
 	for (int i = 0; i < 256; i++)
 	{
-		if (arr[i] == label)
+		if (arr[i] == ucLabel)
 			return i;
 	}
 	return 0;
