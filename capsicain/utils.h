@@ -20,8 +20,10 @@ unsigned int millisecondsSinceTimepoint(std::chrono::steady_clock::time_point ti
 std::chrono::steady_clock::time_point timepointNow();
 bool stringStartsWith(std::string haystack, std::string needle);
 std::string stringGetLastToken(std::string line);
+bool parseCombo(std::string &funcParams, std::string * scLabels, std::vector<Stroke> &strokeSeq, bool &retflag);
 bool parseModCombo(std::string line, unsigned short &key, unsigned short (&mods)[5], std::vector<Stroke> &strokeSequence, std::string scLabels[]);
 std::string stringGetFirstToken(std::string line);
 std::string stringToLower(std::string str);
 std::string stringToUpper(std::string str);
+std::vector<std::string> stringSplit(const std::string &line, char delimiter);
 std::string startProgram(std::string processname, std::string dir);

@@ -2,6 +2,8 @@
 #include <filesystem>
 #include <iostream>
 #include <fstream>
+#include <sstream>
+#include <iterator>
 #include <windows.h>
 #include <tlhelp32.h>
 
@@ -260,6 +262,20 @@ std::string stringToUpper(std::string str)
 	return str;
 }
 
+std::vector<string> stringSplit(const std::string &line, char delimiter)
+{
+	vector<string> res;
+
+	string s = line;
+	std::replace(s.begin(), s.end(), delimiter, ' ');
+	std::stringstream ss(s);
+	std::string token;
+	while (std::getline(ss, token, ' ')) 
+		res.push_back(token);
+
+	return res;
+}
+
 //ini parsing
 std::string stringGetFirstToken(std::string line)
 {
@@ -282,6 +298,23 @@ unsigned short parseModString(string modString, char filter)
 			binString += '0';
 	}
 	return std::stoi(binString, nullptr, 2);
+}
+
+bool parseCombo(std::string &funcParams, std::string * scLabels, std::vector<Stroke> &strokeSeq)
+{
+	vector<string> labels = stringSplit(funcParams, '+');
+	unsigned short sc;
+	for (string label : labels)
+	{
+		sc = getScancode(label, scLabels);
+		if (sc == 0)
+			return false;
+		strokeSeq.push_back({ sc, true });
+	}
+	int len = strokeSeq.size();
+	for (int i = len - 1; i >= 0; i--)	//copy upstrokes in reverse order
+		strokeSeq.push_back({ strokeSeq.at(i).scancode,false });
+	return true;
 }
 
 //parse H  [^^^v .--. ....] > key(BACK)
@@ -324,22 +357,32 @@ bool parseModCombo(std::string line, unsigned short &key, unsigned short (&mods)
 	string funcParams = line.substr(funcIdx2, funcIdx3-funcIdx2);
 
 	//translate 'function' into a char sequence
-	vector<Stroke> seq;
+	vector<Stroke> strokeSeq;
 	if (funcName == "key")
 	{
 		unsigned short sc=getScancode(funcParams, scLabels);
 		if (sc == 0)
 			return false;
-		seq.push_back({ sc, true });
-		seq.push_back({ sc, false });
+		strokeSeq.push_back({ sc, true });
+		strokeSeq.push_back({ sc, false });
 	}
 	else if (funcName == "combo")
 	{
-
+		if (!parseCombo(funcParams, scLabels, strokeSeq))
+			return false;
 	}
 	else if (funcName == "combontimes")
 	{
-
+		vector<string> comboTimes= stringSplit(funcParams, ',');
+		if (comboTimes.size() != 2)
+			return false;
+		if (!parseCombo(comboTimes.at(0), scLabels, strokeSeq))
+			return false;
+		int times = stoi(comboTimes.at(1));
+		int len = strokeSeq.size();
+		for(int j = 1;j<times;j++)
+			for (int i = 0; i < len; i++)
+				strokeSeq.push_back(strokeSeq.at(i));
 	}
 	else if (funcName == "altchar")
 	{
@@ -352,6 +395,6 @@ bool parseModCombo(std::string line, unsigned short &key, unsigned short (&mods)
 	else
 		return false;
 
-	strokeSequence = seq;
+	strokeSequence = strokeSeq;
 	return true;
 }
