@@ -17,7 +17,7 @@
 
 using namespace std;
 
-string version = "26";
+string version = "27";
 
 const bool START_AHK_ON_STARTUP = true;
 const int MAX_KEYMACRO_LENGTH = 10000;  //for testing; in real life, 100 keys = 200 up/downs should be enough
@@ -220,8 +220,8 @@ bool readIniModCombosPre()
 		unsigned short key;
 		if (parseModCombo(line, key, mods, strokeSequence, scLabels))
 		{
-			//IFDEBUG cout << endl << "modComboPre: " << line << endl << "    ," << key << " -> " 
-				//<< mods[0] << "," << mods[1] << "," << mods[1] << "," << mods[2] << "," << mods[3] << "," << mods[4] << "," << "sequence:" << strokeSequence.size();
+			IFDEBUG cout << endl << "modComboPre: " << line << endl << "    ," << key << " -> " 
+				<< mods[0] << "," << mods[1] << "," << mods[1] << "," << mods[2] << "," << mods[3] << "," << mods[4] << "," << "sequence:" << strokeSequence.size();
 			modCombosPre.push_back({ key, mods[0], mods[1], mods[2], mods[3], mods[4], strokeSequence });
 		}
 		else
@@ -415,7 +415,6 @@ int main()
 				if (modcombo.key == state.scancode)
 				{
 					if (
-						(state.modifiers & modcombo.modAnd) > 0 &&	//tapped combo?
 						(state.modifiers & modcombo.modAnd) == modcombo.modAnd &&
 						(state.modifiers & modcombo.modNot) == 0
 						)
@@ -433,7 +432,7 @@ int main()
 //		if (!state.isFinalScancode)
 //			processLayoutIndependentAction();  //like caps+J
 
-		if (!state.isFinalScancode && !IS_LCONTROL_DOWN) //basic char layout. Don't remap the Ctrl combos?
+		if (!state.isFinalScancode && !IS_LCTRL_DOWN) //basic char layout. Don't remap the Ctrl combos?
 		{
 			processAlphaMappingTable(state.scancode);
 			if (mode.flipZy)
@@ -879,12 +878,12 @@ void processModifierState()
 	case SC_LSHIFT:  //handle LShift+RShift -> CapsLock
 		if (state.isDownstroke
 			&& (state.modifiers == (BITMASK_LSHIFT | BITMASK_RSHIFT))
-			&& (GetKeyState(VK_CAPITAL) & 0x0001))
+			&& (GetKeyState(VK_CAPITAL) & 0x0001)) //ask Win for Capslock state
 		{
 			macroMakeBreakKey(SC_CAPS);
 		}
-		else if ((state.modifiers & 0xE0) == -0)
-			state.blockKey = false;		//forward caps + shift
+		else if ((state.modifiers & 0xE0) == 0)
+			state.blockKey = false;		//forward e.g. caps + shift
 		break;
 	case SC_RSHIFT:
 		if (state.isDownstroke
@@ -893,8 +892,8 @@ void processModifierState()
 		{
 			macroMakeBreakKey(SC_CAPS);
 		}
-		else if ((state.modifiers & 0xE0) == -0)
-			state.blockKey = false;		//forward caps + shift
+		else if ((state.modifiers & 0xE0) == 0)
+			state.blockKey = false;		//forward e.g. caps + shift ?? not sure about this
 		break;
 	case SC_LALT:  //suppress LALT in CAPS+LALT combos
 		if (state.isDownstroke && IS_CAPS_DOWN)
@@ -1207,7 +1206,7 @@ void createMacroKeyComboNtimes(int a, int b, int c, int d, int repeat)
 		{
 			if (scancodes[i] == 0)
 				break;
-			if (scancodes[i] == SC_LCTRL && IS_LCONTROL_DOWN)
+			if (scancodes[i] == SC_LCTRL && IS_LCTRL_DOWN)
 				continue;
 			if (scancodes[i] == SC_LSHIFT && IS_LSHIFT_DOWN)
 				continue;
@@ -1218,7 +1217,7 @@ void createMacroKeyComboNtimes(int a, int b, int c, int d, int repeat)
 		{
 			if (scancodes[i] == 0)
 				continue;
-			if (scancodes[i] == SC_LCTRL && IS_LCONTROL_DOWN)
+			if (scancodes[i] == SC_LCTRL && IS_LCTRL_DOWN)
 				continue;
 			if (scancodes[i] == SC_LSHIFT && IS_LSHIFT_DOWN)
 				continue;
