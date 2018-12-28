@@ -17,7 +17,7 @@
 
 using namespace std;
 
-string version = "25";
+string version = "26";
 
 const bool START_AHK_ON_STARTUP = true;
 const int MAX_KEYMACRO_LENGTH = 10000;  //for testing; in real life, 100 keys = 200 up/downs should be enough
@@ -148,7 +148,7 @@ void setupConsoleWindow()
 //catch fast interleaved typed ö
 chrono::steady_clock::time_point capsDownTimestamp;
 
-bool readIniConfig()
+bool readIniFeatures()
 {
 	vector<string> iniLines; //sanitized content of the .ini file
 	if (!parseConfig(iniLines))
@@ -182,27 +182,34 @@ bool readIniAlphaMappingLayer(int layer)
 	if (!parseConfigSection("LAYER" + std::to_string(layer), iniLines))
 	{
 		IFDEBUG cout << endl << "No mapping defined for layer " << layer << endl;
-		return false;
+		return true;
 	}
+
 	resetAlphaMap();
+
 	for (string line : iniLines)
 	{
 		string a = stringToUpper(stringGetFirstToken(line));
 		string b = stringToUpper(stringGetLastToken(line));
 		unsigned char from = getScancode(a, scLabels);
 		unsigned char to = getScancode(b, scLabels);
+		if ((from == 0 && a != "NOP") || (to == 0 && b != "NOP"))
+		{
+			cout << endl << "Error in .ini [LAYER" << layer << "] : " << line;
+			return false;
+		}
 		mapping.alphamap[from] = to;
 	}
 	return true;
 }
 
-bool readIniModCombos()
+bool readIniModCombosPre()
 {
 	vector<string> iniLines; //sanitized content of the .ini file
 	if (!parseConfigSection("LAYER_ALL_PRE", iniLines))
 	{
-		cout << endl << "No mapping defined for pre modifier combos." << endl;
-		return false;
+		IFDEBUG cout << endl << "No mapping defined for pre modifier combos." << endl;
+		return true;
 	}
 	modCombosPre.clear();
 	unsigned short mods[5] = { 0 }; //and, not, nop, for, tap
@@ -213,30 +220,52 @@ bool readIniModCombos()
 		unsigned short key;
 		if (parseModCombo(line, key, mods, strokeSequence, scLabels))
 		{
-			IFDEBUG cout << endl << "modComboPre: " << line << endl << "    ," << key << " -> " 
-				<< mods[0] << "," << mods[1] << "," << mods[1] << "," << mods[2] << "," << mods[3] << "," << mods[4] << "," << "sequence:" << strokeSequence.size();
+			//IFDEBUG cout << endl << "modComboPre: " << line << endl << "    ," << key << " -> " 
+				//<< mods[0] << "," << mods[1] << "," << mods[1] << "," << mods[2] << "," << mods[3] << "," << mods[4] << "," << "sequence:" << strokeSequence.size();
 			modCombosPre.push_back({ key, mods[0], mods[1], mods[2], mods[3], mods[4], strokeSequence });
 		}
 		else
-			error ("\r\nError in .ini: cannot parse: " + line);
+		{
+			cout << endl << "Error in .ini: cannot parse: " << line;
+			return false;
+		}
 	}
 	return true;
 }
 
-int main()
+bool readIni()
 {
-	setupConsoleWindow();
-	initScancodeLabels(scLabels);
-	initAllStatesToDefault();
-	if (!readIniConfig())
+	if (!readIniFeatures())
 	{
 		cout << endl << "No capsicain.ini - exiting..." << endl;
 		Sleep(1000);
 		return -1;
 	}
+	vector<ModifierCombo> oldModCombos(modCombosPre);
+	if (!readIniModCombosPre())
+	{
+		modCombosPre = oldModCombos;
+		cout << endl << "Cannot read modifier combos (pre). Keeping old combos." << endl;
+	}
 
-	readIniModCombos();
-	readIniAlphaMappingLayer(mode.activeLayer);
+	unsigned char oldAlphamap[256];
+	std::copy(mapping.alphamap, mapping.alphamap + 256, oldAlphamap);
+	if (!readIniAlphaMappingLayer(mode.activeLayer))
+	{
+		std::copy(oldAlphamap, oldAlphamap + 256, mapping.alphamap);
+		cout << endl << "Cannot read alpha mapping from ini. Keeping old alphamap." << endl;
+	}
+}
+
+int main()
+{
+	setupConsoleWindow();
+	printHelloHeader();
+	initScancodeLabels(scLabels);
+	initAllStatesToDefault();
+	resetAlphaMap();
+
+	readIni();
 
 	Sleep(700); //time to release shortcut keys that started capsicain
 	raise_process_priority(); //careful: if we spam key events, other processes get no timeslots to process them. Sleep a bit...
@@ -244,7 +273,7 @@ int main()
 	globalState.interceptionContext = interception_create_context();
 	interception_set_filter(globalState.interceptionContext, interception_is_keyboard, INTERCEPTION_FILTER_KEY_ALL);
 
-	printHello();
+	printHelloHelp();
 
 	if (START_AHK_ON_STARTUP)
 	{
@@ -401,8 +430,8 @@ int main()
 			}
 		}
 
-		if (!state.isFinalScancode)
-			processLayoutIndependentAction();  //like caps+J
+//		if (!state.isFinalScancode)
+//			processLayoutIndependentAction();  //like caps+J
 
 		if (!state.isFinalScancode && !IS_LCONTROL_DOWN) //basic char layout. Don't remap the Ctrl combos?
 		{
@@ -513,7 +542,7 @@ void processCommand()
 	case SC_R:
 		cout << "RESET";
 		reset();
-		readIniConfig();
+		readIniFeatures();
 		getHardwareId();
 		cout << endl << (globalState.deviceIsAppleKeyboard ? "APPLE keyboard (flipping Win<>Alt)" : "PC keyboard");
 		break;
@@ -970,8 +999,9 @@ void getHardwareId()
 	}
 }
 
-void printHello()
+void printHelloHeader()
 {
+
 	string line1 = "Capsicain v" + version;
 #ifdef NDEBUG
 	line1 += " (Release build)";
@@ -984,9 +1014,14 @@ void printHello()
 	cout << endl << line1 << endl;
 	for (int i = 0; i < line1.length(); i++)
 		cout << "-";
+	cout << endl;
+}
 
-	cout << endl << endl << "[ESC] + [X] to stop." << endl
-		<< "[ESC] + [H] for Help";
+void printHelloHelp()
+{
+	cout << endl << endl;
+	cout << "[ESC] + [X] to stop." << endl
+		 << "[ESC] + [H] for Help";
 	cout << endl << endl << "FEATURES"
 		<< endl << (mode.backslashShift ? "ON :" : "OFF:") << "Backslash->Shift "
 		<< endl << (mode.slashShift ? "ON :" : "OFF:") << "Slash->Shift "
@@ -1094,12 +1129,6 @@ void reset()
 	initAllStatesToDefault();
 	resetCapsNumScrollLock();
 
-	for (int i = 0; i < 255; i++)
-	{
-		globalState.keysDownReceived[i] = 0;
-		globalState.keysDownSent[i] = 0;
-	}
-
 	IFDEBUG cout << endl << "Resetting all modifiers to UP" << endl;
 	macroBreakKey(SC_LSHIFT);
 	macroBreakKey(SC_RSHIFT);
@@ -1113,6 +1142,14 @@ void reset()
 	macroBreakKey(AHK_HOTKEY1);
 	macroBreakKey(AHK_HOTKEY2);
 	playMacro(state.keyMacro, state.keyMacroLength);
+
+	for (int i = 0; i < 255; i++)
+	{
+		globalState.keysDownReceived[i] = 0;
+		globalState.keysDownSent[i] = 0;
+	}
+
+	readIni();
 }
 
 

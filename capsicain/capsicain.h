@@ -34,7 +34,7 @@ void playStrokeSequence(std::vector<Stroke> strokeSequence);
 void processModifierState();
 void processLayoutIndependentAction();
 
-void printHello();
+void printHelloHelp();
 
 void processCaps();
 
@@ -48,6 +48,8 @@ void stroke2scancode(InterceptionKeyStroke &stroke, unsigned short &scancode);
 
 void normalizeKeyStroke(InterceptionKeyStroke &istroke);
 void getHardwareId();
+
+void printHelloHeader();
 
 void printStatus();
 void printHelp();
