@@ -84,11 +84,11 @@ enum ScanCode {
     SC_NP7 = 0x47,
     SC_NP8 = 0x48,
     SC_NP9 = 0x49,
-    SC_NPSUBT = 0x4A, // - on numeric keypad
+    SC_NPSUB = 0x4A, // - on numeric keypad
     SC_NP4 = 0x4B,
     SC_NP5 = 0x4C,
     SC_NP6 = 0x4D,
-    SC_ADD = 0x4E, // + on numeric keypad
+    SC_NPADD = 0x4E, // + on numeric keypad
     SC_NP1 = 0x4F,
     SC_NP2 = 0x50,
     SC_NP3 = 0x51,
@@ -107,7 +107,7 @@ enum ScanCode {
     SC_NOCONVERT = 0x7B, // (Japanese keyboard)
     SC_YEN = 0x7D, // (Japanese keyboard)
     SC_ABNT_C2 = 0x7E, // Numpad . on Portugese (Brazilian) keyboards
-    SC_NPEQUALS = 0x8D, // = on numeric keypad (NEC PC98)
+    SC_NPEQU = 0x8D, // = on numeric keypad (NEC PC98)
     SC_PREVTRACK = 0x90, // Previous Track (CIRCUMFLEX on Japanese keyboard)
     SC_AT = 0x91, //                     (NEC PC98)
     SC_COLON = 0x92, //                     (NEC PC98)
@@ -117,7 +117,7 @@ enum ScanCode {
     SC_AX = 0x96, //                     (Japan AX)
     SC_UNLABELED = 0x97, //                        (J3100)
     SC_NEXTTRACK = 0x99, // Next Track
-    SC_NPENTER = 0x9C, // Enter on numeric keypad
+    SC_NPENT = 0x9C, // Enter on numeric keypad
     SC_RCTRL = 0x9D,
     SC_MUTE = 0xA0, // Mute
     SC_CALCULATOR = 0xA1, // Calculator
@@ -157,4 +157,5 @@ enum ScanCode {
     SC_MYCOMPUTER = 0xEB, // My Computer
     SC_MAIL = 0xEC, // Mail
     SC_MEDIASELECT = 0xED, // Media Select
+	SC_CPS_ESC = 0xFF		//special escape code for Capsicain. Lets hope no keyboard ever sends FF....
 };

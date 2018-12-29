@@ -4,10 +4,6 @@
 #include <vector>
 #include <algorithm>
 
-//TODO 
-//alt + cursor = 10
-//config file
-
 #include <string>
 #include <Windows.h>  //for Sleep()
 
@@ -17,7 +13,7 @@
 
 using namespace std;
 
-string version = "27";
+string version = "28";
 
 const bool START_AHK_ON_STARTUP = true;
 const int MAX_KEYMACRO_LENGTH = 10000;  //for testing; in real life, 100 keys = 200 up/downs should be enough
@@ -70,22 +66,23 @@ struct GlobalState
 	string deviceIdKeyboard = "";
 	bool deviceIsAppleKeyboard = false;
 	unsigned short bufferedScancode = 0; //hack to evaluate interleaved combos
+	vector<unsigned short> modsTempReleased; //remember modifiers that were released before playing macros
 } globalState;
 
 struct State
 {
-	unsigned short scancode;
-	InterceptionKeyStroke stroke;
-	InterceptionKeyStroke previousStroke;
+	unsigned short scancode = 0;
+	InterceptionKeyStroke stroke = { SC_NOP, 0 };
+	InterceptionKeyStroke previousStroke = { SC_NOP, 0};
 
-	unsigned short modifiers;
-	bool blockKey;  //true: do not send the current key
+	unsigned short modifiers = 0;
+	bool blockKey = false;  //true: do not send the current key
 	bool isFinalScancode = false;  //true: don't remap the scancode anymore
 	bool isDownstroke = false;
 	bool isExtendedCode = false;
 	bool isCapsTapped = false;
 	InterceptionKeyStroke keyMacro[MAX_KEYMACRO_LENGTH];
-	int keyMacroLength;  // >0 triggers sending of macro instead of scancode. MUST match the actual # of chars in keyMacro
+	int keyMacroLength = 0;  // >0 triggers sending of macro instead of scancode. MUST match the actual # of chars in keyMacro
 
 	vector<Stroke> resultingStrokeSequence;
 } state;
@@ -103,6 +100,7 @@ void initAllStatesToDefault()
 //	globalState.interceptionDevice = NULL;
 	globalState.deviceIdKeyboard = "";
 	globalState.deviceIsAppleKeyboard = false;
+	globalState.modsTempReleased.clear();
 
 	state.previousStroke.code = 0;
 	state.modifiers = 0;
@@ -239,7 +237,7 @@ bool readIni()
 	{
 		cout << endl << "No capsicain.ini - exiting..." << endl;
 		Sleep(1000);
-		return -1;
+		return false;
 	}
 	vector<ModifierCombo> oldModCombos(modCombosPre);
 	if (!readIniModCombosPre())
@@ -255,6 +253,7 @@ bool readIni()
 		std::copy(oldAlphamap, oldAlphamap + 256, mapping.alphamap);
 		cout << endl << "Cannot read alpha mapping from ini. Keeping old alphamap." << endl;
 	}
+	return true;
 }
 
 int main()
@@ -850,7 +849,7 @@ void processModifierState()
 	state.isDownstroke ? state.modifiers |= getBitmaskForModifier(state.scancode) : state.modifiers &= ~getBitmaskForModifier(state.scancode);
 
 	state.isFinalScancode = true;
-	if ((state.modifiers & 0xF00) > 0)  // the 'high' modifiers are not forwarded to system.
+	if ((state.modifiers & (0xFF00 | BITMASK_LALT)) > 0)  // the 'high' modifiers and LALT are not forwarded to system.
 		state.blockKey = true;
 
 	bool wasTapped = !state.isDownstroke && (state.scancode == state.previousStroke.code);
@@ -942,13 +941,46 @@ void processRemapModifiers()
 	}
 }
 
+
 void playStrokeSequence(vector<Stroke> strokeSequence)
 {
 	InterceptionKeyStroke iks;
 	unsigned int delay = mode.delayBetweenMacroKeysMS;
+	bool cpsEscape = false;  //inside an escape sequence, read next stroke
+
 	IFDEBUG cout << "\t--> PLAY STROKE SEQUENCE (" << strokeSequence.size() << ")";
 	for (Stroke stroke : strokeSequence)
 	{
+		if (stroke.scancode == SC_CPS_ESC)
+		{
+			cpsEscape = stroke.downstroke;
+			continue;
+		}
+		if (cpsEscape && isModifier(stroke.scancode))  //currently only one escape function: conditional break/make of modifiers
+		{
+			if (!stroke.downstroke)   //break modifier IF the system knows it is down
+			{
+				if (!globalState.keysDownSent[stroke.scancode])
+					continue;
+				globalState.modsTempReleased.push_back(stroke.scancode);
+			}
+			else //make modifier IF it was temp released before
+			{
+				bool wasTempReleased = false;
+				for (int i = 0; i < globalState.modsTempReleased.size(); i++)
+				{
+					if (globalState.modsTempReleased[i] == stroke.scancode)
+					{
+						globalState.modsTempReleased.erase(globalState.modsTempReleased.begin() + i);  //C++ is so pretty...
+						wasTempReleased = true;
+						break;
+					}
+				}
+				if (!wasTempReleased)
+					continue;
+			}
+		}
+
 		iks.code = stroke.scancode & 0x7F;
 		iks.state = 0;
 		if (!stroke.downstroke)
@@ -958,6 +990,10 @@ void playStrokeSequence(vector<Stroke> strokeSequence)
 		sendStroke(iks);
 		Sleep(delay);
 	}
+	if (cpsEscape)
+		error("SC_CPS escape sequence was not finished properly. Check your config.");
+	if (globalState.modsTempReleased.size() > 0)
+		error("SC_CPS escape sequence temp released but did not re-make a modifier. Check your config.");
 }
 
 void playMacro(InterceptionKeyStroke macro[], int macroLength)
@@ -987,7 +1023,7 @@ void getHardwareId()
 			wstring wid(hardware_id);
 			string sid(wid.begin(), wid.end());
 			id = sid;
-		}
+		} 
 		else
 			id = "UNKNOWN_ID";
 

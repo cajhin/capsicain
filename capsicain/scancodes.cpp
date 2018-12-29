@@ -106,11 +106,11 @@ void initScancodeLabels(string arr[])
 	checkAddLabel(SC_NP7, "NP7", arr);
 	checkAddLabel(SC_NP8, "NP8", arr);
 	checkAddLabel(SC_NP9, "NP9", arr);
-	checkAddLabel(SC_NPSUBT, "NPSUBT", arr);
+	checkAddLabel(SC_NPSUB, "NPSUB", arr);
 	checkAddLabel(SC_NP4, "NP4", arr);
 	checkAddLabel(SC_NP5, "NP5", arr);
 	checkAddLabel(SC_NP6, "NP6", arr);
-	checkAddLabel(SC_ADD, "ADD", arr);
+	checkAddLabel(SC_NPADD, "NPADD", arr);
 	checkAddLabel(SC_NP1, "NP1", arr);
 	checkAddLabel(SC_NP2, "NP2", arr);
 	checkAddLabel(SC_NP3, "NP3", arr);
@@ -129,7 +129,7 @@ void initScancodeLabels(string arr[])
 	checkAddLabel(SC_NOCONVERT, "NOCONVERT", arr);
 	checkAddLabel(SC_YEN, "YEN", arr);
 	checkAddLabel(SC_ABNT_C2, "ABNT_C2", arr);
-	checkAddLabel(SC_NPEQUALS, "NPEQUALS", arr);
+	checkAddLabel(SC_NPEQU, "NPEQU", arr);
 	checkAddLabel(SC_PREVTRACK, "PREVTRACK", arr);
 	checkAddLabel(SC_AT, "AT", arr);
 	checkAddLabel(SC_COLON, "COLON", arr);
@@ -139,7 +139,7 @@ void initScancodeLabels(string arr[])
 	checkAddLabel(SC_AX, "AX", arr);
 	checkAddLabel(SC_UNLABELED, "UNLABELED", arr);
 	checkAddLabel(SC_NEXTTRACK, "NEXTTRACK", arr);
-	checkAddLabel(SC_NPENTER, "NPENTER", arr);
+	checkAddLabel(SC_NPENT, "NPENT", arr);
 	checkAddLabel(SC_RCTRL, "RCONTROL", arr);
 	checkAddLabel(SC_MUTE, "MUTE", arr);
 	checkAddLabel(SC_CALCULATOR, "CALCULATOR", arr);
@@ -179,4 +179,5 @@ void initScancodeLabels(string arr[])
 	checkAddLabel(SC_MYCOMPUTER, "MYCOMPUTER", arr);
 	checkAddLabel(SC_MAIL, "MAIL", arr);
 	checkAddLabel(SC_MEDIASELECT, "MEDIASELECT", arr);
+	checkAddLabel(SC_CPS_ESC, "CPS_ESC", arr);
 }

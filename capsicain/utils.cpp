@@ -312,8 +312,8 @@ bool parseCombo(std::string &funcParams, std::string * scLabels, std::vector<Str
 		strokeSeq.push_back({ sc, true });
 	}
 	int len = strokeSeq.size();
-	for (int i = len - 1; i >= 0; i--)	//copy upstrokes in reverse order
-		strokeSeq.push_back({ strokeSeq.at(i).scancode,false });
+	for (int i = len; i > 0; i--)	//copy upstrokes in reverse order
+		strokeSeq.push_back({ strokeSeq.at(i-1).scancode,false });
 	return true;
 }
 
@@ -379,14 +379,33 @@ bool parseModCombo(std::string line, unsigned short &key, unsigned short (&mods)
 		if (!parseCombo(comboTimes.at(0), scLabels, strokeSeq))
 			return false;
 		int times = stoi(comboTimes.at(1));
-		int len = strokeSeq.size();
+		auto len = strokeSeq.size();
 		for(int j = 1;j<times;j++)
 			for (int i = 0; i < len; i++)
 				strokeSeq.push_back(strokeSeq.at(i));
 	}
 	else if (funcName == "altchar")
 	{
-
+		strokeSeq.push_back({ SC_CPS_ESC, true }); //temp release LALT if it is currently down
+		strokeSeq.push_back({ SC_LSHIFT, false });
+		strokeSeq.push_back({ SC_CPS_ESC, false });
+		strokeSeq.push_back({ SC_RALT, true });
+		unsigned short sc;
+		for (int i = 0; i < funcParams.length(); i++)
+		{
+			char c = funcParams[i];
+			if (c < '0' || c > '9')
+				return false;
+			string temp = "NP";
+				temp += c;
+			unsigned short sc = getScancode(temp,scLabels);
+			strokeSeq.push_back({ sc, true });
+			strokeSeq.push_back({ sc, false });
+		}
+		strokeSeq.push_back({ SC_RALT, false });
+		strokeSeq.push_back({ SC_CPS_ESC , true }); //re-press LALT if it was temp released
+		strokeSeq.push_back({ SC_LSHIFT, true });
+		strokeSeq.push_back({ SC_CPS_ESC, false });
 	}
 	else if (funcName == "type")
 	{
