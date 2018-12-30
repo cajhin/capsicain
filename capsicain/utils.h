@@ -6,7 +6,7 @@
 struct Stroke 
 {
 	unsigned short scancode = 0;
-	bool downstroke = true;
+	bool isDownstroke = true;
 };
 
 void raise_process_priority(void);

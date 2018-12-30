@@ -10,6 +10,7 @@
 #include "capsicain.h"
 #include "utils.h"
 #include "scancodes.h"
+#include "mappings.h"
 
 using namespace std;
 
@@ -311,8 +312,8 @@ bool parseCombo(std::string &funcParams, std::string * scLabels, std::vector<Str
 			return false;
 		strokeSeq.push_back({ sc, true });
 	}
-	int len = strokeSeq.size();
-	for (int i = len; i > 0; i--)	//copy upstrokes in reverse order
+	size_t len = strokeSeq.size();
+	for (size_t i = len; i > 0; i--)	//copy upstrokes in reverse order
 		strokeSeq.push_back({ strokeSeq.at(i-1).scancode,false });
 	return true;
 }
@@ -386,11 +387,10 @@ bool parseModCombo(std::string line, unsigned short &key, unsigned short (&mods)
 	}
 	else if (funcName == "altchar")
 	{
-		strokeSeq.push_back({ SC_CPS_ESC, true }); //temp release LALT if it is currently down
-		strokeSeq.push_back({ SC_LSHIFT, false });
+		strokeSeq.push_back({ SC_CPS_ESC, true }); //temp release LSHIFT if it is currently down
+		strokeSeq.push_back({ BITMASK_RALT , true });
+		strokeSeq.push_back({ BITMASK_LSHIFT | BITMASK_RSHIFT | BITMASK_LCTRL | BITMASK_RCTRL , false });
 		strokeSeq.push_back({ SC_CPS_ESC, false });
-		strokeSeq.push_back({ SC_RALT, true });
-		unsigned short sc;
 		for (int i = 0; i < funcParams.length(); i++)
 		{
 			char c = funcParams[i];
@@ -402,10 +402,29 @@ bool parseModCombo(std::string line, unsigned short &key, unsigned short (&mods)
 			strokeSeq.push_back({ sc, true });
 			strokeSeq.push_back({ sc, false });
 		}
-		strokeSeq.push_back({ SC_RALT, false });
-		strokeSeq.push_back({ SC_CPS_ESC , true }); //re-press LALT if it was temp released
-		strokeSeq.push_back({ SC_LSHIFT, true });
 		strokeSeq.push_back({ SC_CPS_ESC, false });
+	}
+	else if (funcName == "moddedkey")
+	{
+		vector<string> modKeyParams = stringSplit(funcParams, ',');
+		if (modKeyParams.size() != 2)
+			return false;
+		unsigned short sc = getScancode(modKeyParams[0], scLabels);
+		if (sc == SC_NOP)
+			return false;
+		
+		unsigned short modsPress = parseModString(modKeyParams[1], 'v'); //and (press if up)
+		unsigned short modsRelease = parseModString(modKeyParams[1], '!'); //not (release if down)
+		
+		strokeSeq.push_back({ SC_CPS_ESC, true });
+		if(modsPress > 0)
+			strokeSeq.push_back({ modsPress, true });
+		if(modsRelease > 0)
+			strokeSeq.push_back({ modsRelease, false });
+		strokeSeq.push_back({ SC_CPS_ESC, false });
+		strokeSeq.push_back({ sc, true });
+		strokeSeq.push_back({ sc, false });
+		strokeSeq.push_back({ SC_CPS_ESC, false }); //second UP does UNDO the temp mod changes
 	}
 	else if (funcName == "type")
 	{

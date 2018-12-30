@@ -38,15 +38,18 @@ void printHelloHelp();
 
 void processCaps();
 
-void sendStroke(InterceptionKeyStroke stroke);
+void sendStroke(Stroke stroke);
+
 void sendResultingKeyOrMacro();
 
 void processLayoutDependentActions();
 
-void scancode2stroke(unsigned short &scancode, InterceptionKeyStroke &istroke);
-void stroke2scancode(InterceptionKeyStroke &stroke, unsigned short &scancode);
+void scancode2ikstroke(unsigned short &scancode, InterceptionKeyStroke &istroke);
+
+Stroke ikstroke2stroke(InterceptionKeyStroke ikStroke);
 
 void normalizeKeyStroke(InterceptionKeyStroke &istroke);
+InterceptionKeyStroke stroke2ikstroke(Stroke stroke);
 void getHardwareId();
 
 void printHelloHeader();
