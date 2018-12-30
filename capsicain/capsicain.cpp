@@ -65,10 +65,6 @@ struct GlobalState
 	InterceptionDevice interceptionDevice = NULL;
 	string deviceIdKeyboard = "";
 	bool deviceIsAppleKeyboard = false;
-	unsigned short bufferedScancode = 0; //hack to evaluate interleaved combos
-	vector<unsigned short> oldmodsTempReleased; //remember modifiers that were released before playing macros
-	unsigned short modsTempPressed; //remember modifiers that were altered before playing macros
-	unsigned short modsTempReleased;
 	vector<Stroke> modsTempAltered;
 	Stroke previousStroke = { SC_NOP, 0 };
 } globalState;
@@ -83,9 +79,6 @@ struct LoopState
 	unsigned short modifiers = 0;
 	bool blockKey = false;  //true: do not send the current key
 	bool isFinalScancode = false;  //true: don't remap the scancode anymore
-	bool isCapsTapped = false;  //TODO get rid of it
-	InterceptionKeyStroke keyMacro[MAX_KEYMACRO_LENGTH];  //TODO GET RID OF THIS
-	int keyMacroLength = 0;  // >0 triggers sending of macro instead of scancode. MUST match the actual # of chars in keyMacro
 
 	vector<Stroke> resultingStrokeSequence;
 } state;
@@ -103,15 +96,13 @@ void initAllStatesToDefault()
 //	globalState.interceptionDevice = NULL;
 	globalState.deviceIdKeyboard = "";
 	globalState.deviceIsAppleKeyboard = false;
-	globalState.oldmodsTempReleased.clear();
+	state.resultingStrokeSequence.clear();
 
 	globalState.previousStroke = { 0,0 };
 	state.modifiers = 0;
 	state.blockKey = false;  //true: do not send the current key
 	state.isFinalScancode = false;  //true: don't remap the scancode anymore
 	state.isDownstroke = false;
-	state.keyMacroLength = 0;  // >0 triggers sending of macro instead of scancode. MUST match the actual # of chars in keyMacro
-	state.isCapsTapped = false;
 	mode.delayBetweenMacroKeysMS = DEFAULT_DELAY_SENDMACRO;
 
 }
@@ -119,15 +110,14 @@ void initAllStatesToDefault()
 void resetCapsNumScrollLock()
 {
 	//set NumLock, release CapsLock+Scrolllock
-	state.keyMacroLength = 0;
-	if (GetKeyState(VK_CAPITAL) & 0x0001)
-		macroMakeBreakKey(SC_CAPS);
+	vector<Stroke> sequence;
 	if (!(GetKeyState(VK_NUMLOCK) & 0x0001))
-		macroMakeBreakKey(SC_NUMLOCK);
+		keySequenceAppendMakeBreakKey(SC_NUMLOCK, sequence);
+	if (GetKeyState(VK_CAPITAL) & 0x0001)
+		keySequenceAppendMakeBreakKey(SC_CAPS, sequence);
 	if (GetKeyState(VK_SCROLL) & 0x0001)
-		macroMakeBreakKey(SC_SCRLOCK);
-	playMacro(state.keyMacro, state.keyMacroLength);
-	state.keyMacroLength = 0;
+		keySequenceAppendMakeBreakKey(SC_SCRLOCK, sequence);
+	playStrokeSequence(sequence);
 }
 
 void setupConsoleWindow()
@@ -294,7 +284,6 @@ int main()
 	{
 		//IFDEBUG cout << endl << "{{" << state.stroke.code << "|" << state.stroke.state << "}}";
 
-		state.keyMacroLength = 0;
 		state.blockKey = false;  //true: do not send the current key
 		state.isFinalScancode = false;  //true: don't remap the scancode anymore
 		state.isDownstroke = false;
@@ -378,31 +367,10 @@ int main()
 		IFDEBUG cout << endl << " [" << scLabels[state.scancode] << getSymbolForStrokeState(state.originalIKstroke.state) 
 			<< " =" << hex << state.originalIKstroke.code << " " << state.originalIKstroke.state << "]";
 
-		if (state.isCapsTapped && millisecondsSinceTimepoint(capsDownTimestamp) > CAPS_TAPPED_TIMEOUT_MS)
-		{
-			state.isCapsTapped = false;
-			IFDEBUG cout <<  " [*Forgetting Caps tap. Was " << dec << millisecondsSinceTimepoint(capsDownTimestamp) << "ms ago] ";
-		}
-
-		//Catch fast typed interleaved caps+key. React to the previous key now that we know what came next.
-		if (globalState.bufferedScancode != 0)
-		{
-			processBufferedScancode();
-		}
-
-		//Caps strokes: track but never forward 
-		//if (state.scancode == SC_CAPS)
-		//{
-		//	processCaps();
-		//	state.previousStroke = state.stroke;
-		//	IFDEBUG cout << "\t--> BLOCKED";
-		//	continue;
-		//}
-
 		//process the key stroke
 		processRemapModifiers();
 		processModifierState();
-		IFDEBUG cout << " [" << hex << state.modifiers << (state.isCapsTapped ? "T" : "_") << "] ";
+		IFDEBUG cout << " [" << hex << state.modifiers << "] ";
 
 		//new rule based processing
 		if (!state.isFinalScancode)
@@ -426,20 +394,14 @@ int main()
 			}
 		}
 
-//		if (!state.isFinalScancode)
-//			processLayoutIndependentAction();  //like caps+J
-
 		if (!state.isFinalScancode && !IS_LCTRL_DOWN) //basic char layout. Don't remap the Ctrl combos?
 		{
-			processAlphaMappingTable(state.scancode);
+			processMapAlphaKeys(state.scancode);
 			if (mode.flipZy)
 				flipZY(state.scancode);
 		}
 
-		if (!state.isFinalScancode)
-			processLayoutDependentActions();
-
-		sendResultingKeyOrMacro();
+		sendResultingKeyOrSequence();
 		globalState.previousStroke = state.originalStroke;
 	}
 	interception_destroy_context(globalState.interceptionContext);
@@ -450,7 +412,7 @@ int main()
 ////////////////////////////////////END MAIN//////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////
 
-void processAlphaMappingTable(unsigned short &scancode)
+void processMapAlphaKeys(unsigned short &scancode)
 {
 	if (scancode > 0xFF)
 	{
@@ -462,49 +424,7 @@ void processAlphaMappingTable(unsigned short &scancode)
 	}
 }
 
-void processBufferedScancode()
-{
-	IFDEBUG cout << " ***Processing a buffered scancode: " << hex << globalState.bufferedScancode;
-	state.keyMacroLength = 0;
-	switch (globalState.bufferedScancode)
-	{
-	case SC_A:
-	{
-		if (state.scancode == SC_A && !state.isDownstroke)
-			createMacroKeyCombo(SC_LCTRL, SC_Z, 0, 0);
-		else if (state.scancode == SC_CAPS && !state.isDownstroke)
-			processCapsTapped(SC_A, mode.characterCreationMode);
-		break;
-	}
-	case SC_O:
-	{
-		if (state.scancode == SC_O && !state.isDownstroke)
-			macroMakeBreakKey(SC_PGUP);
-		else if (state.scancode == SC_CAPS && !state.isDownstroke)
-			processCapsTapped(SC_O, mode.characterCreationMode);
-		break;
-	}
-	case SC_U:
-	{
-		if (state.scancode == SC_U && !state.isDownstroke)
-			macroMakeBreakKey(SC_END);
-		else if (state.scancode == SC_CAPS && !state.isDownstroke)
-			processCapsTapped(SC_U, mode.characterCreationMode);
-		break;
-	}
-	default:
-		IFDEBUG cout << " ***buffered scancode discarded";
-		break;
-	}
-
-	if (state.keyMacroLength > 0)
-	{
-		playMacro(state.keyMacro, state.keyMacroLength);
-		state.keyMacroLength = 0;
-	}
-	globalState.bufferedScancode = 0;
-}
-
+//[ESC]+X combos
 void processCommand()
 {
 	cout << endl << endl << "::";
@@ -619,15 +539,11 @@ void processCommand()
 }
 
 
-void sendResultingKeyOrMacro()
+void sendResultingKeyOrSequence()
 {
 	if (state.resultingStrokeSequence.size() > 0)
 	{
 		playStrokeSequence(state.resultingStrokeSequence);
-	}
-	else if (state.keyMacroLength > 0)
-	{
-		playMacro(state.keyMacro, state.keyMacroLength);
 	}
 	else
 	{
@@ -646,199 +562,6 @@ void sendResultingKeyOrMacro()
 		}
 	}
 }
-
-void processLayoutIndependentAction()
-{
-	//TODO I BELIEVE THIS FUNCTION IS NOW OBSOLETE IN V2
-	return;
-
-	if (IS_CAPS_DOWN)
-	{
-		//those suppress the key UP because DOWN is replaced with macro
-		bool blockingScancode = true;
-		switch (state.scancode)
-		{
-			//Undo Redo Cut Copy Paste
-		case SC_BACK:
-			if (state.isDownstroke) {
-				if (IS_SHIFT_DOWN)
-					createMacroKeyComboRemoveShift(SC_LCTRL, SC_Y, 0, 0);
-				else
-					createMacroKeyCombo(SC_LCTRL, SC_Z, 0, 0);
-			}
-			break;
-		case SC_A:
-			if (state.isDownstroke)
-			{
-				if (millisecondsSinceTimepoint(capsDownTimestamp) > WAIT_FOR_INTERLEAVED_KEYS_MS)
-				{
-					IFDEBUG cout << "  ***long press: Caps A";
-					createMacroKeyCombo(SC_LCTRL, SC_Z, 0, 0);
-				}
-				else
-				{
-					IFDEBUG cout << "  ???short press: Caps A? (" << dec << millisecondsSinceTimepoint(capsDownTimestamp) << "ms)" << " -> Buffering key...";
-					globalState.bufferedScancode = state.scancode;
-				}
-			}
-			break;
-		case SC_S:
-			if (state.isDownstroke)
-				createMacroKeyCombo(SC_LCTRL, SC_X, 0, 0);
-			break;
-		case SC_D:
-			if (state.isDownstroke)
-				createMacroKeyCombo(SC_LCTRL, SC_C, 0, 0);
-			break;
-		case SC_F:
-			if (state.isDownstroke)
-				createMacroKeyCombo(SC_LCTRL, SC_V, 0, 0);
-			break;
-		case SC_P:
-			if (state.isDownstroke)
-				createMacroKeyCombo(SC_NUMLOCK, 0, 0, 0);
-			break;
-		case SC_LBRACK:
-			if (state.isDownstroke)
-				createMacroKeyCombo(SC_SCRLOCK, 0, 0, 0);
-			break;
-		case SC_RBRACK:
-			if (state.isDownstroke)
-				createMacroKeyCombo(SC_SYSRQ, 0, 0, 0);
-			break;
-		case SC_EQUALS:
-			if (state.isDownstroke)
-				createMacroKeyCombo(SC_INSERT, 0, 0, 0);
-			break;
-		case SC_J:
-			if (state.isDownstroke)
-				createMacroKeyCombo10timesIfAltDown(SC_LEFT, 0, 0, 0, state.modifiers);
-			break;
-		case SC_L:
-			if (state.isDownstroke)
-				createMacroKeyCombo10timesIfAltDown(SC_RIGHT, 0, 0, 0, state.modifiers);
-			break;
-		case SC_K:
-			if (state.isDownstroke)
-				createMacroKeyCombo10timesIfAltDown(SC_DOWN, 0, 0, 0, state.modifiers);
-			break;
-		case SC_I:
-			if (state.isDownstroke)
-				createMacroKeyCombo10timesIfAltDown(SC_UP, 0, 0, 0, state.modifiers);
-			break;
-		case SC_O:
-			if (state.isDownstroke)
-			{
-				if (millisecondsSinceTimepoint(capsDownTimestamp) > WAIT_FOR_INTERLEAVED_KEYS_MS)
-				{
-					IFDEBUG cout << "  ***Long press: Page Up";
-					createMacroKeyCombo10timesIfAltDown(SC_PGUP, 0, 0, 0, state.modifiers);
-				}
-				else
-				{
-					IFDEBUG cout << "  ???Short press: Page Up? (" << dec << millisecondsSinceTimepoint(capsDownTimestamp) << "ms)" << " -> Buffering key...";
-					globalState.bufferedScancode = state.scancode;
-				}
-			}
-			break;
-		case SC_SEMI:
-			if (state.isDownstroke)
-				createMacroKeyCombo(SC_DELETE, 0, 0, 0);
-			break;
-		case SC_DOT:
-			if (state.isDownstroke)
-				createMacroKeyCombo10timesIfAltDown(SC_PGDOWN, 0, 0, 0, state.modifiers);
-			break;
-		case SC_Y:
-			if (state.isDownstroke)
-				createMacroKeyCombo(SC_HOME, 0, 0, 0);
-			break;
-		case SC_U:
-			if (state.isDownstroke)
-			{
-				if (millisecondsSinceTimepoint(capsDownTimestamp) > WAIT_FOR_INTERLEAVED_KEYS_MS)
-				{
-					IFDEBUG cout << "  ***Long press: End";
-					createMacroKeyCombo(SC_END, 0, 0, 0);
-				}
-				else
-				{
-					IFDEBUG cout << " ???Short press: End? (" << dec << millisecondsSinceTimepoint(capsDownTimestamp) << "ms)" << " -> Buffering key...";
-					globalState.bufferedScancode = state.scancode;
-				}
-			}
-			break;
-		case SC_N:
-			if (state.isDownstroke)
-				createMacroKeyCombo10timesIfAltDown(SC_LCTRL, SC_LEFT, 0, 0, state.modifiers);
-			break;
-		case SC_M:
-			if (state.isDownstroke)
-				createMacroKeyCombo10timesIfAltDown(SC_LCTRL, SC_RIGHT, 0, 0, state.modifiers);
-			break;
-		case SC_0:
-		case SC_1:
-		case SC_2:
-		case SC_3:
-		case SC_4:
-		case SC_5:
-		case SC_6:
-		case SC_7:
-		case SC_8:
-		case SC_9:
-			if (state.isDownstroke)
-				createMacroKeyCombo(AHK_HOTKEY1, state.scancode, 0, 0);
-			break;
-		case SC_T: //TEST
-		{
-			if (state.isDownstroke)
-			{
-
-			}
-			break;
-		}
-		default:
-			blockingScancode = false;
-		}
-
-		if (blockingScancode)
-			state.blockKey = true;
-		else  //direct key remapping without macros
-		{
-			switch (state.scancode)
-			{
-			case SC_H:
-				state.scancode = SC_BACK;
-				state.isFinalScancode = true;
-				break;
-			case SC_BSLASH:
-				state.scancode = SC_SLASH;
-				state.isFinalScancode = true;
-				break;
-			}
-		}
-	}
-}
-
-void processLayoutDependentActions()
-{
-	if (state.isCapsTapped) //so far, all caps tap actions are layout dependent (tap+A moves when A moves)
-	{
-		if (state.scancode != SC_LSHIFT && state.scancode != SC_RSHIFT)  //shift does not break the tapped status so I can type äÄ
-		{
-			if (state.isDownstroke)
-			{
-				processCapsTapped(state.scancode, mode.characterCreationMode);
-			}
-			if (state.keyMacroLength == 0)
-			{
-				state.isCapsTapped = false;
-				state.blockKey = true;
-			}
-		}
-	}
-}
-
 
 void processModifierState()
 {
@@ -861,29 +584,12 @@ void processModifierState()
 	//special behaviour
 	switch (state.scancode)
 	{
-	case SC_CAPS:  //timing for tapped chars
-		if (state.isDownstroke)
-		{
-			state.isCapsTapped = false;
-			if ((oldState & BITMASK_CAPS) == 0)  //initial down, not autorepeat
-				capsDownTimestamp = timepointNow();
-		}
-		else
-		{
-			if (wasTapped)
-			{
-				state.isCapsTapped = true;
-				IFDEBUG cout << " capsTap:" << (state.isCapsTapped ? "ON " : "OFF")
-					<< " / TapTime = " << dec << millisecondsSinceTimepoint(capsDownTimestamp);
-			}
-		}
-		break;
 	case SC_LSHIFT:  //handle LShift+RShift -> CapsLock
 		if (state.isDownstroke
 			&& (state.modifiers == (BITMASK_LSHIFT | BITMASK_RSHIFT))
 			&& (GetKeyState(VK_CAPITAL) & 0x0001)) //ask Win for Capslock state
 		{
-			macroMakeBreakKey(SC_CAPS);
+			keySequenceAppendMakeBreakKey(SC_CAPS, state.resultingStrokeSequence);
 		}
 		break;
 	case SC_RSHIFT:
@@ -891,16 +597,17 @@ void processModifierState()
 			&& (state.modifiers == (BITMASK_LSHIFT | BITMASK_RSHIFT))
 			&& !(GetKeyState(VK_CAPITAL) & 0x0001))
 		{
-			macroMakeBreakKey(SC_CAPS);
+			keySequenceAppendMakeBreakKey(SC_CAPS, state.resultingStrokeSequence);
 		}
 		break;
 	case SC_TAB:
 		if (wasTapped)
-			macroMakeBreakKey(SC_TAB);
+			keySequenceAppendMakeBreakKey(SC_TAB, state.resultingStrokeSequence);
 		break;
 	}
 }
 
+//Backslash to ALT and the like
 void processRemapModifiers()
 {
 	state.isFinalScancode = true;
@@ -951,7 +658,7 @@ void processRemapModifiers()
 void playStrokeSequence(vector<Stroke> strokeSequence)
 {
 	Stroke newstroke;
-	unsigned int delay = mode.delayBetweenMacroKeysMS;
+	unsigned int delayBetweenKeyEventsMS = mode.delayBetweenMacroKeysMS;
 	bool inCpsEscape = false;  //inside an escape sequence, read next stroke
 
 	IFDEBUG cout << "\t--> PLAY STROKE SEQUENCE (" << strokeSequence.size() << ")";
@@ -979,7 +686,7 @@ void playStrokeSequence(vector<Stroke> strokeSequence)
 					for (Stroke strk : globalState.modsTempAltered)
 					{
 						sendStroke(strk);
-						Sleep(delay);
+						Sleep(delayBetweenKeyEventsMS);
 					}
 				}
 				else //undo the previous sequence
@@ -989,7 +696,7 @@ void playStrokeSequence(vector<Stroke> strokeSequence)
 					{
 						strk.isDownstroke = !strk.isDownstroke;
 						sendStroke(strk);
-						Sleep(delay);
+						Sleep(delayBetweenKeyEventsMS);
 					}
 					globalState.modsTempAltered.clear();
 				}
@@ -1030,15 +737,13 @@ void playStrokeSequence(vector<Stroke> strokeSequence)
 		{
 			sendStroke(stroke);
 			if (stroke.scancode == AHK_HOTKEY1 || stroke.scancode == AHK_HOTKEY2)
-				delay = DELAY_FOR_AHK;
+				delayBetweenKeyEventsMS = DELAY_FOR_AHK;
 			else
-				Sleep(delay);
+				Sleep(delayBetweenKeyEventsMS);
 		}
 	}
 	if (inCpsEscape)
 		error("SC_CPS escape sequence was not finished properly. Check your config.");
-	if (globalState.oldmodsTempReleased.size() > 0)
-		error("SC_CPS escape sequence temp released but did not re-make a modifier. Check your config.");
 }
 
 void playMacro(InterceptionKeyStroke macro[], int macroLength)
@@ -1245,263 +950,18 @@ void reset()
 }
 
 
-void macroMakeKey(unsigned short scancode)
+void keySequenceAppendMakeKey(unsigned short scancode, vector<Stroke> &sequence)
 {
-	state.keyMacro[state.keyMacroLength].code = scancode;
-	state.keyMacro[state.keyMacroLength].state = KEYSTATE_DOWN;
-	state.keyMacroLength++;
+	sequence.push_back({ scancode, true });
 }
-void macroBreakKey(unsigned short scancode)
+void keySequenceAppendBreakKey(unsigned short scancode, vector<Stroke> &sequence)
 {
-	state.keyMacro[state.keyMacroLength].code = scancode;
-	state.keyMacro[state.keyMacroLength].state = KEYSTATE_UP;
-	state.keyMacroLength++;
+	sequence.push_back({ scancode, false });
 }
-void macroMakeBreakKey(unsigned short scancode)
+void keySequenceAppendMakeBreakKey(unsigned short scancode, vector<Stroke> &sequence)
 {
-	state.keyMacro[state.keyMacroLength].code = scancode;
-	state.keyMacro[state.keyMacroLength].state = KEYSTATE_DOWN;
-	state.keyMacroLength++;
-	state.keyMacro[state.keyMacroLength].code = scancode;
-	state.keyMacro[state.keyMacroLength].state = KEYSTATE_UP;
-	state.keyMacroLength++;
-}
-
-
-//Macro wrapped in lshift off temporarily. Example: [shift+backspace] -> ctrl+Y  must suppress the shift, because shift+ctrl+Y is garbage
-void createMacroKeyComboRemoveShift(int a, int b, int c, int d)
-{
-	if (IS_LSHIFT_DOWN)
-		macroBreakKey(SC_LSHIFT);
-	createMacroKeyCombo(a, b, c, d);
-	if (IS_LSHIFT_DOWN)
-		macroMakeKey(SC_LSHIFT);
-}
-
-//press all scancodes, then release them. Pass a,b,0,0 if you need less than 4
-void createMacroKeyCombo(int a, int b, int c, int d)
-{
-	createMacroKeyComboNtimes(a, b, c, d, 1);
-}
-void createMacroKeyCombo10timesIfAltDown(int a, int b, int c, int d, unsigned short modifiers)
-{
-	if (modifiers & BITMASK_LALT)
-		createMacroKeyComboNtimes(a, b, c, d, 10);
-	else
-		createMacroKeyComboNtimes(a, b, c, d, 1);
-}
-void createMacroKeyComboNtimes(int a, int b, int c, int d, int repeat)
-{
-	unsigned short scancodes[] = { (unsigned short)a, (unsigned short)b, (unsigned short)c, (unsigned short)d };
-	for (int rep = 0; rep < repeat; rep++)
-	{
-		for (int i = 0; i < 4; i++)
-		{
-			if (scancodes[i] == 0)
-				break;
-			if (scancodes[i] == SC_LCTRL && IS_LCTRL_DOWN)
-				continue;
-			if (scancodes[i] == SC_LSHIFT && IS_LSHIFT_DOWN)
-				continue;
-			macroMakeKey(scancodes[i]);
-		}
-
-		for (int i = 3; i >= 0; i--)
-		{
-			if (scancodes[i] == 0)
-				continue;
-			if (scancodes[i] == SC_LCTRL && IS_LCTRL_DOWN)
-				continue;
-			if (scancodes[i] == SC_LSHIFT && IS_LSHIFT_DOWN)
-				continue;
-			macroBreakKey(scancodes[i]);
-		}
-	}
-}
-
-//virtually push Alt+Numpad 0 1 2 4  for special characters
-//pass a b c 0 for 3-digit combos
-void createMacroAltNumpad(unsigned short a, unsigned short b, unsigned short c, unsigned short d)
-{
-	unsigned short fsc[] = { a, b, c, d };
-
-	bool lshift = (state.modifiers & BITMASK_LSHIFT) > 0;
-	if (lshift)
-		macroBreakKey(SC_LSHIFT);
-	bool rshift = (state.modifiers & BITMASK_RSHIFT) > 0;
-	if (rshift)
-		macroBreakKey(SC_RSHIFT);
-	macroMakeKey(SC_LALT);
-
-	for (int i = 0; i < 4 && fsc[i] != 0; i++)
-		macroMakeBreakKey(fsc[i]);
-
-	macroBreakKey(SC_LALT);
-	if (rshift)
-		macroMakeKey(SC_RSHIFT);
-	if (lshift)
-		macroMakeKey(SC_LSHIFT);
-}
-
-
-/* Sending special character with scancodes is no fun.
-	There are 3 createCharactermodes:
-	1. IBM classic: ALT + NUMPAD 3-digits. Supported by some apps.
-	2. ANSI: ALT + NUMPAD 4-digits. Supported by other apps, many Microsoft apps but not all.
-	3. AHK: Sends F14|F15 + 1 base character. Requires an AHK script that translates these comobos to characters.
-	This is Windows only. For Linux, the combo is [Ctrl]+[Shift]+[U] , {unicode E4 is ö} , [Enter]
-	For 1. and 2. NumLock must be ON
-*/
-void processCapsTapped(unsigned short scancd, int charCrtMode)
-{
-	bool shiftXorCaps = IS_SHIFT_DOWN != ((GetKeyState(VK_CAPITAL) & 0x0001) != 0);
-
-	if (charCrtMode == 0) //IBM
-	{
-		switch (scancd)
-		{
-		case SC_O:
-			if (shiftXorCaps)
-				createMacroAltNumpad(SC_NP1, SC_NP5, SC_NP3, 0);
-			else
-				createMacroAltNumpad(SC_NP1, SC_NP4, SC_NP8, 0);
-			break;
-		case SC_A:
-			if (shiftXorCaps)
-				createMacroAltNumpad(SC_NP1, SC_NP4, SC_NP2, 0);
-			else
-				createMacroAltNumpad(SC_NP1, SC_NP3, SC_NP2, 0);
-			break;
-		case SC_U:
-			if (shiftXorCaps)
-				createMacroAltNumpad(SC_NP1, SC_NP5, SC_NP4, 0);
-			else
-				createMacroAltNumpad(SC_NP1, SC_NP2, SC_NP9, 0);
-			break;
-		case SC_S:
-			createMacroAltNumpad(SC_NP2, SC_NP2, SC_NP5, 0);
-			break;
-		case SC_E:
-			createMacroAltNumpad(SC_NP0, SC_NP1, SC_NP2, SC_NP8);
-			break;
-		case SC_D:
-			createMacroAltNumpad(SC_NP1, SC_NP6, SC_NP7, 0);
-			break;
-		case SC_T: // test print from [1] to [Enter]
-		{
-			for (unsigned short i = 2; i <= 0x1C; i++)
-				macroMakeBreakKey(i);
-			break;
-		}
-		case SC_R: // test2: print 50x10 ä
-		{
-			for (int outer = 0; outer < 4; outer++)
-			{
-				for (unsigned short i = 0; i < 40; i++)
-				{
-
-					macroMakeKey(SC_LALT);
-					macroMakeBreakKey(SC_NP1);
-					macroMakeBreakKey(SC_NP3);
-					macroMakeBreakKey(SC_NP2);
-					macroBreakKey(SC_LALT);
-				}
-
-				macroMakeBreakKey(SC_RETURN);
-			}
-			break;
-		}
-		case SC_L: // Linux test: print 50x10 ä
-		{
-			for (int outer = 0; outer < 4; outer++)
-			{
-				for (unsigned short i = 0; i < 40; i++)
-				{
-
-					macroMakeKey(SC_LCTRL);
-					macroMakeKey(SC_LSHIFT);
-					macroMakeKey(SC_U);
-					macroBreakKey(SC_U);
-					macroBreakKey(SC_LSHIFT);
-					macroBreakKey(SC_LCTRL);
-					macroMakeBreakKey(SC_E);
-					macroMakeBreakKey(SC_4);
-					macroMakeBreakKey(SC_RETURN);
-				}
-				macroMakeBreakKey(SC_RETURN);
-			}
-			break;
-		}
-		}
-	}
-	else if (charCrtMode == 1) //ANSI
-	{
-		switch (scancd)
-		{
-		case SC_O:
-			if (shiftXorCaps)
-				createMacroAltNumpad(SC_NP0, SC_NP2, SC_NP1, SC_NP4);
-			else
-				createMacroAltNumpad(SC_NP0, SC_NP2, SC_NP4, SC_NP6);
-			break;
-		case SC_A:
-			if (shiftXorCaps)
-				createMacroAltNumpad(SC_NP0, SC_NP1, SC_NP9, SC_NP6);
-			else
-				createMacroAltNumpad(SC_NP0, SC_NP2, SC_NP2, SC_NP8);
-			break;
-		case SC_U:
-			if (shiftXorCaps)
-				createMacroAltNumpad(SC_NP0, SC_NP2, SC_NP2, SC_NP0);
-			else
-				createMacroAltNumpad(SC_NP0, SC_NP2, SC_NP5, SC_NP2);
-			break;
-		case SC_S:
-			createMacroAltNumpad(SC_NP0, SC_NP2, SC_NP2, SC_NP3);
-			break;
-		case SC_E:
-			createMacroAltNumpad(SC_NP0, SC_NP1, SC_NP2, SC_NP8);
-			break;
-		case SC_D:
-			createMacroAltNumpad(SC_NP1, SC_NP7, SC_NP6, 0);
-			break;
-		}
-	}
-	else if (charCrtMode == 2) //AHK
-	{
-		switch (scancd)
-		{
-		case SC_A:
-		case SC_O:
-		case SC_U:
-			createMacroKeyCombo(shiftXorCaps ? AHK_HOTKEY2 : AHK_HOTKEY1, scancd, 0, 0);
-			break;
-		case SC_S:
-		case SC_E:
-		case SC_D:
-		case SC_C:
-			createMacroKeyCombo(AHK_HOTKEY1, scancd, 0, 0);
-			break;
-		}
-	}
-
-	if (state.keyMacroLength == 0)
-	{
-		switch (scancd) {
-		case SC_0:
-		case SC_1:
-		case SC_2:
-		case SC_3:
-		case SC_4:
-		case SC_5:
-		case SC_6:
-		case SC_7:
-		case SC_8:
-		case SC_9:
-			createMacroKeyCombo(AHK_HOTKEY2, scancd, 0, 0);
-			break;
-		}
-	}
+	sequence.push_back({ scancode, true });
+	sequence.push_back({ scancode, false });
 }
 
 string getSymbolForStrokeState(unsigned short state)

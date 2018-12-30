@@ -10,24 +10,16 @@ enum KEYSTATE
 	KEYSTATE_EXT_UP = 3,
 };
 
-void macroMakeKey(unsigned short scancode);
-void macroBreakKey(unsigned short scancode);
-void macroMakeBreakKey(unsigned short scancode);
-
-void createMacroKeyCombo(int a, int b, int c, int d);
-void createMacroKeyComboRemoveShift(int a, int b, int c, int d);
-void createMacroKeyCombo10timesIfAltDown(int a, int b, int c, int d, unsigned short modifiers);
-void createMacroKeyComboNtimes(int a, int b, int c, int d, int repeat);
-
-void createMacroAltNumpad(unsigned short a, unsigned short b, unsigned short c, unsigned short d);
-void processCapsTapped(unsigned short scancd, int charCrtMode);
+void keySequenceAppendMakeKey(unsigned short scancode, std::vector<Stroke> &sequence);
+void keySequenceAppendBreakKey(unsigned short scancode, std::vector<Stroke> &sequence);
+void keySequenceAppendMakeBreakKey(unsigned short scancode, std::vector<Stroke> &sequence);
 
 std::string getSymbolForStrokeState(unsigned short state);
 
 void playMacro(InterceptionKeyStroke macro[], int macroLength);
 
 void processCommand();
-void processAlphaMappingTable(unsigned short & scancode);
+void processMapAlphaKeys(unsigned short & scancode);
 void processBufferedScancode();
 void processRemapModifiers();
 void playStrokeSequence(std::vector<Stroke> strokeSequence);
@@ -40,9 +32,7 @@ void processCaps();
 
 void sendStroke(Stroke stroke);
 
-void sendResultingKeyOrMacro();
-
-void processLayoutDependentActions();
+void sendResultingKeyOrSequence();
 
 void scancode2ikstroke(unsigned short &scancode, InterceptionKeyStroke &istroke);
 
