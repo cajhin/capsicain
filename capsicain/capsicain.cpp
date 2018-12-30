@@ -13,7 +13,7 @@
 
 using namespace std;
 
-string version = "28";
+string version = "29";
 
 const bool START_AHK_ON_STARTUP = true;
 const int MAX_KEYMACRO_LENGTH = 10000;  //for testing; in real life, 100 keys = 200 up/downs should be enough
@@ -1029,7 +1029,10 @@ void playStrokeSequence(vector<Stroke> strokeSequence)
 		else //regular non-escaped stroke
 		{
 			sendStroke(stroke);
-			Sleep(delay);
+			if (stroke.scancode == AHK_HOTKEY1 || stroke.scancode == AHK_HOTKEY2)
+				delay = DELAY_FOR_AHK;
+			else
+				Sleep(delay);
 		}
 	}
 	if (inCpsEscape)
