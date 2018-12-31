@@ -1,6 +1,7 @@
 #define PROGRAM_NAME_AHK "autohotkey.exe"
 #include "interception.h"
 #include "utils.h"
+#include "config.h"
 
 enum KEYSTATE
 {
@@ -16,8 +17,6 @@ void keySequenceAppendMakeBreakKey(unsigned short scancode, std::vector<Stroke> 
 
 std::string getSymbolForStrokeState(unsigned short state);
 
-void playMacro(InterceptionKeyStroke macro[], int macroLength);
-
 void processCommand();
 void processMapAlphaKeys(unsigned short & scancode);
 void processBufferedScancode();
@@ -26,7 +25,7 @@ void playStrokeSequence(std::vector<Stroke> strokeSequence);
 void processModifierState();
 void processLayoutIndependentAction();
 
-void printHelloHelp();
+void printHelloFeatures();
 
 void processCaps();
 
@@ -50,4 +49,4 @@ void reset();
 
 #define IFDEBUG if(mode.debug) 
 
-
+void resetAlphaMap();

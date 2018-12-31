@@ -30,7 +30,10 @@
     <ClInclude Include="interception.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="mappings.h">
+    <ClInclude Include="config.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="modifiers.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -41,13 +44,16 @@
     <ClCompile Include="capsicain.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="mappings.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="utils.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="scancodes.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="config.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="modifiers.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
