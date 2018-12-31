@@ -13,7 +13,7 @@
 
 using namespace std;
 
-string version = "31";
+string version = "32";
 
 const bool DEFAULT_START_AHK_ON_STARTUP = true;
 const int DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS = 5;  //local needs ~1ms, Linux VM 5+ms, RDP fullscreen 10+ for 100% reliable keystroke detection
@@ -29,9 +29,9 @@ struct ModifierCombo
 	unsigned short key = SC_NOP;
 	unsigned short modAnd = 0;
 	unsigned short modNot = 0;
-	unsigned short modNop = 0; //block these modifiers
-	unsigned short modFor = 0; //forward these modifiers
 	unsigned short modTap = 0;
+	//unsigned short modNop = 0; //block these modifiers
+	//unsigned short modFor = 0; //forward these modifiers
 	vector<Stroke> strokeSequence;
 };
 vector<ModifierCombo> modCombosPre;
@@ -57,6 +57,10 @@ struct AlphaMapping
 
 struct GlobalState
 {
+	unsigned short modifiers = 0;
+	unsigned short modsTapped = 0;
+	bool lastModBrokeTapping = false;
+
 	bool keysDownReceived[256] = { false };
 	bool keysDownSent[256] = { false };
 	InterceptionContext interceptionContext = NULL;
@@ -74,7 +78,6 @@ struct LoopState
 	InterceptionKeyStroke originalIKstroke = { SC_NOP, 0 };
 	Stroke originalStroke = { SC_NOP, false };
 
-	unsigned short modifiers = 0;
 	bool blockKey = false;  //true: do not send the current key
 	bool isFinalScancode = false;  //true: don't remap the scancode anymore
 
@@ -166,7 +169,7 @@ bool readIniModCombosPre()
 		return true;
 	}
 	modCombosPre.clear();
-	unsigned short mods[5] = { 0 }; //and, not, nop, for, tap
+	unsigned short mods[3] = { 0 }; //and, not, tap (nop, for)
 	vector<Stroke> strokeSequence;
 
 	for (string line : iniLines)
@@ -175,8 +178,8 @@ bool readIniModCombosPre()
 		if (parseModCombo(line, key, mods, strokeSequence, scLabels))
 		{
 			IFDEBUG cout << endl << "modComboPre: " << line << endl << "    ," << key << " -> " 
-				<< mods[0] << "," << mods[1] << "," << mods[1] << "," << mods[2] << "," << mods[3] << "," << mods[4] << "," << "sequence:" << strokeSequence.size();
-			modCombosPre.push_back({ key, mods[0], mods[1], mods[2], mods[3], mods[4], strokeSequence });
+				<< mods[0] << "," << mods[1] << "," << mods[2] << "," << "sequence:" << strokeSequence.size();
+			modCombosPre.push_back({ key, mods[0], mods[1], mods[2], strokeSequence });
 		}
 		else
 		{
@@ -248,7 +251,9 @@ void resetAllStatesToDefault()
 	resetAlphaMap();
 	resetCapsNumScrollLock();
 	resetLoopState();
-	loopState.modifiers = 0;
+	globalState.modifiers = 0;
+	globalState.modsTapped = 0;
+	globalState.lastModBrokeTapping = false;
 }
 
 int main()
@@ -372,18 +377,22 @@ int main()
 		//process the key stroke
 		processRemapModifiers();
 		processModifierState();
-		IFDEBUG cout << " [" << hex << loopState.modifiers << "] ";
+		IFDEBUG cout << " [M:" << hex << globalState.modifiers;
+		IFDEBUG if (globalState.modsTapped)  cout << " TAP:" << hex << globalState.modsTapped;
+		IFDEBUG cout << "] ";
 
-		//new rule based processing
-		if (!loopState.isFinalScancode)
+		//evaluate modified keys
+		if (!loopState.isFinalScancode && 
+			(globalState.modifiers > 0 || globalState.modsTapped > 0))
 		{
 			for (ModifierCombo modcombo : modCombosPre)
 			{
 				if (modcombo.key == loopState.scancode)
 				{
 					if (
-						(loopState.modifiers & modcombo.modAnd) == modcombo.modAnd &&
-						(loopState.modifiers & modcombo.modNot) == 0
+						(globalState.modifiers & modcombo.modAnd) == modcombo.modAnd &&
+						(globalState.modifiers & modcombo.modNot) == 0 && 
+						(globalState.modsTapped == modcombo.modTap)
 						)
 					{
 						if(loopState.isDownstroke)
@@ -394,6 +403,7 @@ int main()
 					}
 				}
 			}
+			globalState.modsTapped = 0;
 		}
 
 		if (!loopState.isFinalScancode && !IS_LCTRL_DOWN) //basic char layout. Don't remap the Ctrl combos?
@@ -410,7 +420,7 @@ int main()
 		}
 
 		sendResultingKeyOrSequence();
-		globalState.previousStroke = loopState.originalStroke;
+		globalState.previousStroke = { loopState.scancode, loopState.isDownstroke };
 	}
 	interception_destroy_context(globalState.interceptionContext);
 
@@ -556,25 +566,43 @@ void processModifierState()
 	if (!isModifier(loopState.scancode))
 		return;
 
-	unsigned short oldState = loopState.modifiers;
+	// unsigned short oldState = globalState.modifiers;
 	unsigned short bitmask = getBitmaskForModifier(loopState.scancode);
 	if (loopState.isDownstroke)
-		loopState.modifiers |= bitmask;
+		globalState.modifiers |= bitmask;
 	else 
-		loopState.modifiers &= ~bitmask;
+		globalState.modifiers &= ~bitmask;
 
 	loopState.isFinalScancode = true;
 	if ((bitmask & 0xFF00) > 0)
 		loopState.blockKey = true;
 
-	bool wasTapped = !loopState.isDownstroke && (loopState.scancode == globalState.previousStroke.scancode);
+	//tapped?
+	bool sameKey = loopState.scancode == globalState.previousStroke.scancode;
+	bool modWasTapped = sameKey && !loopState.isDownstroke;
+	if (modWasTapped && globalState.lastModBrokeTapping)	//double tap clears all taps
+		globalState.modsTapped = 0;
+	else if (modWasTapped)
+		globalState.modsTapped |= bitmask;
+	else if (sameKey && loopState.isDownstroke)
+	{
+		if (globalState.modsTapped & bitmask)
+		{
+			globalState.lastModBrokeTapping = true;
+			globalState.modsTapped &= ~bitmask;
+		}
+		else
+			globalState.lastModBrokeTapping = false;
+	}
+	else
+		globalState.lastModBrokeTapping = false;
 
 	//special behaviour
 	switch (loopState.scancode)
 	{
 	case SC_LSHIFT:  //handle LShift+RShift -> CapsLock
 		if (loopState.isDownstroke
-			&& (loopState.modifiers == (BITMASK_LSHIFT | BITMASK_RSHIFT))
+			&& (globalState.modifiers == (BITMASK_LSHIFT | BITMASK_RSHIFT))
 			&& (GetKeyState(VK_CAPITAL) & 0x0001)) //ask Win for Capslock state
 		{
 			keySequenceAppendMakeBreakKey(SC_CAPS, loopState.resultingStrokeSequence);
@@ -582,15 +610,18 @@ void processModifierState()
 		break;
 	case SC_RSHIFT:
 		if (loopState.isDownstroke
-			&& (loopState.modifiers == (BITMASK_LSHIFT | BITMASK_RSHIFT))
+			&& (globalState.modifiers == (BITMASK_LSHIFT | BITMASK_RSHIFT))
 			&& !(GetKeyState(VK_CAPITAL) & 0x0001))
 		{
 			keySequenceAppendMakeBreakKey(SC_CAPS, loopState.resultingStrokeSequence);
 		}
 		break;
 	case SC_TAB:
-		if (wasTapped)
+		if (modWasTapped)
+		{
+			globalState.modsTapped &= ~bitmask;
 			keySequenceAppendMakeBreakKey(SC_TAB, loopState.resultingStrokeSequence);
+		}
 		break;
 	}
 }
@@ -701,11 +732,11 @@ void playStrokeSequence(vector<Stroke> strokeSequence)
 
 			if (stroke.isDownstroke)  //make modifiers when they are up
 			{
-				unsigned short exor = loopState.modifiers ^ tempModChange; //figure out which ones we must press
+				unsigned short exor = globalState.modifiers ^ tempModChange; //figure out which ones we must press
 				tempModChange &= exor;
 			}
 			else	//break mods if down
-				tempModChange &= loopState.modifiers;
+				tempModChange &= globalState.modifiers;
 
 			newstroke.isDownstroke = stroke.isDownstroke;
 
@@ -822,7 +853,7 @@ void printStatus()
 		<< "hardware id:" << globalState.deviceIdKeyboard << endl
 		<< "Apple keyboard: " << globalState.deviceIsAppleKeyboard << endl
 		<< "active LAYER: " << mode.activeLayer << endl
-		<< "modifier state: " << hex << loopState.modifiers << endl
+		<< "modifier state: " << hex << globalState.modifiers << endl
 		<< "delay between macro keys (ms): " << mode.delayForKeySequenceMS << endl
 		<< "# keys down received: " << numMakeReceived << endl
 		<< "# keys down sent: " << numMakeSent << endl

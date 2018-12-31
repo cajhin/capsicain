@@ -14,4 +14,4 @@ bool configHasKey(std::string section, std::string key, std::vector<std::string>
 bool configReadString(std::string section, std::string key, std::string & value, std::vector<std::string> iniLines);
 bool configReadInt(std::string section, std::string key, int & value, std::vector<std::string> iniLines);
 bool parseCombo(std::string &funcParams, std::string * scLabels, std::vector<Stroke> &strokeSeq, bool &retflag);
-bool parseModCombo(std::string line, unsigned short &key, unsigned short(&mods)[5], std::vector<Stroke> &strokeSequence, std::string scLabels[]);
+bool parseModCombo(std::string line, unsigned short &key, unsigned short(&mods)[3], std::vector<Stroke> &strokeSequence, std::string scLabels[]);

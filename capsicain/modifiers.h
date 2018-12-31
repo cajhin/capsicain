@@ -31,19 +31,19 @@ bool isModifierDown(unsigned short modifier, unsigned short modState);
 #define BITMASK_MOD15		0x4000
 
 
-#define IS_SHIFT_DOWN (loopState.modifiers & BITMASK_LSHIFT || loopState.modifiers & BITMASK_RSHIFT)
-#define IS_LSHIFT_DOWN (loopState.modifiers & BITMASK_LSHIFT)
-#define IS_RSHIFT_DOWN (loopState.modifiers & BITMASK_RSHIFT)
-#define IS_LCTRL_DOWN (loopState.modifiers & BITMASK_LCTRL)
-#define IS_LALT_DOWN (loopState.modifiers & BITMASK_LALT)
-#define IS_LWIN_DOWN (loopState.modifiers & BITMASK_LWIN)
-#define IS_CAPS_DOWN (loopState.modifiers & BITMASK_CAPS)
-#define IS_TAB_DOWN (loopState.modifiers & BITMASK_TAB)
-#define IS_ESC_DOWN (loopState.modifiers & BITMASK_ESC)
-#define IS_MOD12_DOWN (loopState.modifiers & BITMASK_12)
-#define IS_MOD13_DOWN (loopState.modifiers & BITMASK_13)
-#define IS_MOD14_DOWN (loopState.modifiers & BITMASK_14)
-#define IS_MOD15_DOWN (loopState.modifiers & BITMASK_15)
+#define IS_SHIFT_DOWN (globalState.modifiers & BITMASK_LSHIFT || globalState.modifiers & BITMASK_RSHIFT)
+#define IS_LSHIFT_DOWN (globalState.modifiers & BITMASK_LSHIFT)
+#define IS_RSHIFT_DOWN (globalState.modifiers & BITMASK_RSHIFT)
+#define IS_LCTRL_DOWN (globalState.modifiers & BITMASK_LCTRL)
+#define IS_LALT_DOWN (globalState.modifiers & BITMASK_LALT)
+#define IS_LWIN_DOWN (globalState.modifiers & BITMASK_LWIN)
+#define IS_CAPS_DOWN (globalState.modifiers & BITMASK_CAPS)
+#define IS_TAB_DOWN (globalState.modifiers & BITMASK_TAB)
+#define IS_ESC_DOWN (globalState.modifiers & BITMASK_ESC)
+#define IS_MOD12_DOWN (globalState.modifiers & BITMASK_12)
+#define IS_MOD13_DOWN (globalState.modifiers & BITMASK_13)
+#define IS_MOD14_DOWN (globalState.modifiers & BITMASK_14)
+#define IS_MOD15_DOWN (globalState.modifiers & BITMASK_15)
 
 
 #endif

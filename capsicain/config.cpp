@@ -184,8 +184,8 @@ bool parseCombo(std::string &funcParams, std::string * scLabels, std::vector<Str
 	return true;
 }
 
-//parse H  [^^^v .--. ....] > key(BACK)
-bool parseModCombo(std::string line, unsigned short &key, unsigned short(&mods)[5], std::vector<Stroke> &strokeSequence, std::string scLabels[])
+//parse H  [^^^v .--. ....] > function(param)
+bool parseModCombo(std::string line, unsigned short &key, unsigned short(&mods)[3], std::vector<Stroke> &strokeSequence, std::string scLabels[])
 {
 	line.erase(std::remove(line.begin(), line.end(), ' '), line.end());
 
@@ -205,9 +205,9 @@ bool parseModCombo(std::string line, unsigned short &key, unsigned short(&mods)[
 
 	mods[0] = parseModString(mod, 'v'); //and 
 	mods[1] = parseModString(mod, '!'); //not 
-	mods[2] = parseModString(mod, '-'); //nop
-	mods[3] = parseModString(mod, '.'); //for
-	mods[4] = parseModString(mod, 't'); //tap
+	mods[2] = parseModString(mod, 't'); //tap
+//	mods[3] = parseModString(mod, '-'); //nop
+//	mods[4] = parseModString(mod, '.'); //for
 
 	//extract function name + param
 	size_t funcIdx1 = line.find_first_of('>') + 1;
