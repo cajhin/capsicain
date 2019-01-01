@@ -27,8 +27,6 @@ void processLayoutIndependentAction();
 
 void printHelloFeatures();
 
-void processCaps();
-
 void sendStroke(Stroke stroke);
 
 void sendResultingKeyOrSequence();

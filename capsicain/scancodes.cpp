@@ -27,7 +27,8 @@ void checkAddLabel(int index, string label, string arr[])
 }
 
 //GENERATED
-//run this regex in Notepad++ over scancodes.h enum:
+//this must be in sync with config.h
+//to sync automatically, run this regex in Notepad++ over scancodes.h enum:
 //from:  (.*)SC_(.*?) (.*)
 //to:    checkAddLabel\( SC_\2, "\2", arr\);
 void initScancodeLabels(string arr[])

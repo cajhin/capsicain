@@ -13,7 +13,7 @@
 
 using namespace std;
 
-string version = "32";
+string version = "33";
 
 const bool DEFAULT_START_AHK_ON_STARTUP = true;
 const int DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS = 5;  //local needs ~1ms, Linux VM 5+ms, RDP fullscreen 10+ for 100% reliable keystroke detection
@@ -120,10 +120,10 @@ bool readIniFeatures()
 		mode.activeLayer = DEFAULT_ACTIVE_LAYER;
 		cout << endl << "Missing ini setting 'activeLayer'. Setting layer " << DEFAULT_ACTIVE_LAYER;
 	}
-	if (!configReadInt("DEFAULTS", "delayBetweenMacroKeysMS", mode.delayForKeySequenceMS, iniLines))
+	if (!configReadInt("DEFAULTS", "delayForKeySequenceMS", mode.delayForKeySequenceMS, iniLines))
 	{
 		mode.delayForKeySequenceMS = DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;
-		cout << endl << "Missing ini setting 'delayBetweenMacroKeysMS'. Using default " << DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;
+		cout << endl << "Missing ini setting 'delayForKeySequenceMS'. Using default " << DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;
 	}
 	mode.lbSlashShift = configHasKey("FEATURES", "lbackslashShift", iniLines);
 	mode.slashShift = configHasKey("FEATURES", "slashShift", iniLines);
@@ -511,12 +511,12 @@ void processCommand()
 	case SC_LBRACK:
 		if (mode.delayForKeySequenceMS >= 2)
 			mode.delayForKeySequenceMS -= 1;
-		cout << "delay between characters in macros (ms): " << dec << mode.delayForKeySequenceMS;
+		cout << "delay between characters in key sequences (ms): " << dec << mode.delayForKeySequenceMS;
 		break;
 	case SC_RBRACK:
 		if (mode.delayForKeySequenceMS <= 100)
 			mode.delayForKeySequenceMS += 1;
-		cout << "delay between characters in macros (ms): " << dec << mode.delayForKeySequenceMS;
+		cout << "delay between characters in key sequences (ms): " << dec << mode.delayForKeySequenceMS;
 		break;
 	case SC_A:
 	{
@@ -833,7 +833,7 @@ void printHelp()
 		<< "[W] flip ALT <> WIN on Apple keyboards" << endl
 		<< "[\\] (labeled [<] on GER keyboard): ISO boards only: key cut out of left shift -> Left Shift" << endl
 		<< "[/] (labeled [-] on GER keyboard): Slash -> Right Shift" << endl
-		<< "[ and ]: pause between macro keys sent -/+ 10ms " << endl
+		<< "[ and ]: pause between keys in sequences -/+ 10ms " << endl
 		;
 }
 void printStatus()
@@ -854,7 +854,7 @@ void printStatus()
 		<< "Apple keyboard: " << globalState.deviceIsAppleKeyboard << endl
 		<< "active LAYER: " << mode.activeLayer << endl
 		<< "modifier state: " << hex << globalState.modifiers << endl
-		<< "delay between macro keys (ms): " << mode.delayForKeySequenceMS << endl
+		<< "delay between keys in sequences (ms): " << mode.delayForKeySequenceMS << endl
 		<< "# keys down received: " << numMakeReceived << endl
 		<< "# keys down sent: " << numMakeSent << endl
 		<< (errorLog.length() > 1 ? "ERROR LOG contains entries" : "clean error log") << " (" << errorLog.length() << " chars)" << endl
