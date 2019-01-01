@@ -63,14 +63,14 @@ struct GlobalState
 	unsigned short modsTapped = 0;
 	bool lastModBrokeTapping = false;
 
-	bool keysDownReceived[256] = { false };
 	bool keysDownSent[256] = { false };
 	InterceptionContext interceptionContext = NULL;
 	InterceptionDevice interceptionDevice = NULL;
 	string deviceIdKeyboard = "";
 	bool deviceIsAppleKeyboard = false;
 	vector<Stroke> modsTempAltered;
-	Stroke previousStroke = { SC_NOP, 0 };
+	Stroke previousStrokeOut = { SC_NOP, 0 };
+	Stroke previousStrokeIn = { SC_NOP, 0 };
 } globalState;
 
 struct LoopState
@@ -246,7 +246,7 @@ void resetAllStatesToDefault()
 	//	globalState.interceptionDevice = NULL;
 	globalState.deviceIdKeyboard = "";
 	globalState.deviceIsAppleKeyboard = false;
-	globalState.previousStroke = { 0,0 };
+	globalState.previousStrokeOut = { 0,0 };
 
 	mode.delayForKeySequenceMS = DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;
 
@@ -318,8 +318,6 @@ int main()
 			continue;
 		}
 
-		globalState.keysDownReceived[loopState.scancode] = loopState.isDownstroke;
-
 		//command stroke: ESC + stroke
 		// some major key shadowing here...
 		// - cherry is good
@@ -330,18 +328,19 @@ int main()
 		if (loopState.scancode == SC_ESCAPE)
 		{
 			//ESC alone will send ESC; otherwise block
-			if (!loopState.isDownstroke && globalState.previousStroke.scancode == SC_ESCAPE)
+			if (!loopState.isDownstroke && globalState.previousStrokeIn.scancode == SC_ESCAPE)
 			{
 				IFDEBUG cout << " ESC ";
 				sendStroke({ SC_ESCAPE, true });
 				sendStroke({ SC_ESCAPE, false });
 			}
-			globalState.previousStroke = { loopState.scancode, loopState.isDownstroke };
+			globalState.previousStrokeIn = loopState.originalStroke;
+			globalState.previousStrokeOut = { SC_ESCAPE, false };
 			continue;
 		}
 		else
 		{
-			if (loopState.isDownstroke && globalState.keysDownReceived[SC_ESCAPE])
+			if (loopState.isDownstroke && globalState.previousStrokeIn.scancode == SC_ESCAPE && globalState.previousStrokeIn.isDownstroke)
 			{
 				if (loopState.scancode == SC_X)
 				{
@@ -352,7 +351,7 @@ int main()
 #ifndef NDEBUG
 					break;
 #else
-					sendStroke(globalState.previousStroke);
+					sendStroke(globalState.previousStrokeOut);
 					sendStroke(loopState.originalStroke);
 					continue;
 #endif
@@ -360,7 +359,7 @@ int main()
 				else
 				{
 					processCommand();
-					globalState.previousStroke = loopState.originalStroke;
+					globalState.previousStrokeOut = loopState.originalStroke;
 					continue;
 				}
 			}
@@ -394,7 +393,7 @@ int main()
 					if (
 						(globalState.modifiers & modcombo.modAnd) == modcombo.modAnd &&
 						(globalState.modifiers & modcombo.modNot) == 0 && 
-						(globalState.modsTapped == modcombo.modTap)
+						((globalState.modsTapped & modcombo.modTap) == modcombo.modTap)
 						)
 					{
 						if(loopState.isDownstroke)
@@ -422,7 +421,8 @@ int main()
 		}
 
 		sendResultingKeyOrSequence();
-		globalState.previousStroke = { loopState.scancode, loopState.isDownstroke };
+		globalState.previousStrokeOut = { loopState.scancode, loopState.isDownstroke };
+		globalState.previousStrokeIn = loopState.originalStroke;
 	}
 	interception_destroy_context(globalState.interceptionContext);
 
@@ -580,7 +580,7 @@ void processModifierState()
 		loopState.blockKey = true;
 
 	//tapped?
-	bool sameKey = loopState.scancode == globalState.previousStroke.scancode;
+	bool sameKey = loopState.scancode == globalState.previousStrokeOut.scancode;
 	bool modWasTapped = sameKey && !loopState.isDownstroke;
 	if (modWasTapped && globalState.lastModBrokeTapping)	//double tap clears all taps
 		globalState.modsTapped = 0;
@@ -658,6 +658,9 @@ void processRemapModifiers()
 	case SC_RALT:
 		if (mode.backslashToAlt)
 		{ 
+			if (globalState.previousStrokeIn.scancode == loopState.originalStroke.scancode
+				&& globalState.previousStrokeIn.isDownstroke == loopState.originalStroke.isDownstroke) //auto-repeating alt down
+				break;
 			if (loopState.isDownstroke && IS_MOD12_DOWN)
 			{
 				globalState.modifiers &= ~BITMASK_MOD12;
@@ -845,12 +848,9 @@ void printHelp()
 }
 void printStatus()
 {
-	int numMakeReceived = 0;
 	int numMakeSent = 0;
 	for (int i = 0; i < 255; i++)
 	{
-		if (globalState.keysDownReceived[i])
-			numMakeReceived++;
 		if (globalState.keysDownSent[i])
 			numMakeSent++;
 	}
@@ -862,7 +862,6 @@ void printStatus()
 		<< "active LAYER: " << mode.activeLayer << endl
 		<< "modifier state: " << hex << globalState.modifiers << endl
 		<< "delay between keys in sequences (ms): " << mode.delayForKeySequenceMS << endl
-		<< "# keys down received: " << numMakeReceived << endl
 		<< "# keys down sent: " << numMakeSent << endl
 		<< (errorLog.length() > 1 ? "ERROR LOG contains entries" : "clean error log") << " (" << errorLog.length() << " chars)" << endl
 		;
@@ -946,7 +945,6 @@ void reset()
 
 	for (int i = 0; i < 255; i++)
 	{
-		globalState.keysDownReceived[i] = false;
 		globalState.keysDownSent[i] = false;
 	}
 
