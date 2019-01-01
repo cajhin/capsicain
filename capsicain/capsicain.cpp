@@ -15,7 +15,7 @@
 
 using namespace std;
 
-string version = "33";
+string version = "34";
 
 const bool DEFAULT_START_AHK_ON_STARTUP = true;
 const int DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS = 5;  //local needs ~1ms, Linux VM 5+ms, RDP fullscreen 10+ for 100% reliable keystroke detection
@@ -660,11 +660,9 @@ void processRemapModifiers()
 		{ 
 			if (globalState.previousStrokeIn.scancode == loopState.originalStroke.scancode
 				&& globalState.previousStrokeIn.isDownstroke == loopState.originalStroke.isDownstroke) //auto-repeating alt down
-				break;
-			if (loopState.isDownstroke && IS_MOD12_DOWN)
-			{
+				loopState.scancode = SC_NOP;
+			else if (loopState.isDownstroke && IS_MOD12_DOWN)
 				globalState.modifiers &= ~BITMASK_MOD12;
-			}
 			else if (!loopState.isDownstroke && IS_RALT_DOWN)
 				loopState.scancode = SC_RALT;
 			else if (!loopState.isDownstroke && IS_LALT_DOWN)
@@ -977,4 +975,3 @@ string getSymbolForStrokeState(unsigned short state)
 	}
 	return "???" + state;
 }
-
