@@ -1,3 +1,5 @@
+#pragma once 
+
 #include "pch.h"
 #include <iostream>
 #include <chrono>
@@ -653,16 +655,21 @@ void processRemapModifiers()
 			loopState.scancode = SC_RSHIFT;
 		break;
 	case SC_LALT:
-		if (mode.backslashToAlt)
-			loopState.scancode = SC_MOD12;
-		break;
 	case SC_RALT:
 		if (mode.backslashToAlt)
-			loopState.scancode = SC_MOD12;
+		{ 
+			if (loopState.isDownstroke && IS_MOD12_DOWN)
+			{
+				globalState.modifiers &= ~BITMASK_MOD12;
+			}
+			else if (!loopState.isDownstroke && IS_RALT_DOWN)
+				loopState.scancode = SC_RALT;
+			else if (!loopState.isDownstroke && IS_LALT_DOWN)
+				loopState.scancode = SC_LALT;
+			else
+				loopState.scancode = SC_MOD12;
+		}
 		break;
-	case SC_BSLASH:
-		if (mode.backslashToAlt)
-			loopState.scancode = SC_RALT;
 	default:
 		loopState.isFinalScancode = false;
 	}
