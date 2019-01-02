@@ -15,7 +15,7 @@
 
 using namespace std;
 
-string version = "35";
+string version = "36";
 
 const bool DEFAULT_START_AHK_ON_STARTUP = true;
 const int DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS = 5;  //local needs ~1ms, Linux VM 5+ms, RDP fullscreen 10+ for 100% reliable keystroke detection
@@ -39,18 +39,16 @@ struct ModifierCombo
 vector<ModifierCombo> modCombos;
 vector<ModifierCombo> modCombosPost;
 
-struct Mode
+struct Feature
 {
 	string iniVersion = "unnamed version - add 'iniVersion xyz' to capsicain.ini";
 	bool debug = false;
 	int delayForKeySequenceMS = DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;  //AHK drops keys when they are sent too fast
-	bool lbSlashShift = false;
-	bool slashShift = false;
 	bool flipZy = false;
 	bool altAltToAlt = false;
 	bool shiftShiftToShiftLock = false;
 	bool flipAltWinOnAppleKeyboards = false;
-} mode;
+} feature;
 
 struct KeyModifierIftappedMapping
 {
@@ -130,24 +128,22 @@ bool readIniFeatures()
 	{
 		return false;
 	}
-	configReadString("DEFAULTS", "iniVersion", mode.iniVersion, iniLines);
-	mode.debug = configHasKey("DEFAULTS", "debug", iniLines);
+	configReadString("DEFAULTS", "iniVersion", feature.iniVersion, iniLines);
+	feature.debug = configHasKey("DEFAULTS", "debug", iniLines);
 	if (!configReadInt("DEFAULTS", "activeLayer", globalState.activeLayer, iniLines))
 	{
 		globalState.activeLayer = DEFAULT_ACTIVE_LAYER;
 		cout << endl << "Missing ini setting 'activeLayer'. Setting layer " << DEFAULT_ACTIVE_LAYER;
 	}
-	if (!configReadInt("DEFAULTS", "delayForKeySequenceMS", mode.delayForKeySequenceMS, iniLines))
+	if (!configReadInt("DEFAULTS", "delayForKeySequenceMS", feature.delayForKeySequenceMS, iniLines))
 	{
-		mode.delayForKeySequenceMS = DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;
+		feature.delayForKeySequenceMS = DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;
 		cout << endl << "Missing ini setting 'delayForKeySequenceMS'. Using default " << DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;
 	}
-	mode.lbSlashShift = configHasKey("FEATURES", "lbackslashShift", iniLines);
-	mode.slashShift = configHasKey("FEATURES", "slashShift", iniLines);
-	mode.flipZy = configHasKey("FEATURES", "flipZy", iniLines);
-	mode.altAltToAlt = configHasKey("FEATURES", "altAltToAlt", iniLines);
-	mode.flipAltWinOnAppleKeyboards = configHasKey("FEATURES", "flipAltWinOnAppleKeyboards", iniLines);
-	mode.shiftShiftToShiftLock = configHasKey("FEATURES", "shiftShiftToShiftLock", iniLines);
+	feature.flipZy = configHasKey("FEATURES", "flipZy", iniLines);
+	feature.altAltToAlt = configHasKey("FEATURES", "altAltToAlt", iniLines);
+	feature.flipAltWinOnAppleKeyboards = configHasKey("FEATURES", "flipAltWinOnAppleKeyboards", iniLines);
+	feature.shiftShiftToShiftLock = configHasKey("FEATURES", "shiftShiftToShiftLock", iniLines);
 	return true;
 }
 
@@ -300,7 +296,7 @@ void resetAllStatesToDefault()
 	globalState.modsTapped = 0;
 	globalState.lastModBrokeTapping = false;
 
-	mode.delayForKeySequenceMS = DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;
+	feature.delayForKeySequenceMS = DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;
 
 	resetAlphaMap();
 	resetCapsNumScrollLock();
@@ -327,7 +323,7 @@ int main()
 	globalState.interceptionContext = interception_create_context();
 	interception_set_filter(globalState.interceptionContext, interception_is_keyboard, INTERCEPTION_FILTER_KEY_ALL);
 
-	cout << endl << "ini version: " << mode.iniVersion;
+	cout << endl << "ini version: " << feature.iniVersion;
 	printHelloFeatures();
 	if (DEFAULT_START_AHK_ON_STARTUP)
 	{
@@ -424,7 +420,7 @@ int main()
 		if (!loopState.isModifier && !IS_LCTRL_DOWN) //basic char layout. Don't remap the Ctrl combos?
 		{
 			processMapAlphaKeys(loopState.scancode);
-			if (mode.flipZy)
+			if (feature.flipZy)
 			{
 				switch (loopState.scancode)
 				{
@@ -458,8 +454,10 @@ bool processCommandKeys()
 #ifndef NDEBUG
 			return false;
 #else
-			sendStroke(globalState.previousStrokeOut);
-			sendStroke(loopState.originalStroke);
+			sendStroke({ SC_ESCAPE, true });
+			sendStroke({ SC_X, true });
+			sendStroke({ SC_X, false });
+			sendStroke({ SC_ESCAPE, false });
 			return true;
 #endif
 		}
@@ -545,24 +543,16 @@ void processCommand()
 		cout << endl << (globalState.deviceIsAppleKeyboard ? "APPLE keyboard (flipping Win<>Alt)" : "PC keyboard");
 		break;
 	case SC_D:
-		mode.debug = !mode.debug;
-		cout << "DEBUG mode: " << (mode.debug ? "ON" : "OFF");
-		break;
-	case SC_SLASH:
-		mode.slashShift = !mode.slashShift;
-		cout << "Slash->RShift mode: " << (mode.slashShift ? "ON" : "OFF");
-		break;
-	case SC_LBSLASH:
-		mode.lbSlashShift = !mode.lbSlashShift;
-		cout << "LeftBackslash->LShift mode: " << (mode.lbSlashShift ? "ON" : "OFF");
+		feature.debug = !feature.debug;
+		cout << "DEBUG mode: " << (feature.debug ? "ON" : "OFF");
 		break;
 	case SC_Z:
-		mode.flipZy = !mode.flipZy;
-		cout << "Flip Z<>Y mode: " << (mode.flipZy ? "ON" : "OFF");
+		feature.flipZy = !feature.flipZy;
+		cout << "Flip Z<>Y mode: " << (feature.flipZy ? "ON" : "OFF");
 		break;
 	case SC_W:
-		mode.flipAltWinOnAppleKeyboards = !mode.flipAltWinOnAppleKeyboards;
-		cout << "Flip ALT<>WIN for Apple boards: " << (mode.flipAltWinOnAppleKeyboards ? "ON" : "OFF") << endl;
+		feature.flipAltWinOnAppleKeyboards = !feature.flipAltWinOnAppleKeyboards;
+		cout << "Flip ALT<>WIN for Apple boards: " << (feature.flipAltWinOnAppleKeyboards ? "ON" : "OFF") << endl;
 		break;
 	case SC_E:
 		cout << "ERROR LOG: " << endl << errorLog << endl;
@@ -574,14 +564,14 @@ void processCommand()
 		printHelp();
 		break;
 	case SC_LBRACK:
-		if (mode.delayForKeySequenceMS >= 2)
-			mode.delayForKeySequenceMS -= 1;
-		cout << "delay between characters in key sequences (ms): " << dec << mode.delayForKeySequenceMS;
+		if (feature.delayForKeySequenceMS >= 2)
+			feature.delayForKeySequenceMS -= 1;
+		cout << "delay between characters in key sequences (ms): " << dec << feature.delayForKeySequenceMS;
 		break;
 	case SC_RBRACK:
-		if (mode.delayForKeySequenceMS <= 100)
-			mode.delayForKeySequenceMS += 1;
-		cout << "delay between characters in key sequences (ms): " << dec << mode.delayForKeySequenceMS;
+		if (feature.delayForKeySequenceMS <= 100)
+			feature.delayForKeySequenceMS += 1;
+		cout << "delay between characters in key sequences (ms): " << dec << feature.delayForKeySequenceMS;
 		break;
 	case SC_A:
 	{
@@ -691,7 +681,7 @@ void processKeyToModifierMapping()
 {
 	bool stopProcessing = false;
 
-	if (mode.flipAltWinOnAppleKeyboards && globalState.deviceIsAppleKeyboard)
+	if (feature.flipAltWinOnAppleKeyboards && globalState.deviceIsAppleKeyboard)
 	{
 		switch (loopState.scancode)
 		{
@@ -702,7 +692,7 @@ void processKeyToModifierMapping()
 		}
 	}
 
-	if (mode.altAltToAlt)
+	if (feature.altAltToAlt)
 	{
 		if (loopState.scancode == SC_LALT || loopState.scancode == SC_RALT)
 		{
@@ -733,7 +723,7 @@ void processKeyToModifierMapping()
 			}
 		}
 
-	if (!stopProcessing && mode.shiftShiftToShiftLock)
+	if (!stopProcessing && feature.shiftShiftToShiftLock)
 	{
 		switch (loopState.scancode)
 		{
@@ -770,7 +760,7 @@ void processKeyToModifierMapping()
 void playStrokeSequence(vector<Stroke> strokeSequence)
 {
 	Stroke newstroke;
-	unsigned int delayBetweenKeyEventsMS = mode.delayForKeySequenceMS;
+	unsigned int delayBetweenKeyEventsMS = feature.delayForKeySequenceMS;
 	bool inCpsEscape = false;  //inside an escape sequence, read next stroke
 
 	IFDEBUG cout << "\t--> PLAY STROKE SEQUENCE (" << strokeSequence.size() << ")";
@@ -902,12 +892,10 @@ void printHelloHeader()
 void printHelloFeatures()
 {
 	cout << endl << endl << "FEATURES"
-		<< endl << (mode.lbSlashShift ? "ON :" : "OFF:") << "Backslash->Shift "
-		<< endl << (mode.slashShift ? "ON :" : "OFF:") << "Slash->Shift "
-		<< endl << (mode.flipZy ? "ON :" : "OFF:") << "Z<->Y "
-		<< endl << (mode.altAltToAlt ? "ON: " : "OFF: ") << "LAlt + RAlt -> Alt"
-		<< endl << (mode.flipAltWinOnAppleKeyboards ? "ON :" : "OFF:") << "Win<->Alt for Apple keyboards"
-		<< endl << (mode.shiftShiftToShiftLock ? "ON: " : "OFF: ") << "LShift + RShift -> ShiftLock"
+		<< endl << (feature.flipZy ? "ON :" : "OFF:") << "Z<->Y "
+		<< endl << (feature.altAltToAlt ? "ON: " : "OFF: ") << "LAlt + RAlt -> Alt"
+		<< endl << (feature.flipAltWinOnAppleKeyboards ? "ON :" : "OFF:") << "Win<->Alt for Apple keyboards"
+		<< endl << (feature.shiftShiftToShiftLock ? "ON: " : "OFF: ") << "LShift + RShift -> ShiftLock"
 		;
 }
 
@@ -941,12 +929,12 @@ void printStatus()
 	}
 	cout << "STATUS" << endl << endl
 		<< "Capsicain version: " << version << endl
-		<< "ini version: " << mode.iniVersion << endl
+		<< "ini version: " << feature.iniVersion << endl
 		<< "hardware id:" << globalState.deviceIdKeyboard << endl
 		<< "Apple keyboard: " << globalState.deviceIsAppleKeyboard << endl
 		<< "active LAYER: " << globalState.activeLayer << endl
 		<< "modifier state: " << hex << globalState.modifiers << endl
-		<< "delay between keys in sequences (ms): " << mode.delayForKeySequenceMS << endl
+		<< "delay between keys in sequences (ms): " << feature.delayForKeySequenceMS << endl
 		<< "# keys down sent: " << numMakeSent << endl
 		<< (errorLog.length() > 1 ? "ERROR LOG contains entries" : "clean error log") << " (" << errorLog.length() << " chars)" << endl
 		;

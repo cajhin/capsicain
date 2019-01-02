@@ -48,5 +48,5 @@ void printHelp();
 void reset();
 void resetAlphaMap();
 
-#define IFDEBUG if(mode.debug) 
+#define IFDEBUG if(feature.debug) 
 
