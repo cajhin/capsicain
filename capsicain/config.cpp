@@ -17,14 +17,22 @@
 
 using namespace std;
 
+//cut comments, tab to space, trim, single blanks, lowercase
 void normalizeLine(string &line)
 {
-	replace(line.begin(), line.end(), '\t', ' ');
 	auto idxComment = line.find_first_of(';');
 	if (string::npos != idxComment)
 		line.erase(idxComment);
+
+	replace(line.begin(), line.end(), '\t', ' ');
+
 	line.erase(0, line.find_first_not_of(' '));
 	line.erase(line.find_last_not_of(' ') + 1);
+
+	std::string::size_type pos;
+	while ((pos = line.find("  ")) != std::string::npos)
+		line.replace(pos, 2, " ");
+
 	std::transform(line.begin(), line.end(), line.begin(), ::tolower);
 }
 
@@ -151,6 +159,36 @@ std::string stringGetFirstToken(std::string line)
 std::string stringGetLastToken(std::string line)
 {
 	return line.substr(line.find_last_of(' ') + 1);
+}
+
+// parse "A B"
+bool parseSimpleMapping(std::string line, unsigned char &keyIn, unsigned char &keyOut, std::string scLabels[])
+{
+	string a = stringToUpper(stringGetFirstToken(line));
+	string b = stringToUpper(stringGetLastToken(line));
+	keyIn = getScancode(a, scLabels);
+	keyOut = getScancode(b, scLabels);
+	if ((keyIn == 0 && a != "nop") || (keyOut == 0 && b != "nop"))
+		return false; //invalid key label
+	return true;
+}
+
+// parse "A B C"
+bool parseThreeTokenMapping(std::string line, unsigned char &keyA, unsigned char &keyB, unsigned char &keyC, std::string scLabels[])
+{
+	vector<string> labels = stringSplit(line, ' ');
+	if (labels.size() != 3)
+		return false;
+
+	keyA = getScancode(labels[0], scLabels);
+	keyB = getScancode(labels[1], scLabels);
+	keyC = getScancode(labels[2], scLabels);
+	if ( (keyA == 0 && labels[0] != "nop") ||
+		 (keyB == 0 && labels[1] != "nop") ||
+		 (keyC == 0 && labels[2] != "nop")
+		)
+		return false; //invalid key label
+	return true;
 }
 
 //convert ("xy^_v.", 'v') to 000010

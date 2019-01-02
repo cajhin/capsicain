@@ -22,9 +22,9 @@ bool isModifierDown(unsigned short modifier, unsigned short modState);
 #define BITMASK_RCTRL		0x020
 #define BITMASK_RWIN		0x040
 #define BITMASK_RALT		0x080
-#define BITMASK_CAPS		0x100
-#define BITMASK_TAB			0x200
-#define BITMASK_ESC			0x400
+#define BITMASK_MOD9		0x100
+#define BITMASK_MOD10		0x200
+#define BITMASK_MOD11		0x400
 #define BITMASK_MOD12		0x800
 #define BITMASK_MOD13		0x1000
 #define BITMASK_MOD14		0x2000
@@ -40,9 +40,9 @@ bool isModifierDown(unsigned short modifier, unsigned short modState);
 #define IS_RALT_DOWN (globalState.modifiers & BITMASK_RALT)
 #define IS_LWIN_DOWN (globalState.modifiers & BITMASK_LWIN)
 #define IS_RWIN_DOWN (globalState.modifiers & BITMASK_RWIN)
-#define IS_CAPS_DOWN (globalState.modifiers & BITMASK_CAPS)
-#define IS_TAB_DOWN (globalState.modifiers & BITMASK_TAB)
-#define IS_ESC_DOWN (globalState.modifiers & BITMASK_ESC)
+#define IS_MOD9_DOWN (globalState.modifiers & BITMASK_MOD9)
+#define IS_MOD10_DOWN (globalState.modifiers & BITMASK_MOD10)
+#define IS_MOD11_DOWN (globalState.modifiers & BITMASK_MOD11)
 #define IS_MOD12_DOWN (globalState.modifiers & BITMASK_MOD12)
 #define IS_MOD13_DOWN (globalState.modifiers & BITMASK_MOD13)
 #define IS_MOD14_DOWN (globalState.modifiers & BITMASK_MOD14)

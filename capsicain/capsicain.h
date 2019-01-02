@@ -19,10 +19,12 @@ std::string getSymbolForStrokeState(unsigned short state);
 
 void processCommand();
 void processMapAlphaKeys(unsigned short & scancode);
-void processBufferedScancode();
-void processRemapModifiers();
+void processModifiedKeys();
+bool processCommandKeys();
+void processModifierTapped();
 void playStrokeSequence(std::vector<Stroke> strokeSequence);
 void processModifierState();
+void processKeyToModifierMapping();
 void processLayoutIndependentAction();
 
 void printHelloFeatures();
@@ -44,7 +46,7 @@ void printHelloHeader();
 void printStatus();
 void printHelp();
 void reset();
+void resetAlphaMap();
 
 #define IFDEBUG if(mode.debug) 
 
-void resetAlphaMap();

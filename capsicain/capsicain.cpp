@@ -15,7 +15,7 @@
 
 using namespace std;
 
-string version = "34";
+string version = "35";
 
 const bool DEFAULT_START_AHK_ON_STARTUP = true;
 const int DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS = 5;  //local needs ~1ms, Linux VM 5+ms, RDP fullscreen 10+ for 100% reliable keystroke detection
@@ -36,21 +36,29 @@ struct ModifierCombo
 	//unsigned short modFor = 0; //forward these modifiers
 	vector<Stroke> strokeSequence;
 };
-vector<ModifierCombo> modCombosPre;
+vector<ModifierCombo> modCombos;
 vector<ModifierCombo> modCombosPost;
 
 struct Mode
 {
 	string iniVersion = "unnamed version - add 'iniVersion xyz' to capsicain.ini";
-	int  activeLayer = 0;
 	bool debug = false;
 	int delayForKeySequenceMS = DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;  //AHK drops keys when they are sent too fast
 	bool lbSlashShift = false;
 	bool slashShift = false;
 	bool flipZy = false;
+	bool altAltToAlt = false;
+	bool shiftShiftToShiftLock = false;
 	bool flipAltWinOnAppleKeyboards = false;
-	bool backslashToAlt = false;
 } mode;
+
+struct KeyModifierIftappedMapping
+{
+	unsigned char inkey = SC_NOP;
+	unsigned char outkey = SC_NOP;
+	unsigned char ifTapped = SC_NOP;
+};
+vector<KeyModifierIftappedMapping> keyModifierIftappedMapping;
 
 struct AlphaMapping
 {
@@ -59,30 +67,37 @@ struct AlphaMapping
 
 struct GlobalState
 {
+	int  activeLayer = 0;
+
 	unsigned short modifiers = 0;
 	unsigned short modsTapped = 0;
 	bool lastModBrokeTapping = false;
+	bool escapeIsDown = false;
 
-	bool keysDownSent[256] = { false };
 	InterceptionContext interceptionContext = NULL;
 	InterceptionDevice interceptionDevice = NULL;
+
 	string deviceIdKeyboard = "";
 	bool deviceIsAppleKeyboard = false;
+
 	vector<Stroke> modsTempAltered;
-	Stroke previousStrokeOut = { SC_NOP, 0 };
+
 	Stroke previousStrokeIn = { SC_NOP, 0 };
+	Stroke previousStrokeOut = { SC_NOP, 0 };
+	bool keysDownSent[256] = { false };
 } globalState;
 
 struct LoopState
 {
 	unsigned short scancode = 0;
 	bool isDownstroke = false;
+	bool isModifier = false;
+	bool wasTapped = false;
+
 	InterceptionKeyStroke originalIKstroke = { SC_NOP, 0 };
 	Stroke originalStroke = { SC_NOP, false };
 
 	bool blockKey = false;  //true: do not send the current key
-	bool isFinalScancode = false;  //true: don't remap the scancode anymore
-
 	vector<Stroke> resultingStrokeSequence;
 } loopState;
 
@@ -93,7 +108,7 @@ void error(string txt)
 	errorLog += "\r\n" + txt;
 }
 
-void setupConsoleWindow()
+void initConsoleWindow()
 {
 	//disable quick edit; blocking the console window means the keyboard is dead
 	HANDLE Handle = GetStdHandle(STD_INPUT_HANDLE);
@@ -117,9 +132,9 @@ bool readIniFeatures()
 	}
 	configReadString("DEFAULTS", "iniVersion", mode.iniVersion, iniLines);
 	mode.debug = configHasKey("DEFAULTS", "debug", iniLines);
-	if (!configReadInt("DEFAULTS", "activeLayer", mode.activeLayer, iniLines))
+	if (!configReadInt("DEFAULTS", "activeLayer", globalState.activeLayer, iniLines))
 	{
-		mode.activeLayer = DEFAULT_ACTIVE_LAYER;
+		globalState.activeLayer = DEFAULT_ACTIVE_LAYER;
 		cout << endl << "Missing ini setting 'activeLayer'. Setting layer " << DEFAULT_ACTIVE_LAYER;
 	}
 	if (!configReadInt("DEFAULTS", "delayForKeySequenceMS", mode.delayForKeySequenceMS, iniLines))
@@ -129,9 +144,10 @@ bool readIniFeatures()
 	}
 	mode.lbSlashShift = configHasKey("FEATURES", "lbackslashShift", iniLines);
 	mode.slashShift = configHasKey("FEATURES", "slashShift", iniLines);
-	mode.backslashToAlt = configHasKey("FEATURES", "altBackslash", iniLines);
 	mode.flipZy = configHasKey("FEATURES", "flipZy", iniLines);
+	mode.altAltToAlt = configHasKey("FEATURES", "altAltToAlt", iniLines);
 	mode.flipAltWinOnAppleKeyboards = configHasKey("FEATURES", "flipAltWinOnAppleKeyboards", iniLines);
+	mode.shiftShiftToShiftLock = configHasKey("FEATURES", "shiftShiftToShiftLock", iniLines);
 	return true;
 }
 
@@ -146,31 +162,28 @@ bool readIniAlphaMappingLayer(int layer)
 
 	resetAlphaMap();
 
+	unsigned char keyIn, keyOut;
 	for (string line : iniLines)
 	{
-		string a = stringToUpper(stringGetFirstToken(line));
-		string b = stringToUpper(stringGetLastToken(line));
-		unsigned char from = getScancode(a, scLabels);
-		unsigned char to = getScancode(b, scLabels);
-		if ((from == 0 && a != "NOP") || (to == 0 && b != "NOP"))
+		if (!parseSimpleMapping(line, keyIn, keyOut, scLabels))
 		{
-			cout << endl << "Error in .ini [LAYER" << layer << "] : " << line;
-			return false;
+			error("[LAYER"+to_string(layer)+"] Cannot parse simple alpha mapping: " + line);
+			continue;
 		}
-		alphaMapping.alphamap[from] = to;
+		alphaMapping.alphamap[keyIn] = keyOut;
 	}
 	return true;
 }
 
-bool readIniModCombosPre()
+bool readIniModCombos()
 {
 	vector<string> iniLines; //sanitized content of the .ini file
-	if (!parseConfigSection("LAYER_ALL_PRE", iniLines))
+	if (!parseConfigSection("MODIFIER_COMBOS", iniLines))
 	{
-		IFDEBUG cout << endl << "No mapping defined for pre modifier combos." << endl;
+		IFDEBUG cout << endl << "No mapping defined for modifier combos." << endl;
 		return true;
 	}
-	modCombosPre.clear();
+	modCombos.clear();
 	unsigned short mods[3] = { 0 }; //and, not, tap (nop, for)
 	vector<Stroke> strokeSequence;
 
@@ -179,9 +192,9 @@ bool readIniModCombosPre()
 		unsigned short key;
 		if (parseModCombo(line, key, mods, strokeSequence, scLabels))
 		{
-			IFDEBUG cout << endl << "modComboPre: " << line << endl << "    ," << key << " -> " 
+			IFDEBUG cout << endl << "modCombo: " << line << endl << "    ," << key << " -> "
 				<< mods[0] << "," << mods[1] << "," << mods[2] << "," << "sequence:" << strokeSequence.size();
-			modCombosPre.push_back({ key, mods[0], mods[1], mods[2], strokeSequence });
+			modCombos.push_back({ key, mods[0], mods[1], mods[2], strokeSequence });
 		}
 		else
 		{
@@ -192,21 +205,52 @@ bool readIniModCombosPre()
 	return true;
 }
 
+bool readIniKeyModifierIftappedMapping()
+{
+	string sectionLabel = "KEY_MODIFIER_IFTAPPED_MAPPING";
+	vector<string> iniLines; //sanitized content of the .ini file
+	if (!parseConfigSection(sectionLabel, iniLines))
+	{
+		IFDEBUG cout << endl << "No modifier-key-iftapped mappings defined" << endl;
+		return true;
+	}
+
+	keyModifierIftappedMapping.clear();
+	unsigned char keyIn, keyOut, keyIftapped;
+	for (string line : iniLines)
+	{
+		if (!parseThreeTokenMapping(line, keyIn, keyOut, keyIftapped, scLabels))
+		{
+			error("["+ sectionLabel +"] Cannot parse three token mapping: " + line);
+			continue;
+		}
+		keyModifierIftappedMapping.push_back({ keyIn, keyOut, keyIftapped});
+	}
+	return true;
+}
+
 bool readIni()
 {
 	if (!readIniFeatures())
 		return false;
 
-	vector<ModifierCombo> oldModCombos(modCombosPre);
-	if (!readIniModCombosPre())
+	vector<KeyModifierIftappedMapping> oldKeyModIftappedMapping(keyModifierIftappedMapping);
+	if (!readIniKeyModifierIftappedMapping())
 	{
-		modCombosPre = oldModCombos;
-		cout << endl << "Cannot read modifier combos (pre). Keeping old combos." << endl;
+		keyModifierIftappedMapping = oldKeyModIftappedMapping;
+		cout << endl << "Cannot read key-modifier-iftapped mapping. Keeping old mapping." << endl;
+	}
+
+	vector<ModifierCombo> oldModCombos(modCombos);
+	if (!readIniModCombos())
+	{
+		modCombos = oldModCombos;
+		cout << endl << "Cannot read modifier combos. Keeping old combos." << endl;
 	}
 
 	unsigned char oldAlphamap[256];
 	std::copy(alphaMapping.alphamap, alphaMapping.alphamap + 256, oldAlphamap);
-	if (!readIniAlphaMappingLayer(mode.activeLayer))
+	if (!readIniAlphaMappingLayer(globalState.activeLayer))
 	{
 		std::copy(oldAlphamap, oldAlphamap + 256, alphaMapping.alphamap);
 		cout << endl << "Cannot read alpha mapping from ini. Keeping old alphamap." << endl;
@@ -235,9 +279,14 @@ void resetAlphaMap()
 
 void resetLoopState()
 {
-	loopState.blockKey = false;  //true: do not send the current key
-	loopState.isFinalScancode = false;  //true: don't remap the scancode anymore
+	loopState.blockKey = false;
 	loopState.isDownstroke = false;
+	loopState.scancode = 0;
+	loopState.isModifier = false;
+	loopState.wasTapped = false;
+
+	InterceptionKeyStroke originalIKstroke = { SC_NOP, false };
+	Stroke originalStroke = { SC_NOP, false };
 	loopState.resultingStrokeSequence.clear();
 }
 
@@ -247,20 +296,20 @@ void resetAllStatesToDefault()
 	globalState.deviceIdKeyboard = "";
 	globalState.deviceIsAppleKeyboard = false;
 	globalState.previousStrokeOut = { 0,0 };
+	globalState.modifiers = 0;
+	globalState.modsTapped = 0;
+	globalState.lastModBrokeTapping = false;
 
 	mode.delayForKeySequenceMS = DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;
 
 	resetAlphaMap();
 	resetCapsNumScrollLock();
 	resetLoopState();
-	globalState.modifiers = 0;
-	globalState.modsTapped = 0;
-	globalState.lastModBrokeTapping = false;
 }
 
 int main()
 {
-	setupConsoleWindow();
+	initConsoleWindow();
 	printHelloHeader();
 	initScancodeLabels(scLabels);
 	resetAllStatesToDefault();
@@ -272,8 +321,8 @@ int main()
 		return 0;
 	}
 
-	Sleep(700); //time to release shortcut keys that started capsicain
-	raise_process_priority(); //careful: if we spam key events, other processes get no timeslots to process them. Sleep a bit...
+	cout << endl << "Release all keys now...";
+	Sleep(1000); //time to release shortcut keys that started capsicain
 
 	globalState.interceptionContext = interception_create_context();
 	interception_set_filter(globalState.interceptionContext, interception_is_keyboard, INTERCEPTION_FILTER_KEY_ALL);
@@ -289,14 +338,12 @@ int main()
 	cout << endl << endl << "[ESC] + [X] to stop." << endl << "[ESC] + [H] for Help";
 	cout << endl << endl << "detecting keyboard (waiting for the first key)... ";
 
+	raise_process_priority(); //careful: if we spam key events, other processes get no timeslots to process them. Sleep a bit...
 	while (interception_receive(
 		globalState.interceptionContext,
 		globalState.interceptionDevice = interception_wait(globalState.interceptionContext),
-		(InterceptionStroke *)&loopState.originalIKstroke, 1) > 0
-		)
+		(InterceptionStroke *)&loopState.originalIKstroke, 1) > 0)
 	{
-		//IFDEBUG cout << endl << "{{" << state.stroke.code << "|" << state.stroke.state << "}}";
-
 		resetLoopState();
 
 		//check device ID
@@ -308,10 +355,13 @@ int main()
 			cout << endl << endl << "capsicain running...";
 		}
 
-		//copy InterceptionKeyStroke (unpleasant to handle) to plain Stroke
+		//copy InterceptionKeyStroke (unpleasant to use) to plain Stroke
 		loopState.originalStroke = ikstroke2stroke(loopState.originalIKstroke);
 		loopState.scancode = loopState.originalStroke.scancode;
 		loopState.isDownstroke = loopState.originalStroke.isDownstroke;
+		loopState.wasTapped = !loopState.isDownstroke 
+			&& (loopState.originalStroke.scancode == globalState.previousStrokeIn.scancode);
+
 		if (loopState.originalIKstroke.code >= 0x80)
 		{
 			error("Received unexpected extended Interception Key Stroke code > 0x79: " + to_string(loopState.originalIKstroke.code));
@@ -327,6 +377,8 @@ int main()
 		// - HP shadows the 2-w-s-x and 3-e-d-c lines
 		if (loopState.scancode == SC_ESCAPE)
 		{
+			globalState.escapeIsDown = loopState.isDownstroke;
+
 			//ESC alone will send ESC; otherwise block
 			if (!loopState.isDownstroke && globalState.previousStrokeIn.scancode == SC_ESCAPE)
 			{
@@ -338,76 +390,38 @@ int main()
 			globalState.previousStrokeOut = { SC_ESCAPE, false };
 			continue;
 		}
-		else
+		else if(globalState.escapeIsDown)
 		{
-			if (loopState.isDownstroke && globalState.previousStrokeIn.scancode == SC_ESCAPE && globalState.previousStrokeIn.isDownstroke)
-			{
-				if (loopState.scancode == SC_X)
-				{
-					break;  //break the main while() loop, exit
-				}
-				else if (loopState.scancode == SC_Q) //stop the debug client while the release build keeps running
-				{
-#ifndef NDEBUG
-					break;
-#else
-					sendStroke(globalState.previousStrokeOut);
-					sendStroke(loopState.originalStroke);
-					continue;
-#endif
-				}
-				else
-				{
-					processCommand();
-					globalState.previousStrokeOut = loopState.originalStroke;
-					continue;
-				}
-			}
+			if (processCommandKeys())
+				continue;
+			else
+				break;
 		}
 
-		if (mode.activeLayer == 0)  //standard keyboard, just forward everything except command strokes
+		if (globalState.activeLayer == 0)  //standard keyboard, just forward everything except command strokes
 		{
 			interception_send(globalState.interceptionContext, globalState.interceptionDevice, (InterceptionStroke *)&loopState.originalIKstroke, 1);
 			continue;
 		}
 
 		/////CONFIGURED RULES//////
-		IFDEBUG cout << endl << " [" << scLabels[loopState.scancode] << getSymbolForStrokeState(loopState.originalIKstroke.state) 
+		IFDEBUG cout << endl << " [" << scLabels[loopState.scancode] << getSymbolForStrokeState(loopState.originalIKstroke.state)
 			<< " =" << hex << loopState.originalIKstroke.code << " " << loopState.originalIKstroke.state << "]";
 
-		//process the key stroke
-		processRemapModifiers();
+		processKeyToModifierMapping();
 		processModifierState();
+	
 		IFDEBUG cout << " [M:" << hex << globalState.modifiers;
 		IFDEBUG if (globalState.modsTapped)  cout << " TAP:" << hex << globalState.modsTapped;
 		IFDEBUG cout << "] ";
 
 		//evaluate modified keys
-		if (!loopState.isFinalScancode && 
-			(globalState.modifiers > 0 || globalState.modsTapped > 0))
+		if (!loopState.isModifier && (globalState.modifiers > 0 || globalState.modsTapped > 0))
 		{
-			for (ModifierCombo modcombo : modCombosPre)
-			{
-				if (modcombo.key == loopState.scancode)
-				{
-					if (
-						(globalState.modifiers & modcombo.modAnd) == modcombo.modAnd &&
-						(globalState.modifiers & modcombo.modNot) == 0 && 
-						((globalState.modsTapped & modcombo.modTap) == modcombo.modTap)
-						)
-					{
-						if(loopState.isDownstroke)
-							loopState.resultingStrokeSequence = modcombo.strokeSequence;
-						loopState.isFinalScancode = true;
-						loopState.blockKey = true;
-						break;
-					}
-				}
-			}
-			globalState.modsTapped = 0;
+			processModifiedKeys();
 		}
 
-		if (!loopState.isFinalScancode && !IS_LCTRL_DOWN) //basic char layout. Don't remap the Ctrl combos?
+		if (!loopState.isModifier && !IS_LCTRL_DOWN) //basic char layout. Don't remap the Ctrl combos?
 		{
 			processMapAlphaKeys(loopState.scancode);
 			if (mode.flipZy)
@@ -428,6 +442,55 @@ int main()
 
 	cout << endl << "bye" << endl;
 	return 0;
+}
+
+//Escaped QX -> return false -> Quit, or process command. 
+bool processCommandKeys()
+{
+	if (loopState.isDownstroke)
+	{
+		if (loopState.scancode == SC_X)
+		{
+			return false;  //break the main while() loop, exit
+		}
+		else if (loopState.scancode == SC_Q) //stop the debug client while the release build keeps running
+		{
+#ifndef NDEBUG
+			return false;
+#else
+			sendStroke(globalState.previousStrokeOut);
+			sendStroke(loopState.originalStroke);
+			return true;
+#endif
+		}
+		else
+		{
+			processCommand();
+			globalState.previousStrokeIn = loopState.originalStroke;
+			return true;
+		}
+	}
+	return true;
+}
+void processModifiedKeys()
+{
+	for (ModifierCombo modcombo : modCombos)
+	{
+		if (modcombo.key == loopState.originalStroke.scancode)
+		{
+			if (
+				(globalState.modifiers & modcombo.modAnd) == modcombo.modAnd &&
+				(globalState.modifiers & modcombo.modNot) == 0 &&
+				((globalState.modsTapped & modcombo.modTap) == modcombo.modTap)
+				)
+			{
+				if (loopState.isDownstroke)
+					loopState.resultingStrokeSequence = modcombo.strokeSequence;
+				break;
+			}
+		}
+	}
+	globalState.modsTapped = 0;
 }
 ////////////////////////////////////END MAIN//////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////
@@ -452,7 +515,7 @@ void processCommand()
 	switch (loopState.scancode)
 	{
 	case SC_0:
-		mode.activeLayer = 0;
+		globalState.activeLayer = 0;
 		cout << "LAYER 0: No changes at all (except core commands)";
 		break;
 	case SC_1:
@@ -468,7 +531,7 @@ void processCommand()
 		int layer = loopState.scancode - 1;
 		if (readIniAlphaMappingLayer(layer))
 		{
-			mode.activeLayer = layer;
+			globalState.activeLayer = layer;
 			cout << "LAYER CHANGE: " << layer;
 		}
 		else
@@ -565,73 +628,68 @@ void sendResultingKeyOrSequence()
 
 void processModifierState()
 {
-	if (!isModifier(loopState.scancode))
-		return;
+	if (!loopState.isModifier)
+		return; 
 
-	// unsigned short oldState = globalState.modifiers;
 	unsigned short bitmask = getBitmaskForModifier(loopState.scancode);
 	if (loopState.isDownstroke)
 		globalState.modifiers |= bitmask;
 	else 
 		globalState.modifiers &= ~bitmask;
 
-	loopState.isFinalScancode = true;
 	if ((bitmask & 0xFF00) > 0)
 		loopState.blockKey = true;
 
-	//tapped?
-	bool sameKey = loopState.scancode == globalState.previousStrokeOut.scancode;
-	bool modWasTapped = sameKey && !loopState.isDownstroke;
-	if (modWasTapped && globalState.lastModBrokeTapping)	//double tap clears all taps
-		globalState.modsTapped = 0;
-	else if (modWasTapped)
-		globalState.modsTapped |= bitmask;
-	else if (sameKey && loopState.isDownstroke)
+	bool tappedModConfigFound = false;
+	//configured tapped mod?
+	if (loopState.wasTapped)
 	{
-		if (globalState.modsTapped & bitmask)
+		for (KeyModifierIftappedMapping map : keyModifierIftappedMapping)
 		{
-			globalState.lastModBrokeTapping = true;
-			globalState.modsTapped &= ~bitmask;
+			if (loopState.originalStroke.scancode == map.inkey)
+			{
+				if (map.ifTapped != SC_NOP)
+				{
+					if (!loopState.blockKey)
+						loopState.resultingStrokeSequence.push_back({ loopState.scancode, false });
+					loopState.resultingStrokeSequence.push_back({ map.ifTapped, true });
+					loopState.resultingStrokeSequence.push_back({ map.ifTapped, false });
+					loopState.blockKey = false;
+					tappedModConfigFound = true;
+					globalState.modsTapped = 0;
+				}
+				break;
+			}
+		}
+	}
+
+	//Set tapped bitmask. You can combine mod-taps (like tap-Ctrl then tap-Alt).
+	//Double-tap clears all taps
+	if (!tappedModConfigFound)
+	{
+		bool sameKey = loopState.originalStroke.scancode == globalState.previousStrokeIn.scancode;
+		if (loopState.wasTapped && globalState.lastModBrokeTapping)
+			globalState.modsTapped = 0;
+		else if (loopState.wasTapped)
+			globalState.modsTapped |= bitmask;
+		else if (sameKey && loopState.isDownstroke)
+		{
+			if (globalState.modsTapped & bitmask)
+			{
+				globalState.lastModBrokeTapping = true;
+				globalState.modsTapped &= ~bitmask;
+			}
+			else
+				globalState.lastModBrokeTapping = false;
 		}
 		else
 			globalState.lastModBrokeTapping = false;
 	}
-	else
-		globalState.lastModBrokeTapping = false;
-
-	//special behaviour
-	switch (loopState.scancode)
-	{
-	case SC_LSHIFT:  //handle LShift+RShift -> CapsLock
-		if (loopState.isDownstroke
-			&& (globalState.modifiers == (BITMASK_LSHIFT | BITMASK_RSHIFT))
-			&& (GetKeyState(VK_CAPITAL) & 0x0001)) //ask Win for Capslock state
-		{
-			keySequenceAppendMakeBreakKey(SC_CAPS, loopState.resultingStrokeSequence);
-		}
-		break;
-	case SC_RSHIFT:
-		if (loopState.isDownstroke
-			&& (globalState.modifiers == (BITMASK_LSHIFT | BITMASK_RSHIFT))
-			&& !(GetKeyState(VK_CAPITAL) & 0x0001))
-		{
-			keySequenceAppendMakeBreakKey(SC_CAPS, loopState.resultingStrokeSequence);
-		}
-		break;
-	case SC_TAB:
-		if (modWasTapped)
-		{
-			globalState.modsTapped &= ~bitmask;
-			keySequenceAppendMakeBreakKey(SC_TAB, loopState.resultingStrokeSequence);
-		}
-		break;
-	}
 }
 
-//Backslash to ALT and the like
-void processRemapModifiers()
+void processKeyToModifierMapping()
 {
-	loopState.isFinalScancode = true;
+	bool stopProcessing = false;
 
 	if (mode.flipAltWinOnAppleKeyboards && globalState.deviceIsAppleKeyboard)
 	{
@@ -644,22 +702,13 @@ void processRemapModifiers()
 		}
 	}
 
-	switch (loopState.scancode)
+	if (mode.altAltToAlt)
 	{
-	case SC_LBSLASH:
-		if (mode.lbSlashShift)
-			loopState.scancode = SC_LSHIFT;
-		break;
-	case SC_SLASH:
-		if (mode.slashShift && !IS_CAPS_DOWN)
-			loopState.scancode = SC_RSHIFT;
-		break;
-	case SC_LALT:
-	case SC_RALT:
-		if (mode.backslashToAlt)
-		{ 
+		if (loopState.scancode == SC_LALT || loopState.scancode == SC_RALT)
+		{
 			if (globalState.previousStrokeIn.scancode == loopState.originalStroke.scancode
-				&& globalState.previousStrokeIn.isDownstroke == loopState.originalStroke.isDownstroke) //auto-repeating alt down
+				&& globalState.previousStrokeIn.isDownstroke 
+				&& loopState.originalStroke.isDownstroke) //auto-repeating alt down
 				loopState.scancode = SC_NOP;
 			else if (loopState.isDownstroke && IS_MOD12_DOWN)
 				globalState.modifiers &= ~BITMASK_MOD12;
@@ -669,11 +718,47 @@ void processRemapModifiers()
 				loopState.scancode = SC_LALT;
 			else
 				loopState.scancode = SC_MOD12;
+			stopProcessing = true;
 		}
-		break;
-	default:
-		loopState.isFinalScancode = false;
 	}
+
+
+	if(!stopProcessing)
+		for (KeyModifierIftappedMapping map : keyModifierIftappedMapping)
+		{
+			if (loopState.scancode == map.inkey)
+			{
+				loopState.scancode = map.outkey;
+				break;
+			}
+		}
+
+	if (!stopProcessing && mode.shiftShiftToShiftLock)
+	{
+		switch (loopState.scancode)
+		{
+		case SC_LSHIFT:  //handle LShift+RShift -> CapsLock
+			if (loopState.isDownstroke
+				&& (globalState.modifiers == (BITMASK_RSHIFT))
+				&& (GetKeyState(VK_CAPITAL) & 0x0001)) //ask Win for Capslock state
+			{
+				keySequenceAppendMakeBreakKey(SC_CAPS, loopState.resultingStrokeSequence);
+				stopProcessing = true;
+			}
+			break;
+		case SC_RSHIFT:
+			if (loopState.isDownstroke
+				&& (globalState.modifiers == (BITMASK_LSHIFT))
+				&& !(GetKeyState(VK_CAPITAL) & 0x0001))
+			{
+				keySequenceAppendMakeBreakKey(SC_CAPS, loopState.resultingStrokeSequence);
+				stopProcessing = true;
+			}
+			break;
+		}
+	}
+
+	loopState.isModifier = isModifier(loopState.scancode) ? true : false;
 }
 
 //May contain Capsicain Escape sequences, those are a bit hacky. 
@@ -820,7 +905,9 @@ void printHelloFeatures()
 		<< endl << (mode.lbSlashShift ? "ON :" : "OFF:") << "Backslash->Shift "
 		<< endl << (mode.slashShift ? "ON :" : "OFF:") << "Slash->Shift "
 		<< endl << (mode.flipZy ? "ON :" : "OFF:") << "Z<->Y "
+		<< endl << (mode.altAltToAlt ? "ON: " : "OFF: ") << "LAlt + RAlt -> Alt"
 		<< endl << (mode.flipAltWinOnAppleKeyboards ? "ON :" : "OFF:") << "Win<->Alt for Apple keyboards"
+		<< endl << (mode.shiftShiftToShiftLock ? "ON: " : "OFF: ") << "LShift + RShift -> ShiftLock"
 		;
 }
 
@@ -857,7 +944,7 @@ void printStatus()
 		<< "ini version: " << mode.iniVersion << endl
 		<< "hardware id:" << globalState.deviceIdKeyboard << endl
 		<< "Apple keyboard: " << globalState.deviceIsAppleKeyboard << endl
-		<< "active LAYER: " << mode.activeLayer << endl
+		<< "active LAYER: " << globalState.activeLayer << endl
 		<< "modifier state: " << hex << globalState.modifiers << endl
 		<< "delay between keys in sequences (ms): " << mode.delayForKeySequenceMS << endl
 		<< "# keys down sent: " << numMakeSent << endl
