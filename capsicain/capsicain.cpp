@@ -15,7 +15,7 @@
 
 using namespace std;
 
-string version = "37";
+string version = "38";
 
 const bool DEFAULT_START_AHK_ON_STARTUP = true;
 const int DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS = 5;  //local needs ~1ms, Linux VM 5+ms, RDP fullscreen 10+ for 100% reliable keystroke detection
