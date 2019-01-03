@@ -15,11 +15,12 @@
 
 using namespace std;
 
-string version = "36";
+string version = "37";
 
 const bool DEFAULT_START_AHK_ON_STARTUP = true;
 const int DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS = 5;  //local needs ~1ms, Linux VM 5+ms, RDP fullscreen 10+ for 100% reliable keystroke detection
-const int DEFAULT_ACTIVE_LAYER = 0;  //local needs ~1ms, Linux VM 5+ms, RDP fullscreen 10+ for 100% reliable keystroke detection
+const int DEFAULT_ACTIVE_LAYER = 0; 
+const string DEFAULT_ACTIVE_LAYER_NAME = "(no processing, forward everything)";
 const int DEFAULT_DELAY_FOR_AHK = 50;
 const unsigned short AHK_HOTKEY1 = SC_F14;  //this key triggers supporting AHK script
 const unsigned short AHK_HOTKEY2 = SC_F15;
@@ -48,6 +49,8 @@ struct Feature
 	bool altAltToAlt = false;
 	bool shiftShiftToShiftLock = false;
 	bool flipAltWinOnAppleKeyboards = false;
+	bool lControlBlocksAlphaMapping = false;
+	bool processOnlyFirstKeyboard = false;
 } feature;
 
 struct KeyModifierIftappedMapping
@@ -60,6 +63,7 @@ vector<KeyModifierIftappedMapping> keyModifierIftappedMapping;
 
 struct AlphaMapping
 {
+	string layerName = "undefined_layerName";
 	unsigned char alphamap[256] = { SC_NOP };
 } alphaMapping;
 
@@ -74,6 +78,7 @@ struct GlobalState
 
 	InterceptionContext interceptionContext = NULL;
 	InterceptionDevice interceptionDevice = NULL;
+	InterceptionDevice interceptionDevicePreviousKey = NULL;
 
 	string deviceIdKeyboard = "";
 	bool deviceIsAppleKeyboard = false;
@@ -133,7 +138,7 @@ bool readIniFeatures()
 	if (!configReadInt("DEFAULTS", "activeLayer", globalState.activeLayer, iniLines))
 	{
 		globalState.activeLayer = DEFAULT_ACTIVE_LAYER;
-		cout << endl << "Missing ini setting 'activeLayer'. Setting layer " << DEFAULT_ACTIVE_LAYER;
+		cout << endl << "Missing ini setting 'activeLayer'. Setting default layer " << DEFAULT_ACTIVE_LAYER;
 	}
 	if (!configReadInt("DEFAULTS", "delayForKeySequenceMS", feature.delayForKeySequenceMS, iniLines))
 	{
@@ -141,9 +146,11 @@ bool readIniFeatures()
 		cout << endl << "Missing ini setting 'delayForKeySequenceMS'. Using default " << DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;
 	}
 	feature.flipZy = configHasKey("FEATURES", "flipZy", iniLines);
+	feature.shiftShiftToShiftLock = configHasKey("FEATURES", "shiftShiftToShiftLock", iniLines);
 	feature.altAltToAlt = configHasKey("FEATURES", "altAltToAlt", iniLines);
 	feature.flipAltWinOnAppleKeyboards = configHasKey("FEATURES", "flipAltWinOnAppleKeyboards", iniLines);
-	feature.shiftShiftToShiftLock = configHasKey("FEATURES", "shiftShiftToShiftLock", iniLines);
+	feature.lControlBlocksAlphaMapping = configHasKey("FEATURES", "LControlBlocksAlphaMapping", iniLines);
+	feature.processOnlyFirstKeyboard = configHasKey("FEATURES", "processOnlyFirstKeyboard", iniLines);
 	return true;
 }
 
@@ -153,21 +160,30 @@ bool readIniAlphaMappingLayer(int layer)
 	if (!parseConfigSection("LAYER" + std::to_string(layer), iniLines))
 	{
 		IFDEBUG cout << endl << "No mapping defined for layer " << layer << endl;
-		return true;
+		return false;
 	}
 
 	resetAlphaMap();
+	string name = "layerName_undefined";
 
 	unsigned char keyIn, keyOut;
 	for (string line : iniLines)
 	{
-		if (!parseSimpleMapping(line, keyIn, keyOut, scLabels))
+		if (stringGetFirstToken(line) == "layername")
+		{
+			name = stringGetLastToken(line);
+			if (name == "")
+				name = "(bad layerName, check your config)";
+			continue;
+		}
+		else if (!parseSimpleMapping(line, keyIn, keyOut, scLabels))
 		{
 			error("[LAYER"+to_string(layer)+"] Cannot parse simple alpha mapping: " + line);
 			continue;
 		}
 		alphaMapping.alphamap[keyIn] = keyOut;
 	}
+	alphaMapping.layerName = name;
 	return true;
 }
 
@@ -249,7 +265,9 @@ bool readIni()
 	if (!readIniAlphaMappingLayer(globalState.activeLayer))
 	{
 		std::copy(oldAlphamap, oldAlphamap + 256, alphaMapping.alphamap);
-		cout << endl << "Cannot read alpha mapping from ini. Keeping old alphamap." << endl;
+		cout << endl << "Alpha mapping layer " << globalState.activeLayer << " is not defined. Setting Layer " << DEFAULT_ACTIVE_LAYER_NAME << endl;
+		globalState.activeLayer = DEFAULT_ACTIVE_LAYER;
+		alphaMapping.layerName = DEFAULT_ACTIVE_LAYER_NAME;
 	}
 	return true;
 }
@@ -323,7 +341,6 @@ int main()
 	globalState.interceptionContext = interception_create_context();
 	interception_set_filter(globalState.interceptionContext, interception_is_keyboard, INTERCEPTION_FILTER_KEY_ALL);
 
-	cout << endl << "ini version: " << feature.iniVersion;
 	printHelloFeatures();
 	if (DEFAULT_START_AHK_ON_STARTUP)
 	{
@@ -332,25 +349,36 @@ int main()
 		cout << (msg == "" ? "OK" : "Not. '" + msg + "'");
 	}
 	cout << endl << endl << "[ESC] + [X] to stop." << endl << "[ESC] + [H] for Help";
-	cout << endl << endl << "detecting keyboard (waiting for the first key)... ";
+	cout << endl << endl << "capsicain running.... ";
 
 	raise_process_priority(); //careful: if we spam key events, other processes get no timeslots to process them. Sleep a bit...
-	while (interception_receive(
-		globalState.interceptionContext,
-		globalState.interceptionDevice = interception_wait(globalState.interceptionContext),
-		(InterceptionStroke *)&loopState.originalIKstroke, 1) > 0)
+
+	while (interception_receive( globalState.interceptionContext,
+								 globalState.interceptionDevice = interception_wait(globalState.interceptionContext),
+								 (InterceptionStroke *)&loopState.originalIKstroke, 1)   > 0)
 	{
+		//ignore secondary keyboard?
+		if (feature.processOnlyFirstKeyboard 
+			&& (globalState.interceptionDevicePreviousKey != NULL)
+			&& (globalState.interceptionDevicePreviousKey != globalState.interceptionDevice))
+		{
+			IFDEBUG cout << endl << "Ignore 2nd board (" << globalState.interceptionDevice << ") scancode: " << loopState.originalIKstroke.code;
+			interception_send(globalState.interceptionContext, globalState.interceptionDevice, (InterceptionStroke *)&loopState.originalIKstroke, 1);
+			continue;
+		}
+
 		resetLoopState();
 
 		//check device ID
-		if (globalState.deviceIdKeyboard.length() < 2)
+ 		if (globalState.interceptionDevicePreviousKey == NULL	//startup
+			|| globalState.interceptionDevicePreviousKey != globalState.interceptionDevice)  //keyboard changed
 		{
 			getHardwareId();
-			cout << endl << (globalState.deviceIsAppleKeyboard ? "Apple keyboard" : "IBM keyboard");
+			cout << endl << "new keyboard: " << (globalState.deviceIsAppleKeyboard ? "Apple keyboard" : "IBM keyboard");
 			resetCapsNumScrollLock();
-			cout << endl << endl << "capsicain running...";
+			globalState.interceptionDevicePreviousKey = globalState.interceptionDevice;
 		}
-
+		
 		//copy InterceptionKeyStroke (unpleasant to use) to plain Stroke
 		loopState.originalStroke = ikstroke2stroke(loopState.originalIKstroke);
 		loopState.scancode = loopState.originalStroke.scancode;
@@ -367,7 +395,7 @@ int main()
 		//command stroke: ESC + stroke
 		// some major key shadowing here...
 		// - cherry is good
-		// - apple keyboard cannot do RCTRL+CAPS+ESC and Caps shadows the entire row a-s-d-f-g-....
+		// - apple keyboard cannot do RCTRL+CAPS+ESC and ESC+Caps shadows the entire row a-s-d-f-g-....
 		// - Dell cant do ctrl-caps-x
 		// - Cypher has no RControl... :(
 		// - HP shadows the 2-w-s-x and 3-e-d-c lines
@@ -417,7 +445,9 @@ int main()
 			processModifiedKeys();
 		}
 
-		if (!loopState.isModifier && !IS_LCTRL_DOWN) //basic char layout. Don't remap the Ctrl combos?
+		//basic character key layout. Don't remap the Ctrl combos?
+		if (!loopState.isModifier && 
+			!(IS_LCTRL_DOWN && feature.lControlBlocksAlphaMapping)) 
 		{
 			processMapAlphaKeys(loopState.scancode);
 			if (feature.flipZy)
@@ -513,8 +543,9 @@ void processCommand()
 	switch (loopState.scancode)
 	{
 	case SC_0:
-		globalState.activeLayer = 0;
-		cout << "LAYER 0: No changes at all (except core commands)";
+		globalState.activeLayer = DEFAULT_ACTIVE_LAYER;
+		alphaMapping.layerName = DEFAULT_ACTIVE_LAYER_NAME;
+		cout << "DEFAULT LAYER: " << DEFAULT_ACTIVE_LAYER_NAME;
 		break;
 	case SC_1:
 	case SC_2:
@@ -530,10 +561,10 @@ void processCommand()
 		if (readIniAlphaMappingLayer(layer))
 		{
 			globalState.activeLayer = layer;
-			cout << "LAYER CHANGE: " << layer;
+			cout << "LAYER CHANGE: " << layer << " = " << alphaMapping.layerName;
 		}
 		else
-			cout << "LAYER IS NOT DEFINED";
+			cout << "LAYER CHANGE: LAYER " << layer << " IS NOT DEFINED. Layer " << globalState.activeLayer << " remains active.";
 		break;
 	}
 	case SC_R:
@@ -891,11 +922,17 @@ void printHelloHeader()
 
 void printHelloFeatures()
 {
-	cout << endl << endl << "FEATURES"
+	cout
+		<< endl << endl << "ini version: " << feature.iniVersion
+		<< endl << "Active Layer: " << globalState.activeLayer << " = " << alphaMapping.layerName
+
+		<< endl << endl << "FEATURES"
 		<< endl << (feature.flipZy ? "ON :" : "OFF:") << "Z<->Y "
+		<< endl << (feature.shiftShiftToShiftLock ? "ON: " : "OFF: ") << "LShift + RShift -> ShiftLock"
 		<< endl << (feature.altAltToAlt ? "ON: " : "OFF: ") << "LAlt + RAlt -> Alt"
 		<< endl << (feature.flipAltWinOnAppleKeyboards ? "ON :" : "OFF:") << "Win<->Alt for Apple keyboards"
-		<< endl << (feature.shiftShiftToShiftLock ? "ON: " : "OFF: ") << "LShift + RShift -> ShiftLock"
+		<< endl << (feature.lControlBlocksAlphaMapping ? "ON: " : "OFF: ") << "Left Control blocks alpha key mapping"
+		<< endl << (feature.processOnlyFirstKeyboard ? "ON: " : "OFF: ") << "Process only the board that sent the first key"
 		;
 }
 
@@ -932,7 +969,7 @@ void printStatus()
 		<< "ini version: " << feature.iniVersion << endl
 		<< "hardware id:" << globalState.deviceIdKeyboard << endl
 		<< "Apple keyboard: " << globalState.deviceIsAppleKeyboard << endl
-		<< "active LAYER: " << globalState.activeLayer << endl
+		<< "active layer: " << globalState.activeLayer << " = " << alphaMapping.layerName << endl
 		<< "modifier state: " << hex << globalState.modifiers << endl
 		<< "delay between keys in sequences (ms): " << feature.delayForKeySequenceMS << endl
 		<< "# keys down sent: " << numMakeSent << endl

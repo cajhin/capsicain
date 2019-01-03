@@ -63,7 +63,7 @@ bool parseConfig(vector<string> &config)
 	return true;
 }
 
-bool parseConfigSection(string sectionName, vector<string> &config)
+bool parseConfigSection(string sectionName, vector<string> &iniLinesInSection)
 {
 	string sectName = stringToLower(sectionName);
 	string line;
@@ -84,8 +84,8 @@ bool parseConfigSection(string sectionName, vector<string> &config)
 		if (inSection)
 		{
 			if (stringStartsWith(line, "["))
-				return true;
-			config.push_back(line);
+				break;
+			iniLinesInSection.push_back(line);
 		}
 	}
 	if (f.bad())
@@ -93,7 +93,7 @@ bool parseConfigSection(string sectionName, vector<string> &config)
 		cout << "error while reading .ini file";
 		return false;
 	}
-	return false;
+	return inSection;
 }
 
 bool configHasKey(string section, string key, vector<string> iniLines)
