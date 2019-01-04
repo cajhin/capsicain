@@ -18,7 +18,7 @@ using namespace std;
 string version = "39";
 
 const bool DEFAULT_START_AHK_ON_STARTUP = true;
-const int DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS = 5;  //System may drop keys when they are sent too fast. Local host needs 0-1ms, Linux VM 5+ms for 100% reliable keystroke detection
+const int DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS = 5;  //System drops keys when they are sent too fast. Local host needs ~1ms, Linux VM 5+ms for 100% reliable keystroke detection
 const int DEFAULT_DELAY_FOR_AHK = 50;	//autohotkey is slow
 const int DEFAULT_ACTIVE_LAYER = 0;
 const string DEFAULT_ACTIVE_LAYER_NAME = "(no processing, forward everything)";

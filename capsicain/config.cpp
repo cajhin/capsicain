@@ -205,7 +205,7 @@ unsigned short parseModString(string modString, char filter)
 	return std::stoi(binString, nullptr, 2);
 }
 
-bool parseCombo(std::string &funcParams, std::string * scLabels, std::vector<Stroke> &strokeSeq)
+bool parseCombo(std::string &funcParams, std::string * scLabels, std::vector<KeyEvent> &strokeSeq)
 {
 	vector<string> labels = stringSplit(funcParams, '+');
 	unsigned short sc;
@@ -223,7 +223,7 @@ bool parseCombo(std::string &funcParams, std::string * scLabels, std::vector<Str
 }
 
 //parse H  [^^^v .--. ....] > function(param)
-bool parseModCombo(std::string line, unsigned short &key, unsigned short(&mods)[3], std::vector<Stroke> &strokeSequence, std::string scLabels[])
+bool parseModCombo(std::string line, unsigned short &key, unsigned short(&mods)[3], std::vector<KeyEvent> &strokeSequence, std::string scLabels[])
 {
 	line.erase(std::remove(line.begin(), line.end(), ' '), line.end());
 
@@ -262,7 +262,7 @@ bool parseModCombo(std::string line, unsigned short &key, unsigned short(&mods)[
 	string funcParams = line.substr(funcIdx2, funcIdx3 - funcIdx2);
 
 	//translate 'function' into a char sequence
-	vector<Stroke> strokeSeq;
+	vector<KeyEvent> strokeSeq;
 	if (funcName == "key")
 	{
 		unsigned short sc = getScancode(funcParams, scLabels);
