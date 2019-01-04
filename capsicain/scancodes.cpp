@@ -27,15 +27,16 @@ void checkAddLabel(int index, string label, string arr[])
 		arr[index] = label;
 }
 
-//GENERATED
+//GENERATED Then modified - SC_EQUALS becomes '=' for example. 
 //this must be in sync with config.h
 //to sync automatically, run this regex in Notepad++ over scancodes.h enum:
 //from:  (.*)SC_(.*?) (.*)
 //to:    checkAddLabel\( SC_\2, "\2", arr\);
-void initScancodeLabels(string arr[])
+//then make a bunch of modifications for nicer labels...
+void getAllScancodeLabels(string arr[])
 {
 	checkAddLabel(SC_NOP, "NOP", arr);
-	checkAddLabel(SC_ESCAPE, "ESCAPE", arr);
+	checkAddLabel(SC_ESCAPE, "ESC", arr);
 	checkAddLabel(SC_1, "1", arr);
 	checkAddLabel(SC_2, "2", arr);
 	checkAddLabel(SC_3, "3", arr);
@@ -46,9 +47,9 @@ void initScancodeLabels(string arr[])
 	checkAddLabel(SC_8, "8", arr);
 	checkAddLabel(SC_9, "9", arr);
 	checkAddLabel(SC_0, "0", arr);
-	checkAddLabel(SC_MINUS, "MINUS", arr);
-	checkAddLabel(SC_EQUALS, "EQUALS", arr);
-	checkAddLabel(SC_BACK, "BACK", arr);
+	checkAddLabel(SC_MINUS, "-", arr);
+	checkAddLabel(SC_EQUALS, "=", arr);
+	checkAddLabel(SC_BACK, "BSP", arr);
 	checkAddLabel(SC_TAB, "TAB", arr);
 	checkAddLabel(SC_Q, "Q", arr);
 	checkAddLabel(SC_W, "W", arr);
@@ -60,9 +61,9 @@ void initScancodeLabels(string arr[])
 	checkAddLabel(SC_I, "I", arr);
 	checkAddLabel(SC_O, "O", arr);
 	checkAddLabel(SC_P, "P", arr);
-	checkAddLabel(SC_LBRACK, "LBRACK", arr);
-	checkAddLabel(SC_RBRACK, "RBRACK", arr);
-	checkAddLabel(SC_RETURN, "RETURN", arr);
+	checkAddLabel(SC_LBRACK, "[", arr);
+	checkAddLabel(SC_RBRACK, "]", arr);
+	checkAddLabel(SC_RETURN, "RET", arr);
 	checkAddLabel(SC_LCTRL, "LCTRL", arr);
 	checkAddLabel(SC_A, "A", arr);
 	checkAddLabel(SC_S, "S", arr);
@@ -73,11 +74,11 @@ void initScancodeLabels(string arr[])
 	checkAddLabel(SC_J, "J", arr);
 	checkAddLabel(SC_K, "K", arr);
 	checkAddLabel(SC_L, "L", arr);
-	checkAddLabel(SC_SEMI, "SEMI", arr);
-	checkAddLabel(SC_APOS, "APOS", arr);
-	checkAddLabel(SC_GRAVE, "GRAVE", arr);
+	checkAddLabel(SC_SEMI, ";", arr);
+	checkAddLabel(SC_APOS, "'", arr);
+	checkAddLabel(SC_GRAVE, "`", arr);
 	checkAddLabel(SC_LSHIFT, "LSHIFT", arr);
-	checkAddLabel(SC_BSLASH, "BSLASH", arr);
+	checkAddLabel(SC_BSLASH, "\\", arr);
 	checkAddLabel(SC_Z, "Z", arr);
 	checkAddLabel(SC_X, "X", arr);
 	checkAddLabel(SC_C, "C", arr);
@@ -85,11 +86,11 @@ void initScancodeLabels(string arr[])
 	checkAddLabel(SC_B, "B", arr);
 	checkAddLabel(SC_N, "N", arr);
 	checkAddLabel(SC_M, "M", arr);
-	checkAddLabel(SC_COMMA, "COMMA", arr);
-	checkAddLabel(SC_DOT, "DOT", arr);
-	checkAddLabel(SC_SLASH, "SLASH", arr);
+	checkAddLabel(SC_COMMA, ",", arr);
+	checkAddLabel(SC_DOT, ".", arr);
+	checkAddLabel(SC_SLASH, "/", arr);
 	checkAddLabel(SC_RSHIFT, "RSHIFT", arr);
-	checkAddLabel(SC_MULT, "MULT", arr);
+	checkAddLabel(SC_MULT, "*", arr);
 	checkAddLabel(SC_LALT, "LALT", arr);
 	checkAddLabel(SC_SPACE, "SPACE", arr);
 	checkAddLabel(SC_CAPS, "CAPS", arr);
@@ -108,17 +109,17 @@ void initScancodeLabels(string arr[])
 	checkAddLabel(SC_NP7, "NP7", arr);
 	checkAddLabel(SC_NP8, "NP8", arr);
 	checkAddLabel(SC_NP9, "NP9", arr);
-	checkAddLabel(SC_NPSUB, "NPSUB", arr);
+	checkAddLabel(SC_NPSUB, "NP-", arr);
 	checkAddLabel(SC_NP4, "NP4", arr);
 	checkAddLabel(SC_NP5, "NP5", arr);
 	checkAddLabel(SC_NP6, "NP6", arr);
-	checkAddLabel(SC_NPADD, "NPADD", arr);
+	checkAddLabel(SC_NPADD, "NP+", arr);
 	checkAddLabel(SC_NP1, "NP1", arr);
 	checkAddLabel(SC_NP2, "NP2", arr);
 	checkAddLabel(SC_NP3, "NP3", arr);
 	checkAddLabel(SC_NP0, "NP0", arr);
-	checkAddLabel(SC_NPDOT, "NPDOT", arr);
-	checkAddLabel(SC_LBSLASH, "LBSLASH", arr);
+	checkAddLabel(SC_NPDOT, "NP.", arr);
+	checkAddLabel(SC_LBSLASH, "L\\", arr);
 	checkAddLabel(SC_F11, "F11", arr);
 	checkAddLabel(SC_F12, "F12", arr);
 	checkAddLabel(SC_F13, "F13", arr);
@@ -170,8 +171,8 @@ void initScancodeLabels(string arr[])
 	checkAddLabel(SC_END, "END", arr);
 	checkAddLabel(SC_DOWN, "DOWN", arr);
 	checkAddLabel(SC_PGDOWN, "PGDOWN", arr);
-	checkAddLabel(SC_INSERT, "INSERT", arr);
-	checkAddLabel(SC_DELETE, "DELETE", arr);
+	checkAddLabel(SC_INSERT, "INS", arr);
+	checkAddLabel(SC_DELETE, "DEL", arr);
 	checkAddLabel(SC_LWIN, "LWIN", arr);
 	checkAddLabel(SC_RWIN, "RWIN", arr);
 	checkAddLabel(SC_APPS, "APPS", arr);

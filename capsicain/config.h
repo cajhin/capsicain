@@ -9,7 +9,7 @@ struct KeyEvent
 };
 
 bool parseConfig(std::vector<std::string> &config);
-bool parseConfigSection(std::string sectionName, std::vector<std::string>& config);
+bool getConfigSection(std::string sectionName, std::vector<std::string>& config);
 bool configHasKey(std::string section, std::string key, std::vector<std::string> iniLines);
 bool configReadString(std::string section, std::string key, std::string & value, std::vector<std::string> iniLines);
 bool configReadInt(std::string section, std::string key, int & value, std::vector<std::string> iniLines);

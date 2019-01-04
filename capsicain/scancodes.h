@@ -1,7 +1,7 @@
 #pragma once
 
 #include <string>
-void initScancodeLabels(std::string arr[]);
+void getAllScancodeLabels(std::string arr[]);
 unsigned char getScancode(std::string label, std::string arr[]);
 
 // taken from https://github.com/wgois/OIS/blob/master/includes/OISKeyboard.h

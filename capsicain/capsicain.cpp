@@ -15,17 +15,19 @@
 
 using namespace std;
 
-string version = "39";
+const string VERSION = "40";
 
-const bool DEFAULT_START_AHK_ON_STARTUP = true;
-const int DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS = 5;  //System may drop keys when they are sent too fast. Local host needs 0-1ms, Linux VM 5+ms for 100% reliable keystroke detection
-const int DEFAULT_DELAY_FOR_AHK = 50;	//autohotkey is slow
+string SCANCODE_LABELS[256]; // contains [01]="ESCAPE" instead of SC_ESCAPE 
+
 const int DEFAULT_ACTIVE_LAYER = 0;
 const string DEFAULT_ACTIVE_LAYER_NAME = "(no processing, forward everything)";
+
+const int DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS = 5;  //System may drop keys when they are sent too fast. Local host needs 0-1ms, Linux VM 5+ms for 100% reliable keystroke detection
+
+const bool DEFAULT_START_AHK_ON_STARTUP = true;
+const int DEFAULT_DELAY_FOR_AHK = 50;	//autohotkey is slow
 const unsigned short AHK_HOTKEY1 = SC_F14;  //this key triggers supporting AHK script
 const unsigned short AHK_HOTKEY2 = SC_F15;
-
-string scLabels[256]; // contains [01]="ESCAPE" instead of SC_ESCAPE 
 
 struct Feature
 {
@@ -36,7 +38,7 @@ struct Feature
 	bool altAltToAlt = false;
 	bool shiftShiftToShiftLock = false;
 	bool flipAltWinOnAppleKeyboards = false;
-	bool lControlBlocksAlphaMapping = false;
+	bool LControlLWinBlocksAlphaMapping = false;
 	bool processOnlyFirstKeyboard = false;
 } feature;
 
@@ -113,7 +115,7 @@ int main()
 {
 	initConsoleWindow();
 	printHelloHeader();
-	initScancodeLabels(scLabels);
+	getAllScancodeLabels(SCANCODE_LABELS);
 	resetAllStatesToDefault();
 
 	if (!readIni())
@@ -226,7 +228,7 @@ int main()
 		}
 
 		/////CONFIGURED RULES//////
-		IFDEBUG cout << endl << " [" << scLabels[loopState.scancode] << getSymbolForIKStrokeState(loopState.originalIKstroke.state)
+		IFDEBUG cout << endl << " [" << SCANCODE_LABELS[loopState.scancode] << getSymbolForIKStrokeState(loopState.originalIKstroke.state)
 			<< " =" << hex << loopState.originalIKstroke.code << " " << loopState.originalIKstroke.state << "]";
 
 		processKeyToModifierMapping();
@@ -244,7 +246,7 @@ int main()
 
 		//basic character key layout. Don't remap the Ctrl combos?
 		if (!loopState.isModifier && 
-			!(IS_LCTRL_DOWN && feature.lControlBlocksAlphaMapping)) 
+			!((IS_LCTRL_DOWN || IS_LWIN_DOWN) && feature.LControlLWinBlocksAlphaMapping))
 		{
 			processMapAlphaKeys(loopState.scancode);
 			if (feature.flipZy)
@@ -418,7 +420,7 @@ void sendResultingKeyOrSequence()
 			if (loopState.blockKey)
 				cout << "\t--> BLOCKED ";
 			else if (loopState.originalKeyEvent.scancode != loopState.scancode)
-				cout << "\t--> " << scLabels[loopState.scancode] << " " << getSymbolForIKStrokeState(loopState.originalIKstroke.state);
+				cout << "\t--> " << SCANCODE_LABELS[loopState.scancode] << " " << getSymbolForIKStrokeState(loopState.originalIKstroke.state);
 			else
 				cout << "\t--";
 		}
@@ -694,7 +696,7 @@ void initConsoleWindow()
 	SetConsoleMode(Handle, mode);
 
 	system("color 8E");  //byte1=background, byte2=text
-	string title = ("Capsicain v" + version);
+	string title = ("Capsicain v" + VERSION);
 	SetConsoleTitle(title.c_str());
 }
 
@@ -721,7 +723,7 @@ bool readIniFeatures()
 	feature.shiftShiftToShiftLock = configHasKey("FEATURES", "shiftShiftToShiftLock", iniLines);
 	feature.altAltToAlt = configHasKey("FEATURES", "altAltToAlt", iniLines);
 	feature.flipAltWinOnAppleKeyboards = configHasKey("FEATURES", "flipAltWinOnAppleKeyboards", iniLines);
-	feature.lControlBlocksAlphaMapping = configHasKey("FEATURES", "LControlBlocksAlphaMapping", iniLines);
+	feature.LControlLWinBlocksAlphaMapping = configHasKey("FEATURES", "LControlLWinBlocksAlphaMapping", iniLines);
 	feature.processOnlyFirstKeyboard = configHasKey("FEATURES", "processOnlyFirstKeyboard", iniLines);
 	return true;
 }
@@ -729,7 +731,7 @@ bool readIniFeatures()
 bool readIniAlphaMappingLayer(int layer)
 {
 	vector<string> iniLines; //sanitized content of the .ini file
-	if (!parseConfigSection("LAYER" + std::to_string(layer), iniLines))
+	if (!getConfigSection("LAYER" + std::to_string(layer), iniLines))
 	{
 		IFDEBUG cout << endl << "No mapping defined for layer " << layer << endl;
 		return false;
@@ -748,7 +750,7 @@ bool readIniAlphaMappingLayer(int layer)
 				name = "(bad layerName, check your config)";
 			continue;
 		}
-		else if (!parseSimpleMapping(line, keyIn, keyOut, scLabels))
+		else if (!parseSimpleMapping(line, keyIn, keyOut, SCANCODE_LABELS))
 		{
 			error("[LAYER" + to_string(layer) + "] Cannot parse simple alpha mapping: " + line);
 			continue;
@@ -762,7 +764,7 @@ bool readIniAlphaMappingLayer(int layer)
 bool readIniModCombos()
 {
 	vector<string> iniLines; //sanitized content of the .ini file
-	if (!parseConfigSection("MODIFIER_COMBOS", iniLines))
+	if (!getConfigSection("MODIFIER_COMBOS", iniLines))
 	{
 		IFDEBUG cout << endl << "No mapping defined for modifier combos." << endl;
 		return true;
@@ -774,7 +776,7 @@ bool readIniModCombos()
 	for (string line : iniLines)
 	{
 		unsigned short key;
-		if (parseModCombo(line, key, mods, keyEventSequence, scLabels))
+		if (parseModCombo(line, key, mods, keyEventSequence, SCANCODE_LABELS))
 		{
 			IFDEBUG cout << endl << "modCombo: " << line << endl << "    ," << key << " -> "
 				<< mods[0] << "," << mods[1] << "," << mods[2] << "," << "sequence:" << keyEventSequence.size();
@@ -793,7 +795,7 @@ bool readIniKeyModifierIftappedMapping()
 {
 	string sectionLabel = "KEY_MODIFIER_IFTAPPED_MAPPING";
 	vector<string> iniLines; //sanitized content of the .ini file
-	if (!parseConfigSection(sectionLabel, iniLines))
+	if (!getConfigSection(sectionLabel, iniLines))
 	{
 		IFDEBUG cout << endl << "No modifier-key-iftapped mappings defined" << endl;
 		return true;
@@ -803,7 +805,7 @@ bool readIniKeyModifierIftappedMapping()
 	unsigned char keyIn, keyOut, keyIftapped;
 	for (string line : iniLines)
 	{
-		if (!parseThreeTokenMapping(line, keyIn, keyOut, keyIftapped, scLabels))
+		if (!parseThreeTokenMapping(line, keyIn, keyOut, keyIftapped, SCANCODE_LABELS))
 		{
 			error("[" + sectionLabel + "] Cannot parse three token mapping: " + line);
 			continue;
@@ -893,7 +895,7 @@ void resetAllStatesToDefault()
 
 void printHelloHeader()
 {
-	string line1 = "Capsicain v" + version;
+	string line1 = "Capsicain v" + VERSION;
 #ifdef NDEBUG
 	line1 += " (Release build)";
 #else
@@ -921,7 +923,7 @@ void printHelloFeatures()
 		<< endl << (feature.shiftShiftToShiftLock ? "ON:" : "OFF:") << " LShift + RShift -> ShiftLock"
 		<< endl << (feature.altAltToAlt ? "ON:" : "OFF:") << " LAlt + RAlt -> Alt"
 		<< endl << (feature.flipAltWinOnAppleKeyboards ? "ON:" : "OFF:") << " Alt <-> Win for Apple keyboards"
-		<< endl << (feature.lControlBlocksAlphaMapping ? "ON:" : "OFF:") << " Left Control blocks alpha key mapping ('Ctrl + C is never changed')"
+		<< endl << (feature.LControlLWinBlocksAlphaMapping ? "ON:" : "OFF:") << " Left Control and Win block alpha key mapping ('Ctrl + C is never changed')"
 		<< endl << (feature.processOnlyFirstKeyboard ? "ON:" : "OFF:") << " Process only the keyboard that sent the first key"
 		;
 }
@@ -953,7 +955,7 @@ void printStatus()
 			numMakeSent++;
 	}
 	cout << "STATUS" << endl << endl
-		<< "Capsicain version: " << version << endl
+		<< "Capsicain version: " << VERSION << endl
 		<< "ini version: " << feature.iniVersion << endl
 		<< "hardware id:" << globalState.deviceIdKeyboard << endl
 		<< "Apple keyboard: " << globalState.deviceIsAppleKeyboard << endl
@@ -1007,13 +1009,13 @@ void sendKeyEvent(KeyEvent keyEvent)
 	}
 	if (!keyEvent.isDownstroke &&  !globalState.keysDownSent[(unsigned char)keyEvent.scancode])  //ignore up when key is already up
 	{
-		IFDEBUG cout << " >(blocked " << scLabels[keyEvent.scancode] << " UP: was not down)>";
+		IFDEBUG cout << " >(blocked " << SCANCODE_LABELS[keyEvent.scancode] << " UP: was not down)>";
 		return;
 	}
 	globalState.keysDownSent[(unsigned char)keyEvent.scancode] = keyEvent.isDownstroke;
 
 	InterceptionKeyStroke iks = keyEvent2ikstroke(keyEvent);
-	IFDEBUG cout << " >" << scLabels[keyEvent.scancode] << (keyEvent.isDownstroke ? "v" : "^") << ">";
+	IFDEBUG cout << " >" << SCANCODE_LABELS[keyEvent.scancode] << (keyEvent.isDownstroke ? "v" : "^") << ">";
 
 	interception_send(globalState.interceptionContext, globalState.interceptionDevice, (InterceptionStroke *)&iks, 1);
 }

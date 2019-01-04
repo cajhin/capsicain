@@ -20,7 +20,7 @@ using namespace std;
 //cut comments, tab to space, trim, single blanks, lowercase
 void normalizeLine(string &line)
 {
-	auto idxComment = line.find_first_of(';');
+	auto idxComment = line.find_first_of('#');
 	if (string::npos != idxComment)
 		line.erase(idxComment);
 
@@ -63,7 +63,7 @@ bool parseConfig(vector<string> &config)
 	return true;
 }
 
-bool parseConfigSection(string sectionName, vector<string> &iniLinesInSection)
+bool getConfigSection(string sectionName, vector<string> &iniLinesInSection)
 {
 	string sectName = stringToLower(sectionName);
 	string line;
@@ -76,14 +76,14 @@ bool parseConfigSection(string sectionName, vector<string> &iniLinesInSection)
 		normalizeLine(line);
 		if (line == "")
 			continue;
-		if (stringStartsWith(line, "[" + sectName + "]"))
+		if (stringStartsWith(line, "[[" + sectName + "]]"))
 		{
 			inSection = true;
 			continue;
 		}
 		if (inSection)
 		{
-			if (stringStartsWith(line, "["))
+			if (stringStartsWith(line, "[["))
 				break;
 			iniLinesInSection.push_back(line);
 		}
@@ -105,8 +105,6 @@ bool configHasKey(string section, string key, vector<string> iniLines)
 		std::transform(key.begin(), key.end(), key.begin(), ::tolower);
 		if (line == section)
 			inSection = true;
-		if (inSection && line == "[ENDSECTION]")
-			return false;
 		if (line == key)
 			return true;
 	}
@@ -123,8 +121,6 @@ bool configReadString(string section, string key, std::string &value, vector<str
 		std::transform(key.begin(), key.end(), key.begin(), tolower);
 		if (line == section)
 			inSection = true;
-		if (inSection && line == "[ENDSECTION]")
-			return false;
 		if (line.compare(0, key.length(), key) == 0)
 		{
 			value = line.substr(line.find_last_of(' ') + 1);
@@ -154,7 +150,7 @@ bool configReadInt(string section, string key, int &value, vector<string> iniLin
 //ini parsing
 std::string stringGetFirstToken(std::string line)
 {
-	return line.substr(0, line.find_first_of(" [>"));
+	return line.substr(0, line.find_first_of(" "));
 }
 std::string stringGetLastToken(std::string line)
 {
@@ -225,27 +221,27 @@ bool parseCombo(std::string &funcParams, std::string * scLabels, std::vector<Key
 //parse H  [^^^v .--. ....] > function(param)
 bool parseModCombo(std::string line, unsigned short &key, unsigned short(&mods)[3], std::vector<KeyEvent> &strokeSequence, std::string scLabels[])
 {
-	line.erase(std::remove(line.begin(), line.end(), ' '), line.end());
-
 	string strkey = stringGetFirstToken(line);
 	if (strkey.length() < 1)
 		return false;
+	line = line.substr(strkey.length());
+
 	unsigned short tmpKey = getScancode(strkey, scLabels);
 	if (tmpKey == 0)
 		return false;
 	key = tmpKey;
 
+	line.erase(std::remove(line.begin(), line.end(), ' '), line.end());
+
 	size_t modIdx1 = line.find_first_of('[') + 1;
 	size_t modIdx2 = line.find_first_of(']');
-	if (modIdx1 < 2 || modIdx2 < 3 || modIdx1 > modIdx2)
+	if (modIdx1 < 1 || modIdx2 < 2 || modIdx1 > modIdx2)
 		return false;
 	string mod = line.substr(modIdx1, modIdx2 - modIdx1);
 
 	mods[0] = parseModString(mod, 'v'); //and 
 	mods[1] = parseModString(mod, '!'); //not 
 	mods[2] = parseModString(mod, 't'); //tap
-//	mods[3] = parseModString(mod, '-'); //nop
-//	mods[4] = parseModString(mod, '.'); //for
 
 	//extract function name + param
 	size_t funcIdx1 = line.find_first_of('>') + 1;
@@ -303,6 +299,8 @@ bool parseModCombo(std::string line, unsigned short &key, unsigned short(&mods)[
 			string temp = "NP";
 			temp += c;
 			unsigned short sc = getScancode(temp, scLabels);
+			if (sc == 0)
+				return false;
 			strokeSeq.push_back({ sc, true });
 			strokeSeq.push_back({ sc, false });
 		}
@@ -310,7 +308,7 @@ bool parseModCombo(std::string line, unsigned short &key, unsigned short(&mods)[
 	}
 	else if (funcName == "moddedkey")
 	{
-		vector<string> modKeyParams = stringSplit(funcParams, ',');
+		vector<string> modKeyParams = stringSplit(funcParams, '&');
 		if (modKeyParams.size() != 2)
 			return false;
 		unsigned short sc = getScancode(modKeyParams[0], scLabels);
