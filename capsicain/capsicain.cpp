@@ -927,19 +927,19 @@ void printHelloFeatures()
 		<< endl << "Active Layer: " << globalState.activeLayer << " = " << alphaMapping.layerName
 
 		<< endl << endl << "FEATURES"
-		<< endl << (feature.flipZy ? "ON :" : "OFF:") << "Z<->Y "
-		<< endl << (feature.shiftShiftToShiftLock ? "ON: " : "OFF: ") << "LShift + RShift -> ShiftLock"
-		<< endl << (feature.altAltToAlt ? "ON: " : "OFF: ") << "LAlt + RAlt -> Alt"
-		<< endl << (feature.flipAltWinOnAppleKeyboards ? "ON :" : "OFF:") << "Win<->Alt for Apple keyboards"
-		<< endl << (feature.lControlBlocksAlphaMapping ? "ON: " : "OFF: ") << "Left Control blocks alpha key mapping"
-		<< endl << (feature.processOnlyFirstKeyboard ? "ON: " : "OFF: ") << "Process only the board that sent the first key"
+		<< endl << (feature.flipZy ? "ON:" : "OFF:") << " Z <-> Y"
+		<< endl << (feature.shiftShiftToShiftLock ? "ON:" : "OFF:") << " LShift + RShift -> ShiftLock"
+		<< endl << (feature.altAltToAlt ? "ON:" : "OFF:") << " LAlt + RAlt -> Alt"
+		<< endl << (feature.flipAltWinOnAppleKeyboards ? "ON:" : "OFF:") << " Alt <-> Win for Apple keyboards"
+		<< endl << (feature.lControlBlocksAlphaMapping ? "ON:" : "OFF:") << " Left Control blocks alpha key mapping ('Ctrl + C is never changed')"
+		<< endl << (feature.processOnlyFirstKeyboard ? "ON:" : "OFF:") << " Process only the keyboard that sent the first key"
 		;
 }
 
 void printHelp()
 {
 	cout << "HELP" << endl << endl
-		<< "[ESC] + [{key}] for core commands" << endl
+		<< "[ESC] + [{key}] for core commands" << endl << endl
 		<< "[X] Exit" << endl
 		<< "[Q] (dev feature) Stop the debug build if both release and debug are running" << endl
 		<< "[S] Status" << endl
@@ -949,10 +949,8 @@ void printHelp()
 		<< "[A] AHK start" << endl
 		<< "[K] AHK end" << endl
 		<< "[0]..[9] switch layers. [0] is the 'do nothing but listen for commands' layer" << endl
-		<< "[Z] (labeled [Y] on GER keyboard): flip Y<>Z keys" << endl
-		<< "[W] flip ALT <> WIN on Apple keyboards" << endl
-		<< "[\\] (labeled [<] on GER keyboard): ISO boards only: key cut out of left shift -> Left Shift" << endl
-		<< "[/] (labeled [-] on GER keyboard): Slash -> Right Shift" << endl
+		<< "[Z] (labeled [Y] on GER keyboard): flip Y <-> Z keys" << endl
+		<< "[W] flip ALT <-> WIN on Apple keyboards" << endl
 		<< "[ and ]: pause between keys in sequences -/+ 10ms " << endl
 		;
 }
