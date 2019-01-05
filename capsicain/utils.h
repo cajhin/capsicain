@@ -10,6 +10,7 @@ void closeOrKillProgram(std::string processName);
 
 unsigned int millisecondsSinceTimepoint(std::chrono::steady_clock::time_point timepoint);
 std::chrono::steady_clock::time_point timepointNow();
+
 bool stringStartsWith(std::string haystack, std::string needle);
 std::string stringGetLastToken(std::string line);
 std::string stringGetFirstToken(std::string line);

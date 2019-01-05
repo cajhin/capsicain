@@ -199,9 +199,12 @@ xcopy /y /d  "$(OutDir)capsicain.exe" "c:\app\capsicain\"</Command>
     <Image Include="capslock.ico" />
   </ItemGroup>
   <ItemGroup>
+    <Text Include="documentation.txt" />
     <Text Include="layoutTest.txt" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="capsicain.cajhin.ini" />
+    <None Include="capsicain.example.ini" />
     <None Include="capsicain.ini" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

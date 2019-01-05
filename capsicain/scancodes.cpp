@@ -27,8 +27,7 @@ void checkAddLabel(int index, string label, string arr[])
 		arr[index] = label;
 }
 
-//GENERATED Then modified - SC_EQUALS becomes '=' for example. 
-//this must be in sync with config.h
+//GENERATED from scancodes.h then modified - SC_EQUALS becomes '=' for example. 
 //to sync automatically, run this regex in Notepad++ over scancodes.h enum:
 //from:  (.*)SC_(.*?) (.*)
 //to:    checkAddLabel\( SC_\2, "\2", arr\);

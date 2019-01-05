@@ -15,9 +15,9 @@
 
 using namespace std;
 
-const string VERSION = "40";
+const string VERSION = "42";
 
-string SCANCODE_LABELS[256]; // contains [01]="ESCAPE" instead of SC_ESCAPE 
+string SCANCODE_LABELS[256]; // contains [01]="ESC" instead of SC_ESCAPE 
 
 const int DEFAULT_ACTIVE_LAYER = 0;
 const string DEFAULT_ACTIVE_LAYER_NAME = "(no processing, forward everything)";
@@ -25,7 +25,7 @@ const string DEFAULT_ACTIVE_LAYER_NAME = "(no processing, forward everything)";
 const int DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS = 5;  //System may drop keys when they are sent too fast. Local host needs 0-1ms, Linux VM 5+ms for 100% reliable keystroke detection
 
 const bool DEFAULT_START_AHK_ON_STARTUP = true;
-const int DEFAULT_DELAY_FOR_AHK = 50;	//autohotkey is slow
+const int DEFAULT_DELAY_FOR_AHK = 50;	    //autohotkey is slow
 const unsigned short AHK_HOTKEY1 = SC_F14;  //this key triggers supporting AHK script
 const unsigned short AHK_HOTKEY2 = SC_F15;
 
@@ -107,7 +107,7 @@ struct LoopState
 string errorLog = "";
 void error(string txt)
 {
-	cout << endl << "ERROR: " << txt;
+	cout << endl << "ERROR: " << txt << endl;
 	errorLog += "\r\n" + txt;
 }
 
@@ -377,12 +377,12 @@ bool processCommand()
 	case SC_H:
 		printHelp();
 		break;
-	case SC_LBRACK:
+	case SC_COMMA:
 		if (feature.delayForKeySequenceMS >= 1)
 			feature.delayForKeySequenceMS -= 1;
 		cout << "delay between characters in key sequences (ms): " << dec << feature.delayForKeySequenceMS;
 		break;
-	case SC_RBRACK:
+	case SC_DOT:
 		if (feature.delayForKeySequenceMS <= 100)
 			feature.delayForKeySequenceMS += 1;
 		cout << "delay between characters in key sequences (ms): " << dec << feature.delayForKeySequenceMS;
@@ -513,7 +513,7 @@ void processKeyToModifierMapping()
 		{
 			if (globalState.previousKeyEventIn.scancode == loopState.originalKeyEvent.scancode
 				&& globalState.previousKeyEventIn.isDownstroke 
-				&& loopState.originalKeyEvent.isDownstroke) //auto-repeating alt down
+				&& loopState.originalKeyEvent.isDownstroke) //block auto-repeating alt down
 				loopState.scancode = SC_NOP;
 			else if (loopState.isDownstroke && IS_MOD12_DOWN)
 				globalState.modifiers &= ~BITMASK_MOD12;
@@ -606,10 +606,12 @@ void playKeyEventSequence(vector<KeyEvent> keyEventSequence)
 						Sleep(delayBetweenKeyEventsMS);
 					}
 				}
-				else //undo the previous sequence
+				else //undo the previous temp modifier changes, in reverse order
 				{
-					for (KeyEvent strk : globalState.modsTempAltered)
+					KeyEvent strk;
+					for (size_t i = globalState.modsTempAltered.size(); i>0; i--)
 					{
+						strk = globalState.modsTempAltered[i - 1];
 						strk.isDownstroke = !strk.isDownstroke;
 						sendKeyEvent(strk);
 						Sleep(delayBetweenKeyEventsMS);
@@ -731,40 +733,63 @@ bool readIniFeatures()
 bool readIniAlphaMappingLayer(int layer)
 {
 	vector<string> iniLines; //sanitized content of the .ini file
-	if (!getConfigSection("LAYER" + std::to_string(layer), iniLines))
+	if (!getConfigSection("MAP_ALPHA_LAYER_" + std::to_string(layer), iniLines))
 	{
 		IFDEBUG cout << endl << "No mapping defined for layer " << layer << endl;
 		return false;
 	}
 
 	resetAlphaMap();
-	string name = "layerName_undefined";
+	alphaMapping.layerName = "layerName_undefined";
 
 	unsigned char keyIn, keyOut;
+	string mapFromTo = "";
+	bool inMapFromTo = false;
 	for (string line : iniLines)
 	{
 		if (stringGetFirstToken(line) == "layername")
 		{
-			name = stringGetLastToken(line);
+			string name = stringGetLastToken(line);
 			if (name == "")
 				name = "(bad layerName, check your config)";
-			continue;
+			else
+				alphaMapping.layerName = name;
 		}
-		else if (!parseSimpleMapping(line, keyIn, keyOut, SCANCODE_LABELS))
+		else if (stringGetFirstToken(line) == "mapfrom")
 		{
-			error("[LAYER" + to_string(layer) + "] Cannot parse simple alpha mapping: " + line);
-			continue;
+			inMapFromTo = true;
+			mapFromTo = line.substr(7) + " ";
 		}
-		alphaMapping.alphamap[keyIn] = keyOut;
+		else if (stringGetFirstToken(line) == "mapend")
+		{
+			inMapFromTo = false;
+			if (!parseMapFromTo(mapFromTo, alphaMapping.alphamap, SCANCODE_LABELS))
+			{
+				error("[LAYER" + to_string(layer) + "] Cannot parse the MAPFROM/MAPTO/MAPEND definition");
+				return false;
+			}
+		}
+		else if (inMapFromTo)
+		{
+			mapFromTo += line + " ";
+		}
+		else
+		{
+			if (!parseTwoTokenMapping(line, keyIn, keyOut, SCANCODE_LABELS))
+			{
+				error("[LAYER" + to_string(layer) + "] Cannot parse simple alpha mapping: " + line);
+				return false;
+			}
+			alphaMapping.alphamap[keyIn] = keyOut;
+		}
 	}
-	alphaMapping.layerName = name;
 	return true;
 }
 
 bool readIniModCombos()
 {
 	vector<string> iniLines; //sanitized content of the .ini file
-	if (!getConfigSection("MODIFIER_COMBOS", iniLines))
+	if (!getConfigSection("MAP_MODIFIER_COMBOS", iniLines))
 	{
 		IFDEBUG cout << endl << "No mapping defined for modifier combos." << endl;
 		return true;
@@ -793,11 +818,11 @@ bool readIniModCombos()
 
 bool readIniKeyModifierIftappedMapping()
 {
-	string sectionLabel = "KEY_MODIFIER_IFTAPPED_MAPPING";
+	string sectionLabel = "MAP_KEY_TOMODIFIER_TOIFTAPPED";
 	vector<string> iniLines; //sanitized content of the .ini file
 	if (!getConfigSection(sectionLabel, iniLines))
 	{
-		IFDEBUG cout << endl << "No modifier-key-iftapped mappings defined" << endl;
+		IFDEBUG cout << endl << "No section" << sectionLabel << " defined" << endl;
 		return true;
 	}
 
@@ -839,7 +864,7 @@ bool readIni()
 	if (!readIniAlphaMappingLayer(globalState.activeLayer))
 	{
 		std::copy(oldAlphamap, oldAlphamap + 256, alphaMapping.alphamap);
-		cout << endl << "Alpha mapping layer " << globalState.activeLayer << " is not defined. Setting Layer " << DEFAULT_ACTIVE_LAYER_NAME << endl;
+		cout << endl << "Alpha mapping layer " << globalState.activeLayer << " is not defined. Setting Layer " << DEFAULT_ACTIVE_LAYER << " " << DEFAULT_ACTIVE_LAYER_NAME << endl;
 		globalState.activeLayer = DEFAULT_ACTIVE_LAYER;
 		alphaMapping.layerName = DEFAULT_ACTIVE_LAYER_NAME;
 	}
@@ -943,7 +968,8 @@ void printHelp()
 		<< "[0]..[9] switch layers. [0] is the 'do nothing but listen for commands' layer" << endl
 		<< "[Z] (labeled [Y] on GER keyboard): flip Y <-> Z keys" << endl
 		<< "[W] flip ALT <-> WIN on Apple keyboards" << endl
-		<< "[ and ]: pause between keys in sequences -/+ 10ms " << endl
+		<< "[,] and [.]: pause between keys in sequences -/+ 1ms " << endl
+		<< endl << "These commands work anywhere, Capsicain does not have to be the active window."
 		;
 }
 void printStatus()

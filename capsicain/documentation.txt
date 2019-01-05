@@ -1,0 +1,27 @@
+﻿┌─────────────┐
+│ LIMITATIONS │
+└─────────────┘
+
+* Capsicain only processes keyboard events.
+  Media Keys are usually not keyboard keys, but custom USB codes - just like a gamepad button is no keyboard key.
+  If you need this, AutoHotKey is very good at dealing with all kinds of input devices.
+
+* Some special keys are invisible.
+  For example, the Fn key is handled internally on many keyboards. If it does not send a scancode over USB, the PC does not know about it.
+  Another example, the 'Program' key on my Vortex keyboard does not produce a scancode.
+
+* No mapping of pure modifier combos.
+  For example, "Shift + Alt -> function(X)" is not possible.
+  Exceptions: there is hardcoded handling for "both Shift" and "both Alt".
+
+* No mapping of combos to modifiers.
+  For example, "Alt + S -> Shift" is not possible.
+
+* No ALT+123 special chars in Linux VMs.
+  The Windows way to create special chars is ALT+Numpad. For example, ALT+127 produces ⌂
+  Linux does not understand this.
+
+* No characters.
+  Capsicain deals with physical keys. Mapping to characters happens later in the Windows keyboard stack.
+  This means, for example, that you cannot send the '!' character. You can only send [Shift]+[1].
+  To send special characters, you can send [Alt][1][2][3] combos. The altChar(123) function does that for you.

@@ -150,7 +150,10 @@ bool configReadInt(string section, string key, int &value, vector<string> iniLin
 //ini parsing
 std::string stringGetFirstToken(std::string line)
 {
-	return line.substr(0, line.find_first_of(" "));
+	size_t idx = line.find_first_of(" ");
+	if (idx == std::string::npos)
+		idx = line.length();
+	return line.substr(0, idx);
 }
 std::string stringGetLastToken(std::string line)
 {
@@ -158,7 +161,7 @@ std::string stringGetLastToken(std::string line)
 }
 
 // parse "A B"
-bool parseSimpleMapping(std::string line, unsigned char &keyIn, unsigned char &keyOut, std::string scLabels[])
+bool parseTwoTokenMapping(std::string line, unsigned char &keyIn, unsigned char &keyOut, std::string scLabels[])
 {
 	string a = stringToUpper(stringGetFirstToken(line));
 	string b = stringToUpper(stringGetLastToken(line));
@@ -166,6 +169,40 @@ bool parseSimpleMapping(std::string line, unsigned char &keyIn, unsigned char &k
 	keyOut = getScancode(b, scLabels);
 	if ((keyIn == 0 && a != "nop") || (keyOut == 0 && b != "nop"))
 		return false; //invalid key label
+	return true;
+}
+
+// parse "a b c MAPTO x y z"
+bool parseMapFromTo(std::string mapFromTo, unsigned char (&alphamap)[256], std::string scLabels[])
+{
+	size_t idx1 = mapFromTo.find("mapto");
+	if (idx1 == string::npos)
+		return false;
+	string tmpfrom = (mapFromTo.substr(0, idx1));
+	string tmpto = (mapFromTo.substr(idx1 + 5));
+	normalizeLine(tmpfrom);
+	normalizeLine(tmpto);
+	vector<string> sfrom = stringSplit(tmpfrom, ' ');
+	vector<string> sto = stringSplit(tmpto, ' ');
+
+	if (sfrom.size() == 0 || sfrom.size() != sto.size())
+	{
+		cout << endl << "FROM and TO lists are different size";
+		return false;
+	}
+
+	for (int i = 0; i < sfrom.size(); i++)
+	{
+		unsigned char cfrom = getScancode(sfrom[i], scLabels);
+		unsigned char cto = getScancode(sto[i], scLabels);
+		if ((cfrom == 0 && sfrom[i] != "nop")
+			|| (cto == 0 && sto[i] != "nop"))
+		{
+			cout << endl << "Unknown scancode labels: " << sfrom[i] << " and " << sto[i];
+			return false;
+		}
+		alphamap[cfrom] = cto;
+	}
 	return true;
 }
 
@@ -288,8 +325,8 @@ bool parseModCombo(std::string line, unsigned short &key, unsigned short(&mods)[
 	else if (funcName == "altchar")
 	{
 		strokeSeq.push_back({ SC_CPS_ESC, true }); //temp release LSHIFT if it is currently down
-		strokeSeq.push_back({ BITMASK_RALT , true });
 		strokeSeq.push_back({ BITMASK_LSHIFT | BITMASK_RSHIFT | BITMASK_LCTRL | BITMASK_RCTRL , false });
+		strokeSeq.push_back({ BITMASK_RALT , true });
 		strokeSeq.push_back({ SC_CPS_ESC, false });
 		for (int i = 0; i < funcParams.length(); i++)
 		{
