@@ -164,7 +164,7 @@
     </Link>
     <PostBuildEvent>
       <Command>xcopy /y /d  "$(ProjectDir)interception.dll" "$(OutDir)"
-xcopy /y /d  "$(OutDir)capsicain.exe" "c:\app\capsicain\"</Command>
+$(ProjectDir)copy_release.bat</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
