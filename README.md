@@ -25,6 +25,8 @@ And while I'm at it, I like to have a ton of extra features.
 
 ## Features
 
+- Like a hardware programmable keyboard, Capsicain can mess with key strokes before anyone else does.  
+
 - Can remap EVERY key that is sent out by the keyboard.  
 
 - Almost everything is configurable via .ini file   
