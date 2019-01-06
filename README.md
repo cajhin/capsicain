@@ -54,7 +54,8 @@ And while I'm at it, I like to have a ton of extra features.
 - Hold TAB + right hand -> NumPad layer  
     U I O = 7 8 9  etc.  
     
-- ALT + letter keys-> all regular symbol characters, easier to reach  
+- ALT + letter keys-> all regular symbol characters.
+  ALT + Q for '!' is an easier combo than Shift + 1, when you get used to it.  
   ! @ # $ % ^ & ( ) ü ß - + * / = \ { } ö ä ` ~ | _ … < > [ ] ...  
   
 - Tap ALT -> Special character layer  
