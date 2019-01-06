@@ -17,6 +17,9 @@
 * No mapping of combos to modifiers.
   For example, "Alt + S -> Shift" is not possible.
 
+* No dead key combos
+  Things like "ALT+U, then O -> ö" are not possible.
+  
 * No ALT+123 special chars in Linux VMs.
   The Windows way to create special chars is ALT+Numpad. For example, ALT+127 produces ⌂
   Linux does not understand this.
