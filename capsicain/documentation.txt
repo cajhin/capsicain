@@ -17,7 +17,7 @@
 * No mapping of combos to modifiers.
   For example, "Alt + S -> Shift" is not possible.
 
-* No dead key combos
+* No dead keys / composing
   Things like "ALT+U, then O -> ö" are not possible.
   
 * No ALT+123 special chars in Linux VMs.
@@ -28,3 +28,6 @@
   Capsicain deals with physical keys. Mapping to characters happens later in the Windows keyboard stack.
   This means, for example, that you cannot send the '!' character. You can only send [Shift]+[1].
   To send special characters, you can send [Alt][1][2][3] combos. The altChar(123) function does that for you.
+  
+ * No freestyle macros like "X -> Ctrl-down, F4-down, F4-up, Ctrl-up, H E L L O ENTER"
+ 
