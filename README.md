@@ -1,21 +1,25 @@
 # capsicain
 
-C++ tool that uses the Interception driver https://github.com/oblitum/Interception to monitor and modify keypresses, at a very low level.
+Keyboard configuration tool that re-maps keys and modifier-key-combos at a very low level.  
+Uses the Interception driver https://github.com/oblitum/Interception to receive keys before almost everyone else.  
 
 ## Why?
 
-I touch type. I code. I need a keyboard setup where I can keep my fingers on the home row all the time.  
+I touch type. I code. I need a keyboard setup where I can keep my fingers on the home row most of the time.  
+
 The position of Left/Right, Home/End, Insert/Delete and so on is bad. On laptops, it's awful.  
 Also, I need to type Ümläuts quite often, which is a pain on US standard layout - the only sane layout for writing C-style code.  
-While I'm at it, I like to have a ton of extra features.
+My right pinky complains a lot, because C-style code requires a lot of special characters that are done with a stretched right pinky. Then I see the ALT keys, which are in a great position but rather useless.  
+
+And while I'm at it, I like to have a ton of extra features.   
 
 **AutoHotKey** is nice, did it for 10 years, but it runs in userspace and fails whenever the target gets key input from low level (VMs, RDP fullscreen, security boxes, games). It is limited when comes to multi-modifier combos. I still use it as a deputy for capsicain, doing Windowsy userspace tasks.  
 
 **Windows Keyboard Layout Creator** works more reliable, but it supports only very basic key remapping, and requires a reboot for every change.  
 
-**Karabiner** is really good, somewhat limited modifier handling, but Mac-only.  
+**Karabiner** is really good, but Mac-only (and oh so awful config syntax).  
 
-**TMK with Hasu's Usb-to-Usb stick** is very cool, but it cannot do laptop keyboards.  
+**Tmk / Qmk with Hasu's Usb-to-Usb stick** is very cool, but it cannot do laptop keyboards.  
 
 **Capsicain** does everything I want. Reliably, everywhere.  
 
@@ -87,15 +91,15 @@ These talk directly to Capsicain, trigger them with [ESC] + {key}
 There are various config options, like "flip Z/Y", "flip WIN/ALT on Apple keyboards", timing for macros, status, more.
 
 ## About Interception  
-This is a signed low-level driver ("keyboard driver upper filter"), another project on github. It must be installed for capsicain to work. It also provides a DLL to interface with the driver (you could access it directly but then maybe every bug kills the keyboard driver stack).  
-The driver does nothing (just forwards all key events from the keyboard driver to the next higher driver) unless a client wants to hook into all keyboard events.    
-The DLL is free and open source, the driver is free but closed source, sources available for $1000 (the guy wants to make some money from commercial projects).  
+This is a signed driver ("keyboard driver upper filter"), another project on github. It must be installed for capsicain to work. It provides a DLL to interface with the driver.  
+The filter driver does nothing (just forwards all key events from the keyboard driver to the next higher driver) unless a client wants to hook into the keyboard events.    
+The DLL is free and open source, the driver is free but closed source (sources available for $1000. The guy wants to make some money from commercial projects - I hope he does because he did some really good work here).  
 
-Note: Capsicain is a normal userspace app, which means you can simply start and stop it anytime. It also means it cannot talk to the keyboard driver directly, so it needs the Interception driver. This is an unavoidable complication, but I actually see it is a good thing: because it is not that easy, no normal application or game will do this - and this means that Capsicain is alway #1 in the keyboard processing chain.  
+Musings: Capsicain is a normal userspace app, which means you can simply start and stop it anytime. It also means it cannot talk to the keyboard driver directly, so it needs the Interception driver. This is an unavoidable complication in Windows 10, but I actually see it is a good thing: because it is not that easy, no normal application or game will do this - and this means that Capsicain is always #1 in the keyboard processing chain.  
 
-But but rootkit keylogger exposing all my sekrits? True that. I don't know the source, I don't know the guy, but I sniffed around a bit and decided to trust him. Well, everytime you run a binary with admin privileges, it can do all this and more.  
+But but rootkit keylogger exposing all my sekrits? True that. I didn't see the source, I don't know the guy, but I sniffed around a bit and it all smells legit to me. Well, everytime you run any binary with admin privileges, it can do all this and more.   
 
 ## Notes
 v1..12 was created in capsicain_interception repo. This was an experimental non-VS project, now obsolete, except for the history.
 
-Why the name? Beer made me do it. This tool defines a lot of CapsLock Hotkeys. 'Capsaicin' is the chemical stuff that makes chilis hot, Capsicain just has a better flow to it (and is a unique name)
+Why the name? Beer made me do it. I like chilis. This tool defines a lot of CapsLock Hot keys. 'Capsaicin' is the chemical stuff that makes chilis hot, Capsicain just has a better flow to it (and is a unique name)
