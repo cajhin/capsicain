@@ -103,3 +103,25 @@ But but rootkit keylogger exposing all my sekrits? True that. I didn't see the s
 v1..12 was created in capsicain_interception repo. This was an experimental non-VS project, now obsolete, except for the history.
 
 Why the name? Beer made me do it. I like chilis. This tool defines a lot of CapsLock Hot keys. 'Capsaicin' is the chemical stuff that makes chilis hot, Capsicain just has a better flow to it (and is a unique name)
+
+# Installation
+1. download the latest capsicain.zip from the /versions directory.  
+2. extract to any folder you like. You can move it anytime; there are no registry entries for Capsicain.  
+3. if it is not in the .zip file, get the Interception installer from here:  
+    https://github.com/oblitum/Interception
+4. open an Administrator dosbox (Start menu > type 'cmd' > right-click on Command prompt > select 'Run as administrator'  
+5. navigate to the Interception installer folder  
+6. run `install-interception /install`
+7. reboot
+8. start capsicain.exe
+
+## Your first config
+Out of the box, capsicain.ini is the complete config that I use myself.  
+If you want to play around with something simpler, rename capsicain.example.ini to capsicain.ini.  
+[ESC]+[R] to reload the config.  
+
+REMEMBER:  
+[ESC]+[X] Exits, always, in case your config makes the keyboard unusable. Capsicain doesn't have to be in the foreground to see ESC command combos.   
+[ESC]+[0] is the softer method (alpha layer 0); it tells Capsicain to not alter any keys - except for [ESC] combos, so you can switch back to your layer 1 later.
+
+Feel free to open an issue to ask questions.  
