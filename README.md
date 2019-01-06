@@ -63,7 +63,9 @@ This is a signed low-level driver ("keyboard driver upper filter"), another proj
 The driver does nothing (just forwards all key events from the keyboard driver to the next higher driver) unless a client wants to hook into all keyboard events.    
 The DLL is free and open source, the driver is free but closed source, sources available for $1000 (the guy wants to make some money from commercial projects).  
 
-But but rootkit keylogger exposing all my sekrits? True that. I don't know the source, I don't know the guy, but I sniffed around a bit and decided to trust him. Well, everytime you run a binary with admin priviledges, it can do all this and more.  
+Note: Capsicain is a normal userspace app, which means you can simply start and stop it anytime. It also means it cannot talk to the keyboard driver directly, so it needs the Interception driver. This is an unavoidable complication, but I actually see it is a good thing: because it is not that easy, no normal application or game will do this - and this means that Capsicain is alway #1 in the keyboard processing chain.  
+
+But but rootkit keylogger exposing all my sekrits? True that. I don't know the source, I don't know the guy, but I sniffed around a bit and decided to trust him. Well, everytime you run a binary with admin privileges, it can do all this and more.  
 
 ## Notes
 v1..12 was created in capsicain_interception repo. This was a non-VS project, now obsolete, except for the history.
