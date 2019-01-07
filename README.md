@@ -108,7 +108,7 @@ v1..12 was created in capsicain_interception repo. This was an experimental non-
 Why the name? Beer made me do it. I like chilis. This tool defines a lot of CapsLock Hot keys. 'Capsaicin' is the chemical stuff that makes chilis hot, Capsicain just has a better flow to it (and is a unique name)
 
 # Installation
-1. download the latest capsicain.zip from the /versions directory.  
+1. download the latest capsicain.zip here: https://github.com/cajhin/capsicain/releases 
 2. extract to any folder you like. You can move it anytime; there are no registry entries for Capsicain.  
 3. if it is not in the .zip file, get the Interception installer from here:  
     https://github.com/oblitum/Interception
