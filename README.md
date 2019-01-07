@@ -13,6 +13,7 @@ My right pinky complains a lot, because C-style code requires a lot of special c
 
 And while I'm at it, I like to have a ton of extra features.   
 
+## Why I don't use tool X instead
 **AutoHotKey** is nice, did it for 10 years, but it runs in userspace and fails whenever the target gets key input from low level (VMs, RDP fullscreen, security boxes, games). It is limited when comes to multi-modifier combos. I still use it as a deputy for capsicain, doing Windowsy userspace tasks.  
 
 **Windows Keyboard Layout Creator** works more reliable, but it supports only very basic key remapping, and requires a reboot for every change.  
