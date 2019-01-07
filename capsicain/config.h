@@ -4,15 +4,17 @@
 
 struct KeyEvent
 {
-	unsigned short scancode = 0;
-	bool isDownstroke = true;
+    unsigned short scancode = 0;
+    bool isDownstroke = true;
 };
 
-bool parseConfig(std::vector<std::string> &config);
-bool getConfigSection(std::string sectionName, std::vector<std::string>& config);
-bool configHasKey(std::string section, std::string key, std::vector<std::string> iniLines);
-bool configReadString(std::string section, std::string key, std::string & value, std::vector<std::string> iniLines);
-bool configReadInt(std::string section, std::string key, int & value, std::vector<std::string> iniLines);
+bool readIniFile(std::vector<std::string>& iniLines);
+
+std::vector<std::string> getConfigSection_nOrDefault(std::string sectionName, int sectionVersion, std::vector<std::string> iniContent);
+std::vector<std::string> getConfigSection(std::string sectionName, std::vector<std::string> iniContent);
+bool sectionHasKey(std::string key, std::vector<std::string> iniLines);
+bool getStringValueForKeyInSection(string key, std::string & value, vector<string> sectionLines);
+bool getIntValueForKeyInSection(string key, int & value, vector<string> sectionLines);
 bool parseCombo(std::string &funcParams, std::string * scLabels, std::vector<KeyEvent> &strokeSeq, bool &retflag);
 bool parseModCombo(std::string line, unsigned short &key, unsigned short(&mods)[3], std::vector<KeyEvent> &strokeSequence, std::string scLabels[]);
 bool parseTwoTokenMapping(std::string line, unsigned char & keyIn, unsigned char & keyOut, std::string scLabels[]);

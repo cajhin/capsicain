@@ -65,7 +65,7 @@ enum ScanCode {
     SC_DOT = 0x34, // . on main keyboard
     SC_SLASH = 0x35, // / on main keyboard
     SC_RSHIFT = 0x36,
-    SC_MULT = 0x37, // * on numeric keypad
+    SC_NPMULT = 0x37, // * on numeric keypad
     SC_LALT = 0x38, // left Alt
     SC_SPACE = 0x39,
     SC_CAPS = 0x3A,
@@ -97,23 +97,24 @@ enum ScanCode {
     SC_LBSLASH = 0x56, //  Left BackSlash \  or < > |  right of left shift on UK/Germany keyboards
     SC_F11 = 0x57,
     SC_F12 = 0x58,
+    SC_NPEQUALS1 = 0x59,    //Numpad [=] on Apple 
     SC_F13 = 0x64, //                     (NEC PC98)
     SC_F14 = 0x65, //                     (NEC PC98)
     SC_F15 = 0x66, //                     (NEC PC98)
-	SC_MOD9 = 0x67,	//CAPSICAIN virtual modifiers. Hope no keyboard ever sends this.
-	SC_MOD10 = 0x68,
-	SC_MOD11 = 0x69,
-	SC_MOD12 = 0x6A,
-	SC_MOD13 = 0x6B,
-	SC_MOD14 = 0x6C,
-	SC_MOD15 = 0x6D,
-	SC_KANA = 0x70, // (Japanese keyboard)
+    SC_MOD9 = 0x67,	//CAPSICAIN virtual modifiers. Hope no keyboard ever sends this.
+    SC_MOD10 = 0x68,
+    SC_MOD11 = 0x69,
+    SC_MOD12 = 0x6A,
+    SC_MOD13 = 0x6B,
+    SC_MOD14 = 0x6C,
+    SC_MOD15 = 0x6D,
+    SC_KANA = 0x70, // (Japanese keyboard)
     SC_ABNT_C1 = 0x73, // / ? on Portugese (Brazilian) keyboards
     SC_CONVERT = 0x79, // (Japanese keyboard)
     SC_NOCONVERT = 0x7B, // (Japanese keyboard)
     SC_YEN = 0x7D, // (Japanese keyboard)
     SC_ABNT_C2 = 0x7E, // Numpad . on Portugese (Brazilian) keyboards
-    SC_NPEQU = 0x8D, // = on numeric keypad (NEC PC98)
+    SC_NPEQUALS2 = 0x8D, // = on numeric keypad (NEC PC98)
     SC_PREVTRACK = 0x90, // Previous Track (CIRCUMFLEX on Japanese keyboard)
     SC_AT = 0x91, //                     (NEC PC98)
     SC_COLON = 0x92, //                     (NEC PC98)
@@ -123,7 +124,7 @@ enum ScanCode {
     SC_AX = 0x96, //                     (Japan AX)
     SC_UNLABELED = 0x97, //                        (J3100)
     SC_NEXTTRACK = 0x99, // Next Track
-    SC_NPENT = 0x9C, // Enter on numeric keypad
+    SC_NPRET = 0x9C, // Enter on numeric keypad
     SC_RCTRL = 0x9D,
     SC_MUTE = 0xA0, // Mute
     SC_CALCULATOR = 0xA1, // Calculator
@@ -163,5 +164,5 @@ enum ScanCode {
     SC_MYCOMPUTER = 0xEB, // My Computer
     SC_MAIL = 0xEC, // Mail
     SC_MEDIASELECT = 0xED, // Media Select
-	SC_CPS_ESC = 0xFF		//special escape code for Capsicain. Lets hope no keyboard ever sends FF....
+    SC_CPS_ESC = 0xFF		//special escape code for Capsicain. Lets hope no keyboard ever sends FF....
 };

@@ -5,11 +5,18 @@
 
 enum KEYSTATE
 {
-	KEYSTATE_DOWN = 0,
-	KEYSTATE_UP = 1,
-	KEYSTATE_EXT_DOWN = 2,
-	KEYSTATE_EXT_UP = 3,
+    KEYSTATE_DOWN = 0,
+    KEYSTATE_UP = 1,
+    KEYSTATE_EXT_DOWN = 2,
+    KEYSTATE_EXT_UP = 3,
 };
+
+const std::string INI_SECTNAME_STARTUP = "STARTUP";
+const std::string INI_SECTNAME_OPTIONS = "OPTIONS";
+const std::string INI_SECTNAME_MODMAP = "MAP_KEY_TOMODIFIER_TOIFTAPPED";
+const std::string INI_SECTNAME_COMBOMAP = "MAP_ALPHA_LAYER";
+const std::string INI_SECTNAME_ALPHA = "MAP_ALPHA_LAYER";
+
 
 void keySequenceAppendMakeKey(unsigned short scancode, std::vector<KeyEvent> &sequence);
 void keySequenceAppendBreakKey(unsigned short scancode, std::vector<KeyEvent> &sequence);

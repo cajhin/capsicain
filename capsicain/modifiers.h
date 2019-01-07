@@ -14,21 +14,21 @@ bool isModifier(unsigned short scancode);
 
 bool isModifierDown(unsigned short modifier, unsigned short modState);
 
-#define BITMASK_LSHIFT		0x001
-#define BITMASK_LCTRL		0x002
-#define BITMASK_LWIN		0x004
-#define BITMASK_LALT		0x008
-#define BITMASK_RSHIFT		0x010
-#define BITMASK_RCTRL		0x020
-#define BITMASK_RWIN		0x040
-#define BITMASK_RALT		0x080
-#define BITMASK_MOD9		0x100
-#define BITMASK_MOD10		0x200
-#define BITMASK_MOD11		0x400
-#define BITMASK_MOD12		0x800
-#define BITMASK_MOD13		0x1000
-#define BITMASK_MOD14		0x2000
-#define BITMASK_MOD15		0x4000
+#define BITMASK_LSHIFT      0x001
+#define BITMASK_LCTRL       0x002
+#define BITMASK_LWIN        0x004
+#define BITMASK_LALT        0x008
+#define BITMASK_RSHIFT      0x010
+#define BITMASK_RCTRL       0x020
+#define BITMASK_RWIN        0x040
+#define BITMASK_RALT        0x080
+#define BITMASK_MOD9        0x100
+#define BITMASK_MOD10       0x200
+#define BITMASK_MOD11       0x400
+#define BITMASK_MOD12       0x800
+#define BITMASK_MOD13       0x1000
+#define BITMASK_MOD14       0x2000
+#define BITMASK_MOD15       0x4000
 
 
 #define IS_SHIFT_DOWN (globalState.modifiers & BITMASK_LSHIFT || globalState.modifiers & BITMASK_RSHIFT)
