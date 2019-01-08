@@ -33,7 +33,7 @@ And while I'm at it, I like to have a ton of extra features.
 - Almost everything is configurable via .ini file   
 
 - Modifier remapping   
-  CapsLock to MOD9, LeftShift to Backspace, Escape to RightWin, anything goes.  
+  F and J to Shift, CapsLock to MOD9, LCtrl to Return, Rotate Alt>Shift>Control>Alt. If it sends a scancode, you can remap it.  
     
 - Powerful modfier combos  
   Can do keycombos with all 15 modifiers with a single one-liner rule.  
