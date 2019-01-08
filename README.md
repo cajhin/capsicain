@@ -43,7 +43,7 @@ And while I'm at it, I like to have a ton of extra features.
 
 - Up to 9 layouts, switch with [ESC]+NumberKey  
 
-- Fast. Low-fat C/C++ code.
+- Fast. Low-fat C/C++ code. 1 exe 1 dll 1 ini. Never writes, only reads inside its folder.
     
 ### Features of the default config 
 - Hold CapsLock + right hand -> Cursor control layer. I LOVE this!!  
