@@ -94,6 +94,13 @@ These talk directly to Capsicain, trigger them with [ESC] + {key}
     [H] Help - list available commands  
 There are various config options, like "flip Z/Y", "flip WIN/ALT on Apple keyboards", timing for macros, status, more.
 
+### What it doesn't do (today)
+- No modifier-only combos (Shift+Alt -> X). I don't like these, they cause problems.
+- No combos-to-modifier (Ctrl+X -> Alt). Useless?
+- No dead keys / composing (Alt+U, then O -> Ö)
+- No freestyle macros (x -> Win-down, R-down, R-up, Win-up, C M D RETURN)
+- ALT-Numpad combos for special characters ╠═ö€Σε═╣ don't work in Linux VMs.
+
 ## About Interception  
 This is a signed driver ("keyboard driver upper filter"), another project on github. It must be installed for capsicain to work. It provides a DLL to interface with the driver.  
 The filter driver does nothing (just forwards all key events from the keyboard driver to the next higher driver) unless a client wants to hook into the keyboard events.    
