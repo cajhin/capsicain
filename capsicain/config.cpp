@@ -68,16 +68,16 @@ bool readIniFile(std::vector<string> &iniLines)
 }
 
 // Get the lines in section "NAME_3" or if it does not exist, "NAME_DEFAULT".
-std::vector<std::string> getConfigSection_nOrDefault(std::string sectionName, int sectionVersion, std::vector<string> iniContent)
+std::vector<std::string> getSection_nOrDefaultFromIni(std::string sectionName, int sectionVersion, std::vector<string> iniContent)
 {
     std::vector<std::string> sectionContent;
-    sectionContent = (getConfigSection(sectionName + "_" + to_string(sectionVersion), iniContent));
+    sectionContent = (getSectionFromIni(sectionName + "_" + to_string(sectionVersion), iniContent));
     if(sectionContent.size() == 0)
-        sectionContent = getConfigSection(sectionName, iniContent);
+        sectionContent = getSectionFromIni(sectionName, iniContent);
     return sectionContent;
 }
 
-std::vector<std::string> getConfigSection(std::string sectionName, std::vector<std::string> iniContent)
+std::vector<std::string> getSectionFromIni(std::string sectionName, std::vector<std::string> iniContent)
 {
     std::vector<std::string> sectionContent;
     string sectName = stringToLower(sectionName);

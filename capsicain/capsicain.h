@@ -13,9 +13,9 @@ enum KEYSTATE
 
 const std::string INI_SECTNAME_STARTUP = "STARTUP";
 const std::string INI_SECTNAME_OPTIONS = "OPTIONS";
-const std::string INI_SECTNAME_MODMAP = "MAP_KEY_TOMODIFIER_TOIFTAPPED";
-const std::string INI_SECTNAME_COMBOMAP = "MAP_ALPHA_LAYER";
-const std::string INI_SECTNAME_ALPHA = "MAP_ALPHA_LAYER";
+const std::string INI_SECTNAME_MODIFIERS = "MODIFIERS";
+const std::string INI_SECTNAME_COMBOS = "COMBOS";
+const std::string INI_SECTNAME_ALPHA = "ALPHA";
 
 
 void keySequenceAppendMakeKey(unsigned short scancode, std::vector<KeyEvent> &sequence);
@@ -27,19 +27,15 @@ std::string getSymbolForIKStrokeState(unsigned short state);
 bool processCommand();
 void processMapAlphaKeys(unsigned short & scancode);
 void processModifiedKeys();
-void processModifierTapped();
 void playKeyEventSequence(std::vector<KeyEvent> keyEventSequence);
 void processModifierState();
 void processKeyToModifierMapping();
-void processLayoutIndependentAction();
 
 void printHelloFeatures();
 
 void sendKeyEvent(KeyEvent keyEvent);
 
 void sendResultingKeyOrSequence();
-
-void scancode2ikstroke(unsigned short &scancode, InterceptionKeyStroke &ikstroke);
 
 KeyEvent ikstroke2keyEvent(InterceptionKeyStroke ikStroke);
 
@@ -49,14 +45,14 @@ void getHardwareId();
 
 void initConsoleWindow();
 
-bool readIniAlphaMappingLayer(int layer);
+bool parseIniAlphaMappingLayer(int layer);
 
 void printHelloHeader();
 
 void printStatus();
 void printHelp();
 void reset();
-bool readIni();
+bool parseIni(int layer);
 void resetCapsNumScrollLock();
 void resetAlphaMap();
 
