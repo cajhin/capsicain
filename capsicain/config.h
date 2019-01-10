@@ -10,13 +10,14 @@ struct KeyEvent
 
 bool readIniFile(std::vector<std::string>& iniLines);
 
-std::vector<std::string> getSection_nOrDefaultFromIni(std::string sectionName, int sectionVersion, std::vector<std::string> iniContent);
 std::vector<std::string> getSectionFromIni(std::string sectionName, std::vector<std::string> iniContent);
-bool sectionHasKey(std::string key, std::vector<std::string> iniLines);
-bool getStringValueForKeyInSection(std::string key, std::string & value, std::vector<std::string> sectionLines);
-bool getIntValueForKeyInSection(std::string key, int & value, std::vector<std::string> sectionLines);
-bool parseCombo(std::string &funcParams, std::string * scLabels, std::vector<KeyEvent> &strokeSeq, bool &retflag);
-bool parseModCombo(std::string line, unsigned short &key, unsigned short(&mods)[3], std::vector<KeyEvent> &strokeSequence, std::string scLabels[]);
-bool parseTwoTokenMapping(std::string line, unsigned char & keyIn, unsigned char & keyOut, std::string scLabels[]);
+std::vector<std::string> getTaggedLinesFromIni(std::string tag, std::vector<std::string> iniContent);
+bool configHasKey(std::string key, std::vector<std::string> iniLines);
+bool configHasTaggedKey(std::string tag, std::string key, std::vector<std::string> sectionLines);
+bool getStringValueForTaggedKey(std::string tag, std::string key, std::string & value, std::vector<std::string> sectionLines);
+bool getStringValueForKey(std::string key, std::string & value, std::vector<std::string> sectionLines);
+bool getIntValueForTaggedKey(std::string tag, std::string key, int & value, std::vector<std::string> sectionLines);
+bool getIntValueForKey(std::string key, int & value, std::vector<std::string> sectionLines);
+bool parseCombo(std::string line, unsigned short &key, unsigned short(&mods)[3], std::vector<KeyEvent> &strokeSequence, std::string scLabels[]);
 bool parseMapFromTo(std::string mapFromTo, unsigned char(&alphamap)[256], std::string scLabels[]);
-bool parseThreeTokenMapping(std::string line, unsigned char & keyA, unsigned char & keyB, unsigned char & keyC, std::string scLabels[]);
+bool parseThreeScancodesMapping(std::string line, unsigned char & keyA, unsigned char & keyB, unsigned char & keyC, std::string scLabels[]);

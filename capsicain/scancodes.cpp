@@ -27,8 +27,10 @@ void checkAddLabel(int index, string label, string arr[])
         arr[index] = label;
 }
 
+//Map scancode labels to key labels that are used in the .ini
 //GENERATED from scancodes.h then modified - SC_EQUALS becomes '=' for example. 
-//to sync automatically, run this regex in Notepad++ over scancodes.h enum:
+
+//to re-sync automatically, run this regex in Notepad++ over scancodes.h enum:
 //from:  (.*)SC_(.*?) (.*)
 //to:    checkAddLabel\( SC_\2, "\2", arr\);
 //then make a bunch of modifications for nicer labels...
@@ -125,7 +127,8 @@ void getAllScancodeLabels(string arr[])
     checkAddLabel(SC_F13, "F13", arr);
     checkAddLabel(SC_F14, "F14", arr);
     checkAddLabel(SC_F15, "F15", arr);
-    checkAddLabel(SC_MOD9, "MOD9", arr); //CAPSICAIN virtual modifiers
+    //CAPSICAIN virtual modifiers:
+    checkAddLabel(SC_MOD9, "MOD9", arr);
     checkAddLabel(SC_MOD10, "MOD10", arr);
     checkAddLabel(SC_MOD11, "MOD11", arr);
     checkAddLabel(SC_MOD12, "MOD12", arr);

@@ -101,13 +101,10 @@ enum ScanCode {
     SC_F13 = 0x64, //                     (NEC PC98)
     SC_F14 = 0x65, //                     (NEC PC98)
     SC_F15 = 0x66, //                     (NEC PC98)
-    SC_MOD9 = 0x67,	//CAPSICAIN virtual modifiers. Hope no keyboard ever sends this.
-    SC_MOD10 = 0x68,
-    SC_MOD11 = 0x69,
-    SC_MOD12 = 0x6A,
-    SC_MOD13 = 0x6B,
-    SC_MOD14 = 0x6C,
-    SC_MOD15 = 0x6D,
+    SC_F16 = 0x67, //Apple KB
+    SC_F17 = 0x68,
+    SC_F18 = 0x69,
+    SC_F19 = 0x6A,
     SC_KANA = 0x70, // (Japanese keyboard)
     SC_ABNT_C1 = 0x73, // / ? on Portugese (Brazilian) keyboards
     SC_CONVERT = 0x79, // (Japanese keyboard)
@@ -164,5 +161,14 @@ enum ScanCode {
     SC_MYCOMPUTER = 0xEB, // My Computer
     SC_MAIL = 0xEC, // Mail
     SC_MEDIASELECT = 0xED, // Media Select
-    SC_CPS_ESC = 0xFF		//special escape code for Capsicain. Lets hope no keyboard ever sends FF....
+    //CAPSICAIN virtual modifier keys. Hope no keyboard ever sends this.
+    SC_MOD9 = 0xF0,
+    SC_MOD10 = 0xF1,
+    SC_MOD11 = 0xF2,
+    SC_MOD12 = 0xF3,
+    SC_MOD13 = 0xF4,
+    SC_MOD14 = 0xF5,
+    SC_MOD15 = 0xF6,
+    //special escape code for Capsicain key sequences. Do not use this in the .ini
+    SC_CPS_ESC = 0xFF
 };

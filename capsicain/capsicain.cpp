@@ -5,7 +5,6 @@
 #include <chrono>
 #include <vector>
 #include <algorithm>
-
 #include <string>
 #include <Windows.h>  //for Sleep()
 
@@ -15,7 +14,7 @@
 
 using namespace std;
 
-const string VERSION = "44";
+const string VERSION = "45";
 
 string SCANCODE_LABELS[256]; // contains [01]="ESC" instead of SC_ESCAPE 
 
@@ -42,7 +41,7 @@ struct Options
     bool flipAltWinOnAppleKeyboards = false;
     bool LControlLWinBlocksAlphaMapping = false;
     bool processOnlyFirstKeyboard = false;
-} feature;
+} option;
 
 struct ModifierCombo
 {
@@ -69,8 +68,8 @@ struct AllMaps
 
 struct GlobalState
 {
-    int  activeLayer = -1;
-    string layerName = "undefined_layerName";
+    int  activeLayer = DEFAULT_ACTIVE_LAYER;
+    string layerName = DEFAULT_ACTIVE_LAYER_NAME;
 
     unsigned short modifiers = 0;
     unsigned short modsTapped = 0;
@@ -113,20 +112,32 @@ void error(string txt)
     errorLog += "\r\n" + txt;
 }
 
-void setActiveLayerOnStartup()
-{
-        if(!getIntValueForKeyInSection("ActiveLayerOnStartup", globalState.activeLayer, sanitizedIniContent))
-        {
-            IFDEBUG cout << endl << "No ini setting for 'ActiveLayerOnStartup'. Setting default layer " << DEFAULT_ACTIVE_LAYER;
-            globalState.activeLayer = DEFAULT_ACTIVE_LAYER;
-            globalState.layerName = DEFAULT_ACTIVE_LAYER_NAME;
-        }
 
+void readGlobalsOnStartup()
+{
+    int initialLayer = DEFAULT_ACTIVE_LAYER;
+    if(!getIntValueForTaggedKey(INI_TAG_GLOBAL, "ActiveLayerOnStartup", globalState.activeLayer, sanitizedIniContent))
+    {
+        globalState.activeLayer = DEFAULT_ACTIVE_LAYER;
+        IFDEBUG cout << endl << "No ini setting for 'ActiveLayerOnStartup'. Setting default layer " << DEFAULT_ACTIVE_LAYER;
+    }
+
+    option.debug = configHasTaggedKey(INI_TAG_GLOBAL, "debugOnStartup", sanitizedIniContent);
+
+    getStringValueForTaggedKey(INI_TAG_GLOBAL, "iniVersion", option.iniVersion, sanitizedIniContent);
+    if (option.iniVersion == "")
+        option.iniVersion = "GLOBAL iniVersion is undefined";
 }
+
+
 int main()
 {
     initConsoleWindow();
     printHelloHeader();
+
+    cout << endl << "Release all keys now..." << endl;
+    Sleep(1000); //time to release shortcut keys that started capsicain
+
     getAllScancodeLabels(SCANCODE_LABELS);
     resetAllStatesToDefault();
 
@@ -136,11 +147,9 @@ int main()
         Sleep(5000);
         return 0;
     }
-    setActiveLayerOnStartup();
-    parseIni(globalState.activeLayer);
 
-    cout << endl << "Release all keys now...";
-    Sleep(1000); //time to release shortcut keys that started capsicain
+    readGlobalsOnStartup();
+    switchLayer(globalState.activeLayer);
 
     globalState.interceptionContext = interception_create_context();
     interception_set_filter(globalState.interceptionContext, interception_is_keyboard, INTERCEPTION_FILTER_KEY_ALL);
@@ -162,7 +171,7 @@ int main()
                                  (InterceptionStroke *)&loopState.originalIKstroke, 1)   > 0)
     {
         //ignore secondary keyboard?
-        if (feature.processOnlyFirstKeyboard 
+        if (option.processOnlyFirstKeyboard 
             && (globalState.previousInterceptionDevice != NULL)
             && (globalState.previousInterceptionDevice != globalState.interceptionDevice))
         {
@@ -235,7 +244,7 @@ int main()
                 break;
         }
 
-        if (globalState.activeLayer == 0)  //standard keyboard, just forward everything except command strokes
+        if (globalState.activeLayer == DEFAULT_ACTIVE_LAYER)  //standard keyboard, just forward everything except command strokes
         {
             interception_send(globalState.interceptionContext, globalState.interceptionDevice, (InterceptionStroke *)&loopState.originalIKstroke, 1);
             continue;
@@ -260,10 +269,10 @@ int main()
 
         //basic character key layout. Don't remap the Ctrl combos?
         if (!loopState.isModifier && 
-            !((IS_LCTRL_DOWN || IS_LWIN_DOWN) && feature.LControlLWinBlocksAlphaMapping))
+            !((IS_LCTRL_DOWN || IS_LWIN_DOWN) && option.LControlLWinBlocksAlphaMapping))
         {
             processMapAlphaKeys(loopState.scancode);
-            if (feature.flipZy)
+            if (option.flipZy)
             {
                 switch (loopState.scancode)
                 {
@@ -290,19 +299,21 @@ int main()
 
 void processModifiedKeys()
 {
-    for (ModifierCombo modcombo : allMaps.modCombos)
+    if (loopState.isDownstroke)
     {
-        if (modcombo.key == loopState.originalKeyEvent.scancode)
+        for (ModifierCombo modcombo : allMaps.modCombos)
         {
-            if (
-                (globalState.modifiers & modcombo.modAnd) == modcombo.modAnd &&
-                (globalState.modifiers & modcombo.modNot) == 0 &&
-                ((globalState.modsTapped & modcombo.modTap) == modcombo.modTap)
-                )
+            if (modcombo.key == loopState.scancode)
             {
-                if (loopState.isDownstroke)
+                if (
+                    (globalState.modifiers & modcombo.modAnd) == modcombo.modAnd &&
+                    (globalState.modifiers & modcombo.modNot) == 0 &&
+                    ((globalState.modsTapped & modcombo.modTap) == modcombo.modTap)
+                    )
+                {
                     loopState.resultingKeyEventSequence = modcombo.keyEventSequence;
-                break;
+                    break;
+                }
             }
         }
     }
@@ -340,10 +351,9 @@ bool processCommand()
 #endif
         break;
     case SC_0:
-        globalState.activeLayer = DEFAULT_ACTIVE_LAYER;
-        globalState.layerName = DEFAULT_ACTIVE_LAYER_NAME;
+        cout << "LAYER CHANGE: " << DEFAULT_ACTIVE_LAYER_NAME;
+        switchLayer(DEFAULT_ACTIVE_LAYER);
         resetAlphaMap();
-        cout << "DEFAULT LAYER: " << DEFAULT_ACTIVE_LAYER_NAME;
         break;
     case SC_1:
     case SC_2:
@@ -356,13 +366,8 @@ bool processCommand()
     case SC_9:
     {
         int layer = loopState.scancode - 1;
-        if (parseIni(layer))
-        {
-            globalState.activeLayer = layer;
-            cout << endl << "LAYER CHANGE: " << globalState.layerName;
-        }
-        else
-            cout << endl << "LAYER CHANGE: no Ini was found. Layer " << globalState.activeLayer << " remains active.";
+        cout << "LAYER CHANGE: " << layer;
+        switchLayer(layer);
         break;
     }
     case SC_R:
@@ -372,16 +377,24 @@ bool processCommand()
         cout << endl << (globalState.deviceIsAppleKeyboard ? "APPLE keyboard (flipping Win<>Alt)" : "PC keyboard");
         break;
     case SC_D:
-        feature.debug = !feature.debug;
-        cout << "DEBUG mode: " << (feature.debug ? "ON" : "OFF");
+        option.debug = !option.debug;
+        cout << "DEBUG mode: " << (option.debug ? "ON" : "OFF");
         break;
+    case SC_I:
+    {
+        cout << "INI filtered for layer " << globalState.layerName;
+        vector<string> assembledLayer = assembleLayerConfig(globalState.activeLayer);
+        for (string line : assembledLayer)
+            cout << endl << line;
+        break;
+    }
     case SC_Z:
-        feature.flipZy = !feature.flipZy;
-        cout << "Flip Z<>Y mode: " << (feature.flipZy ? "ON" : "OFF");
+        option.flipZy = !option.flipZy;
+        cout << "Flip Z<>Y mode: " << (option.flipZy ? "ON" : "OFF");
         break;
     case SC_W:
-        feature.flipAltWinOnAppleKeyboards = !feature.flipAltWinOnAppleKeyboards;
-        cout << "Flip ALT<>WIN for Apple boards: " << (feature.flipAltWinOnAppleKeyboards ? "ON" : "OFF") << endl;
+        option.flipAltWinOnAppleKeyboards = !option.flipAltWinOnAppleKeyboards;
+        cout << "Flip ALT<>WIN for Apple boards: " << (option.flipAltWinOnAppleKeyboards ? "ON" : "OFF") << endl;
         break;
     case SC_E:
         cout << "ERROR LOG: " << endl << errorLog << endl;
@@ -393,14 +406,14 @@ bool processCommand()
         printHelp();
         break;
     case SC_COMMA:
-        if (feature.delayForKeySequenceMS >= 1)
-            feature.delayForKeySequenceMS -= 1;
-        cout << "delay between characters in key sequences (ms): " << dec << feature.delayForKeySequenceMS;
+        if (option.delayForKeySequenceMS >= 1)
+            option.delayForKeySequenceMS -= 1;
+        cout << "delay between characters in key sequences (ms): " << dec << option.delayForKeySequenceMS;
         break;
     case SC_DOT:
-        if (feature.delayForKeySequenceMS <= 100)
-            feature.delayForKeySequenceMS += 1;
-        cout << "delay between characters in key sequences (ms): " << dec << feature.delayForKeySequenceMS;
+        if (option.delayForKeySequenceMS <= 100)
+            option.delayForKeySequenceMS += 1;
+        cout << "delay between characters in key sequences (ms): " << dec << option.delayForKeySequenceMS;
         break;
     case SC_A:
     {
@@ -511,7 +524,7 @@ void processKeyToModifierMapping()
 {
     bool stopProcessing = false;
 
-    if (feature.flipAltWinOnAppleKeyboards && globalState.deviceIsAppleKeyboard)
+    if (option.flipAltWinOnAppleKeyboards && globalState.deviceIsAppleKeyboard)
     {
         switch (loopState.scancode)
         {
@@ -522,7 +535,7 @@ void processKeyToModifierMapping()
         }
     }
 
-    if (feature.altAltToAlt)
+    if (option.altAltToAlt)
     {
         if (loopState.scancode == SC_LALT || loopState.scancode == SC_RALT)
         {
@@ -553,7 +566,7 @@ void processKeyToModifierMapping()
             }
         }
 
-    if (!stopProcessing && feature.shiftShiftToShiftLock)
+    if (!stopProcessing && option.shiftShiftToShiftLock)
     {
         switch (loopState.scancode)
         {
@@ -590,7 +603,7 @@ void processKeyToModifierMapping()
 void playKeyEventSequence(vector<KeyEvent> keyEventSequence)
 {
     KeyEvent newKeyEvent;
-    unsigned int delayBetweenKeyEventsMS = feature.delayForKeySequenceMS;
+    unsigned int delayBetweenKeyEventsMS = option.delayForKeySequenceMS;
     bool inCpsEscape = false;  //inside an escape sequence, read next keyEvent
 
     IFDEBUG cout << "\t--> SEQUENCE (" << dec << keyEventSequence.size() << ")";
@@ -719,161 +732,252 @@ void initConsoleWindow()
 
 // Parses the OPTIONS section.
 // Returns false if section does not exist.
-bool parseIniOptions(int layer)
+bool parseIniOptions(std::vector<std::string> assembledIni)
 {
-    vector<string> sectLines = getSection_nOrDefaultFromIni(INI_SECTNAME_OPTIONS, layer, sanitizedIniContent);
+    vector<string> sectLines = getTaggedLinesFromIni(INI_TAG_OPTIONS, assembledIni);
     if (sectLines.size() == 0)
         return false;
 
-    string tmp;
-    if (getStringValueForKeyInSection("layerName", tmp, sectLines))
-        globalState.layerName += "-" + tmp;
-
-    if (!getStringValueForKeyInSection("iniVersion", feature.iniVersion, sectLines))
-        feature.iniVersion = "iniVersion_undefined";
-
-    if (!getIntValueForKeyInSection("delayForKeySequenceMS", feature.delayForKeySequenceMS, sanitizedIniContent))
+    if (!getIntValueForKey("delayForKeySequenceMS", option.delayForKeySequenceMS, sectLines))
     {
-        feature.delayForKeySequenceMS = DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;
-        IFDEBUG cout << endl << "No ini setting for 'delayForKeySequenceMS'. Using default " << DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;
+        option.delayForKeySequenceMS = DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;
+        IFDEBUG cout << endl << "No ini setting for 'option delayForKeySequenceMS'. Using default " << DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;
     }
 
-    feature.debug = sectionHasKey("debug", sectLines);
-    feature.flipZy = sectionHasKey("flipZy", sectLines);
-    feature.shiftShiftToShiftLock = sectionHasKey("shiftShiftToShiftLock", sectLines);
-    feature.altAltToAlt = sectionHasKey("altAltToAlt", sectLines);
-    feature.flipAltWinOnAppleKeyboards = sectionHasKey("flipAltWinOnAppleKeyboards", sectLines);
-    feature.LControlLWinBlocksAlphaMapping = sectionHasKey("LControlLWinBlocksAlphaMapping", sectLines);
-    feature.processOnlyFirstKeyboard = sectionHasKey("processOnlyFirstKeyboard", sectLines);
+    option.debug = configHasKey("debug", sectLines);
+    option.flipZy = configHasKey("flipZy", sectLines);
+    option.shiftShiftToShiftLock = configHasKey("shiftShiftToShiftLock", sectLines);
+    option.altAltToAlt = configHasKey("altAltToAlt", sectLines);
+    option.flipAltWinOnAppleKeyboards = configHasKey("flipAltWinOnAppleKeyboards", sectLines);
+    option.LControlLWinBlocksAlphaMapping = configHasKey("LControlLWinBlocksAlphaMapping", sectLines);
+    option.processOnlyFirstKeyboard = configHasKey("processOnlyFirstKeyboard", sectLines);
     return true;
 }
 
-bool parseIniModifiers(int layer)
+bool parseIniModifiers(std::vector<std::string> assembledIni)
 {
-    allMaps.keyModifierIftappedMapping.clear();
-
-    vector<string> sectLines = getSection_nOrDefaultFromIni(INI_SECTNAME_MODIFIERS, layer, sanitizedIniContent);
+    vector<string> sectLines = getTaggedLinesFromIni(INI_TAG_MODIFIERS, assembledIni);
     if (sectLines.size() == 0)
         return false;
 
-    string tmp;
-    if (getStringValueForKeyInSection("layerName", tmp, sectLines))
-        globalState.layerName += "-" + tmp;
-
-    unsigned char keyIn, keyOut, keyIftapped;
+    allMaps.keyModifierIftappedMapping.clear();
+    unsigned char keyIn, keyOut, keyIfTapped;
     for (string line : sectLines)
     {
-        if (parseThreeTokenMapping(line, keyIn, keyOut, keyIftapped, SCANCODE_LABELS))
-            allMaps.keyModifierIftappedMapping.push_back({ keyIn, keyOut, keyIftapped });
-        else if(stringGetFirstToken(line) != "layername")
-            error("[LAYER" + to_string(layer) + "] Cannot parse modifier / three token mapping: " + line);
+        if (parseThreeScancodesMapping(line, keyIn, keyOut, keyIfTapped, SCANCODE_LABELS))
+        {
+            bool isDuplicate = false;
+            for (KeyModifierIftappedMapping test : allMaps.keyModifierIftappedMapping)
+            {
+                if (test.inkey == keyIn) 
+                {
+                    if( test.outkey != keyOut || test.ifTapped != keyIfTapped)
+                        IFDEBUG cout << endl << "WARNING: ignoring redefinition of Modifier mapping: "
+                            << SCANCODE_LABELS[keyIn] << " " << SCANCODE_LABELS[keyOut] << " " << SCANCODE_LABELS[keyIfTapped];
+                    isDuplicate = true;
+                    break;
+                }
+            }
+            if(!isDuplicate)
+                allMaps.keyModifierIftappedMapping.push_back({ keyIn, keyOut, keyIfTapped });
+        }
+        else
+            error("Cannot parse modifier / three token mapping: " + line);
     }
     return true;
 }
 
-bool parseIniCombos(int layer)
+bool parseIniCombos(std::vector<std::string> assembledIni)
 {
-    allMaps.modCombos.clear();
-
-    vector<string> sectLines = getSection_nOrDefaultFromIni(INI_SECTNAME_COMBOS, layer, sanitizedIniContent);
+    vector<string> sectLines = getTaggedLinesFromIni(INI_TAG_COMBOS, assembledIni);
     if (sectLines.size() == 0)
         return false;
 
-    string tmp;
-    if (getStringValueForKeyInSection("layerName", tmp, sectLines))
-        globalState.layerName += "-" + tmp;
-
+    allMaps.modCombos.clear();
     unsigned short mods[3] = { 0 }; //and, not, tap (nop, for)
     vector<KeyEvent> keyEventSequence;
 
     for (string line : sectLines)
     {
         unsigned short key;
-        if (parseModCombo(line, key, mods, keyEventSequence, SCANCODE_LABELS))
-            allMaps.modCombos.push_back({ key, mods[0], mods[1], mods[2], keyEventSequence });
+        if (parseCombo(line, key, mods, keyEventSequence, SCANCODE_LABELS))
+        {
+            bool isDuplicate = false;
+            for (ModifierCombo testcombo : allMaps.modCombos)
+            {
+                if (key == testcombo.key && mods[0] == testcombo.modAnd
+                    && mods[1] == testcombo.modNot && mods[2] == testcombo.modTap)
+                {
+                    //warn only if the combos are different
+                    bool redefined = false;
+                    if (testcombo.keyEventSequence.size() == keyEventSequence.size())
+                    {
+                        for (int i = 0; i < keyEventSequence.size(); i++)
+                        {
+                            if (keyEventSequence[i].scancode != testcombo.keyEventSequence[i].scancode
+                                || keyEventSequence[i].isDownstroke != testcombo.keyEventSequence[i].isDownstroke)
+                            {
+                                redefined = true;
+                                break;
+                            }
+                        }
+                    }
+                    else
+                        redefined = true;
+
+                    if(redefined)
+                        IFDEBUG cout << endl << "WARNING: Ignoring redefinition of Combo: " <<
+                            SCANCODE_LABELS[key] << " [ " << hex << mods[0] << ", " << mods[1] << ", " << mods[2] << "] > ...";
+
+                    isDuplicate = true;
+                    break;
+                }
+            }
+            if(!isDuplicate)
+                allMaps.modCombos.push_back({ key, mods[0], mods[1], mods[2], keyEventSequence });
+        }
         else
-            error("[LAYER" + to_string(layer) + "] Cannot parse combo: " + line);
+            error("Cannot parse combo: " + line);
     }
     return true;
 }
 
-bool parseIniAlphaMappingLayer(int layer)
+bool parseIniAlphaLayout(std::vector<std::string> assembledIni)
 {
+    string tagFrom = stringToLower(INI_TAG_ALPHA_FROM);
+    string tagEnd = stringToLower(INI_TAG_ALPHA_END);
+
     resetAlphaMap();
-    vector<string> sectLines = getSection_nOrDefaultFromIni(INI_SECTNAME_ALPHA, layer, sanitizedIniContent);
-
-    if (sectLines.size() == 0)
-        return false;
-
-    string tmp;
-    if(getStringValueForKeyInSection("layerName", tmp, sectLines))
-        globalState.layerName += "-" +tmp;
-
-    unsigned char keyIn, keyOut;
     string mapFromTo = "";
     bool inMapFromTo = false;
-    for (string line : sectLines)
+    for (string line : assembledIni)
     {
         string firstToken = stringGetFirstToken(line);
-        if (firstToken == "layername")
-            continue;
-        else if (firstToken == "mapfrom")
+        if (firstToken == tagFrom)
         {
+            if (inMapFromTo)
+            {
+                error("Bad " + INI_TAG_ALPHA_FROM + ".." + INI_TAG_ALPHA_TO + "definition - received second "+ INI_TAG_ALPHA_FROM +". Forgot the "+INI_TAG_ALPHA_END+"?");
+                return false;
+            }
             inMapFromTo = true;
-            mapFromTo = line.substr(7) + " ";
+            mapFromTo = stringGetRestBehindFirstToken(line) + " ";
         }
-        else if (firstToken == "mapend")
+        else if (firstToken == tagEnd)
         {
             inMapFromTo = false;
             if (!parseMapFromTo(mapFromTo, allMaps.alphamap, SCANCODE_LABELS))
-                error("[LAYER" + to_string(layer) + "] Cannot parse the MAPFROM/MAPTO/MAPEND alpha definition");
+                error("Cannot parse the " + INI_TAG_ALPHA_FROM + ".." + INI_TAG_ALPHA_TO + " alpha definition");
         }
         else if (inMapFromTo)
         {
             mapFromTo += line + " ";
         }
-        else
-        {
-            if (parseTwoTokenMapping(line, keyIn, keyOut, SCANCODE_LABELS))
-                allMaps.alphamap[keyIn] = keyOut;
-            else
-                error("[LAYER" + to_string(layer) + "] Cannot parse simple alpha mapping: " + line);
-        }
     }
     return true;
 }
 
+//insert all the INCLUDEd sub-sections into the base layer section
+std::vector<std::string> assembleLayerConfig(int layer)
+{
+    string sectionName = "layer_" + to_string(layer);
+    vector<string> assembledIni = getSectionFromIni(sectionName, sanitizedIniContent);
 
-bool parseIni(int layer)
+    while (true)
+    {
+        bool foundInclude = false;
+        for (int i = 0; i < assembledIni.size(); i++)
+        {
+            string line = assembledIni.at(i);
+            if (stringStartsWith(line, "include "))
+            {
+                assembledIni.erase(assembledIni.begin() + i);
+                string subSectionName = stringGetRestBehindFirstToken(line);
+                vector<string> subsection = getSectionFromIni(subSectionName, sanitizedIniContent);
+                if (subsection.size() == 0)
+                {
+                    error("Subsection [" + subSectionName + "] does not exist or is empty)");
+                }
+                else
+                {
+                    IFDEBUG cout << endl << "inserting sub-section: " + subSectionName << " (" << subsection.size() << " lines)";
+                    assembledIni.insert(assembledIni.begin() + i, subsection.begin(), subsection.end());
+                }
+                foundInclude = true;
+                break;
+            }
+        }
+        if (!foundInclude)
+            break;
+    }
+
+    return assembledIni;
+}
+
+bool parseIni(int layer, std::string &newLayerName)
 {
     if (sanitizedIniContent.size() == 0)
+    {
+        cout << endl << "Capsicain.ini is missing or empty.";
         return false;
+    }
 
-    globalState.layerName = to_string(layer);
+    option.debug = false;
+    vector<string> assembledLayer = assembleLayerConfig(layer);
+    if (assembledLayer.size() == 0)
+    {
+        cout << endl << "No valid configuration for Layer " << layer;
+        return false;
+    }
+    if (configHasTaggedKey(INI_TAG_OPTIONS, "debug", assembledLayer))
+    {
+        option.debug = true;
+        assembledLayer = assembleLayerConfig(layer);  //repeat just for the debug output
+    }
+    IFDEBUG cout << endl << "Assembled config for Layer " << layer << " : " << dec << assembledLayer.size() << " lines";
 
-    if (!parseIniOptions(layer))
-        IFDEBUG cout << endl << "No section [[" << INI_SECTNAME_OPTIONS << "]], using defaults";
-
-    if (!parseIniModifiers(layer))
-        IFDEBUG cout << endl << "No section [[" << INI_SECTNAME_MODIFIERS << "]]";
-    IFDEBUG cout << endl << "Modif Defs: " << allMaps.keyModifierIftappedMapping.size();
-
-    if (!parseIniCombos(layer))
-        IFDEBUG cout << endl << "No section [[" << INI_SECTNAME_COMBOS << "]]";
-    IFDEBUG cout << endl << "Combo Defs: " << allMaps.modCombos.size();
-
-    if (!parseIniAlphaMappingLayer(layer))
-            cout << endl << "No section [[" << INI_SECTNAME_ALPHA << "]]";
+    parseIniOptions(assembledLayer);
+    parseIniModifiers(assembledLayer);
+    IFDEBUG cout << endl << "Mod   Definitions: " << dec << allMaps.keyModifierIftappedMapping.size();
+    parseIniCombos(assembledLayer);
+    IFDEBUG cout << endl << "Combo Definitions: " << dec << allMaps.modCombos.size();
+    parseIniAlphaLayout(assembledLayer);
     IFDEBUG
     {
         int remapped = 0;
-    for (int i = 0; i < 256; i++)
-        if (i != allMaps.alphamap[i])
-            remapped++;
-        cout << endl << "Alpha Defs: " << remapped;
+        for (int i = 0; i < 256; i++)
+            if (i != allMaps.alphamap[i])
+                remapped++;
+        cout << endl << "Alpha Definitions: " << dec << remapped;
     }
 
+    if (!getStringValueForTaggedKey(INI_TAG_OPTIONS, "layerName", newLayerName, assembledLayer))
+        newLayerName = "OPTION_layerName_undefined";
+
     return true;
+}
+
+void switchLayer(int layer)
+{
+    string newLayerName;
+
+    if (layer == 0)
+    {
+        globalState.activeLayer = DEFAULT_ACTIVE_LAYER;
+        globalState.layerName = "(" + to_string(DEFAULT_ACTIVE_LAYER) + ") " + DEFAULT_ACTIVE_LAYER_NAME;
+    }
+    else if (parseIni(layer, newLayerName))
+    {
+        globalState.activeLayer = layer;
+        globalState.layerName = "(" + to_string(layer) + ") " + newLayerName;
+    }
+    else
+    {
+        switchLayer(DEFAULT_ACTIVE_LAYER);
+        return;
+    }
+
+    cout << endl << "ACTIVE LAYER: " << globalState.layerName;
 }
 
 void resetCapsNumScrollLock()
@@ -916,7 +1020,7 @@ void resetAllStatesToDefault()
     globalState.modsTapped = 0;
     globalState.lastModBrokeTapping = false;
 
-    feature.delayForKeySequenceMS = DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;
+    option.delayForKeySequenceMS = DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;
 
     resetCapsNumScrollLock();
     resetLoopState();
@@ -944,16 +1048,14 @@ void printHelloHeader()
 void printHelloFeatures()
 {
     cout
-        << endl << endl << "ini version: " << feature.iniVersion
-        << endl << "Active Layer: " << globalState.layerName
-
+        << endl << "ini version: " << option.iniVersion
         << endl << endl << "FEATURES"
-        << endl << (feature.flipZy ? "ON:" : "OFF:") << " Z <-> Y"
-        << endl << (feature.shiftShiftToShiftLock ? "ON:" : "OFF:") << " LShift + RShift -> ShiftLock"
-        << endl << (feature.altAltToAlt ? "ON:" : "OFF:") << " LAlt + RAlt -> Alt"
-        << endl << (feature.flipAltWinOnAppleKeyboards ? "ON:" : "OFF:") << " Alt <-> Win for Apple keyboards"
-        << endl << (feature.LControlLWinBlocksAlphaMapping ? "ON:" : "OFF:") << " Left Control and Win block alpha key mapping ('Ctrl + C is never changed')"
-        << endl << (feature.processOnlyFirstKeyboard ? "ON:" : "OFF:") << " Process only the keyboard that sent the first key"
+        << endl << (option.flipZy ? "ON:" : "OFF:") << " Z <-> Y"
+        << endl << (option.shiftShiftToShiftLock ? "ON:" : "OFF:") << " LShift + RShift -> ShiftLock"
+        << endl << (option.altAltToAlt ? "ON:" : "OFF:") << " LAlt + RAlt -> Alt"
+        << endl << (option.flipAltWinOnAppleKeyboards ? "ON:" : "OFF:") << " Alt <-> Win for Apple keyboards"
+        << endl << (option.LControlLWinBlocksAlphaMapping ? "ON:" : "OFF:") << " Left Control and Win block alpha key mapping ('Ctrl + C is never changed')"
+        << endl << (option.processOnlyFirstKeyboard ? "ON:" : "OFF:") << " Process only the keyboard that sent the first key"
         ;
 }
 
@@ -967,13 +1069,13 @@ void printStatus()
     }
     cout << "STATUS" << endl << endl
         << "Capsicain version: " << VERSION << endl
-        << "ini version: " << feature.iniVersion << endl
+        << "ini version: " << option.iniVersion << endl
         << "hardware id:" << globalState.deviceIdKeyboard << endl
         << "Apple keyboard: " << globalState.deviceIsAppleKeyboard << endl
         << "active layer: " << globalState.layerName << endl
         << "modifier state: " << hex << globalState.modifiers << endl
-        << "delay between keys in sequences (ms): " << feature.delayForKeySequenceMS << endl
-        << "# keys down sent: " << numMakeSent << endl
+        << "delay between keys in sequences (ms): " << option.delayForKeySequenceMS << endl
+        << "number of keys-down sent: " << numMakeSent << endl
         << (errorLog.length() > 1 ? "ERROR LOG contains entries" : "clean error log") << " (" << errorLog.length() << " chars)" << endl
         ;
 }
@@ -987,6 +1089,7 @@ void printHelp()
         << "[S] Status" << endl
         << "[R] Reset" << endl
         << "[D] Debug mode output" << endl
+        << "[I] Show processed Ini for the active layer" << endl
         << "[E] Error log" << endl
         << "[A] AHK start" << endl
         << "[K] AHK end" << endl
@@ -1061,7 +1164,6 @@ void reset()
 
     IFDEBUG cout << endl << "Resetting all modifiers to UP" << endl;
     vector<KeyEvent> keyEventSequence;
-
     keyEventSequence.push_back({SC_LSHIFT, false });
     keyEventSequence.push_back({SC_RSHIFT, false });
     keyEventSequence.push_back({SC_LCTRL, false});
@@ -1074,14 +1176,14 @@ void reset()
     keyEventSequence.push_back({AHK_HOTKEY1, false});
     keyEventSequence.push_back({AHK_HOTKEY2, false});
     playKeyEventSequence(keyEventSequence);
-
     for (int i = 0; i < 255; i++)
     {
         globalState.keysDownSent[i] = false;
     }
 
     readIniFile(sanitizedIniContent);
-    parseIni(globalState.activeLayer);
+    readGlobalsOnStartup();
+    switchLayer(globalState.activeLayer);
 }
 
 

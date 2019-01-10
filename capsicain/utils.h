@@ -13,6 +13,7 @@ std::chrono::steady_clock::time_point timepointNow();
 
 bool stringStartsWith(std::string haystack, std::string needle);
 std::string stringGetLastToken(std::string line);
+std::string stringGetRestBehindFirstToken(std::string line);
 std::string stringGetFirstToken(std::string line);
 std::string stringToLower(std::string str);
 std::string stringToUpper(std::string str);

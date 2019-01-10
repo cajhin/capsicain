@@ -11,11 +11,14 @@ enum KEYSTATE
     KEYSTATE_EXT_UP = 3,
 };
 
-const std::string INI_SECTNAME_STARTUP = "STARTUP";
-const std::string INI_SECTNAME_OPTIONS = "OPTIONS";
-const std::string INI_SECTNAME_MODIFIERS = "MODIFIERS";
-const std::string INI_SECTNAME_COMBOS = "COMBOS";
-const std::string INI_SECTNAME_ALPHA = "ALPHA";
+const std::string INI_TAG_INCLUDE = "INCLUDE";
+const std::string INI_TAG_GLOBAL = "GLOBAL";
+const std::string INI_TAG_OPTIONS = "OPTION";
+const std::string INI_TAG_MODIFIERS = "MODIFIER";
+const std::string INI_TAG_COMBOS = "COMBO";
+const std::string INI_TAG_ALPHA_FROM = "ALPHA_FROM";
+const std::string INI_TAG_ALPHA_TO = "ALPHA_TO";
+const std::string INI_TAG_ALPHA_END = "ALPHA_END";
 
 
 void keySequenceAppendMakeKey(unsigned short scancode, std::vector<KeyEvent> &sequence);
@@ -45,14 +48,13 @@ void getHardwareId();
 
 void initConsoleWindow();
 
-bool parseIniAlphaMappingLayer(int layer);
-
 void printHelloHeader();
-
 void printStatus();
 void printHelp();
 void reset();
+std::vector<std::string> assembleLayerConfig(int layer);
 bool parseIni(int layer);
+void switchLayer(int layer);
 void resetCapsNumScrollLock();
 void resetAlphaMap();
 
@@ -60,5 +62,5 @@ void resetLoopState();
 
 void resetAllStatesToDefault();
 
-#define IFDEBUG if(feature.debug) 
+#define IFDEBUG if(option.debug) 
 

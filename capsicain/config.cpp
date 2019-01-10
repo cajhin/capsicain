@@ -36,7 +36,7 @@ void normalizeLine(string &line)
     std::transform(line.begin(), line.end(), line.begin(), ::tolower);
 }
 
-// Read .ini file, normalize lines, drop empty lines, drop [[Reference* sections
+// Read .ini file, normalize lines, drop empty lines, drop [Reference* sections
 bool readIniFile(std::vector<string> &iniLines)
 {
     iniLines.clear();
@@ -50,9 +50,9 @@ bool readIniFile(std::vector<string> &iniLines)
         normalizeLine(line);
         if (line == "")
             continue;
-        if (stringStartsWith(line, "[[reference"))
+        if (stringStartsWith(line, "[reference"))
             inReferenceSection = true;
-        else if (stringStartsWith(line, "[["))
+        else if (stringStartsWith(line, "[") && ! stringStartsWith(line, "[ "))
             inReferenceSection = false;
         if(!inReferenceSection)
             iniLines.push_back(line);
@@ -67,16 +67,8 @@ bool readIniFile(std::vector<string> &iniLines)
     return true;
 }
 
-// Get the lines in section "NAME_3" or if it does not exist, "NAME_DEFAULT".
-std::vector<std::string> getSection_nOrDefaultFromIni(std::string sectionName, int sectionVersion, std::vector<string> iniContent)
-{
-    std::vector<std::string> sectionContent;
-    sectionContent = (getSectionFromIni(sectionName + "_" + to_string(sectionVersion), iniContent));
-    if(sectionContent.size() == 0)
-        sectionContent = getSectionFromIni(sectionName, iniContent);
-    return sectionContent;
-}
 
+//Returns empty vector if section does not exist, or is empty
 std::vector<std::string> getSectionFromIni(std::string sectionName, std::vector<std::string> iniContent)
 {
     std::vector<std::string> sectionContent;
@@ -84,21 +76,35 @@ std::vector<std::string> getSectionFromIni(std::string sectionName, std::vector<
     string line;
     bool inSection = false;
 
-    for(string line : iniContent)
+    for (string line : iniContent)
     {
-        if (stringStartsWith(line, "[[" + sectName + "]]"))
+
+        if (stringStartsWith(line, "[" + sectName + "]"))
             inSection = true;
         else if (inSection)
         {
-            if (stringStartsWith(line, "[["))
+            if (stringStartsWith(line, "["))
                 break;
             sectionContent.push_back(line);
         }
     }
     return sectionContent;
 }
+//Returns all lines starting with tag, with the tag removed, or empty vector if none
+std::vector<std::string> getTaggedLinesFromIni(std::string tag, std::vector<std::string> iniContent)
+{
+    std::vector<std::string> taggedContent;
+    tag = stringToLower(tag);
+    string line;
+    for (string line : iniContent)
+    {
+        if (stringGetFirstToken(line) == tag)
+            taggedContent.push_back(stringGetRestBehindFirstToken(line));
+    }
+    return taggedContent;
+}
 
-bool sectionHasKey(string key, vector<string> sectionLines)
+bool configHasKey(string key, vector<string> sectionLines)
 {
     key = stringToLower(key);
     for (string line : sectionLines)
@@ -109,24 +115,59 @@ bool sectionHasKey(string key, vector<string> sectionLines)
     return false;
 }
 
-bool getStringValueForKeyInSection(string key, std::string &value, vector<string> sectionLines)
+bool configHasTaggedKey(std::string tag, std::string key, std::vector<std::string> sectionLines)
 {
+    tag = stringToLower(tag);
     key = stringToLower(key);
     for (string line : sectionLines)
     {
-        if (stringGetFirstToken(line) == key)
+        if (stringGetFirstToken(line) == tag
+            && stringGetFirstToken(stringGetRestBehindFirstToken(line)) == key)
+            return true;
+    }
+    return false;
+}
+
+bool getStringValueForTaggedKey(string tag, string key, std::string &value, vector<string> sectionLines)
+{
+    tag = stringToLower(tag);
+    key = stringToLower(key);
+    vector<string> splitline;
+    value = "";
+    for (string line : sectionLines)
+    {
+        splitline = stringSplit(line, ' ');
+        if (splitline.size() < 3)
+            continue;
+        if (splitline.at(0) == tag && splitline.at(1) == key)
         {
-            value = stringGetLastToken(line);
+            for (int i = 2; i < splitline.size(); i++)
+                value += splitline.at(i) + " ";
+            normalizeLine(value);
             return true;
         }
     }
     return false;
 }
 
-bool getIntValueForKeyInSection(string key, int &value, vector<string> sectionLines)
+bool getStringValueForKey(std::string key, std::string &value, vector<string> sectionLines)
+{
+    key = stringToLower(key);
+    for (string line : sectionLines)
+    {
+        if (stringStartsWith(line, key))
+        {
+            value = stringGetRestBehindFirstToken(line);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool getIntValueForTaggedKey(string tag, string key, int &value, vector<string> sectionLines)
 {
     string val;
-    if (!getStringValueForKeyInSection(key, val, sectionLines))
+    if (!getStringValueForTaggedKey(tag, key, val, sectionLines))
         return false;
     try
     {
@@ -140,7 +181,24 @@ bool getIntValueForKeyInSection(string key, int &value, vector<string> sectionLi
     return true;
 }
 
-//ini parsing
+bool getIntValueForKey(std::string key, int &value, vector<std::string> sectionLines)
+{
+    key = stringToLower(key);
+    string val;
+    if (!getStringValueForKey(key, val, sectionLines))
+        return false;
+    try
+    {
+        value = stoi(val);
+    }
+    catch (...)
+    {
+        cout << endl << "Error: not a number: " << val;
+        return false;
+    }
+    return true;
+}
+
 std::string stringGetFirstToken(std::string line)
 {
     size_t idx = line.find_first_of(" ");
@@ -152,35 +210,31 @@ std::string stringGetLastToken(std::string line)
 {
     return line.substr(line.find_last_of(' ') + 1);
 }
-
-// parse "A B"
-bool parseTwoTokenMapping(std::string line, unsigned char &keyIn, unsigned char &keyOut, std::string scLabels[])
+std::string stringGetRestBehindFirstToken(std::string line)
 {
-    string a = stringToUpper(stringGetFirstToken(line));
-    string b = stringToUpper(stringGetLastToken(line));
-    keyIn = getScancode(a, scLabels);
-    keyOut = getScancode(b, scLabels);
-    if ((keyIn == 0 && a != "nop") || (keyOut == 0 && b != "nop"))
-        return false; //invalid key label
-    return true;
+    size_t idx = line.find_first_of(" ");
+    if (idx == std::string::npos)
+        return("");
+    line = line.substr(idx);
+    line.erase(0, line.find_first_not_of(' '));
+    return line;
 }
 
 // parse "a b c MAPTO x y z"
-bool parseMapFromTo(std::string mapFromTo, unsigned char (&alphamap)[256], std::string scLabels[])
+bool parseMapFromTo(std::string alpha_to, unsigned char (&alphamap)[256], std::string scLabels[])
 {
-    size_t idx1 = mapFromTo.find("mapto");
+    size_t idx1 = alpha_to.find(stringToLower(INI_TAG_ALPHA_TO));
     if (idx1 == string::npos)
         return false;
-    string tmpfrom = (mapFromTo.substr(0, idx1));
-    string tmpto = (mapFromTo.substr(idx1 + 5));
+    string tmpfrom = (alpha_to.substr(0, idx1));
+    string tmpto = (alpha_to.substr(idx1 + INI_TAG_ALPHA_TO.length()));
     normalizeLine(tmpfrom);
     normalizeLine(tmpto);
     vector<string> sfrom = stringSplit(tmpfrom, ' ');
     vector<string> sto = stringSplit(tmpto, ' ');
-
     if (sfrom.size() == 0 || sfrom.size() != sto.size())
     {
-        cout << endl << "FROM and TO lists are different size";
+        cout << endl << "ERROR: " << INI_TAG_ALPHA_FROM << " and " << INI_TAG_ALPHA_TO << " lists are different size";
         return false;
     }
 
@@ -194,13 +248,17 @@ bool parseMapFromTo(std::string mapFromTo, unsigned char (&alphamap)[256], std::
             cout << endl << "Unknown scancode labels: " << sfrom[i] << " and " << sto[i];
             return false;
         }
+        if (alphamap[cfrom] != cfrom)
+        {
+            cout << endl << "WARNING: Ignoring redefinition of alpha key: " << sfrom[i] << " to " << sto[i];
+        }
         alphamap[cfrom] = cto;
     }
     return true;
 }
 
-// parse "A B C"
-bool parseThreeTokenMapping(std::string line, unsigned char &keyA, unsigned char &keyB, unsigned char &keyC, std::string scLabels[])
+// parse scancodes "A B C"
+bool parseThreeScancodesMapping(std::string line, unsigned char &keyA, unsigned char &keyB, unsigned char &keyC, std::string scLabels[])
 {
     vector<string> labels = stringSplit(line, ' ');
     if (labels.size() != 3)
@@ -249,7 +307,7 @@ bool parseCombo(std::string &funcParams, std::string * scLabels, std::vector<Key
 }
 
 //parse H  [^^^v .--. ....] > function(param)
-bool parseModCombo(std::string line, unsigned short &key, unsigned short(&mods)[3], std::vector<KeyEvent> &strokeSequence, std::string scLabels[])
+bool parseCombo(std::string line, unsigned short &key, unsigned short(&mods)[3], std::vector<KeyEvent> &strokeSequence, std::string scLabels[])
 {
     string strkey = stringGetFirstToken(line);
     if (strkey.length() < 1)
