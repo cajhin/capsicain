@@ -14,7 +14,7 @@
 
 using namespace std;
 
-const string VERSION = "45";
+const string VERSION = "46";
 
 string SCANCODE_LABELS[256]; // contains [01]="ESC" instead of SC_ESCAPE 
 
@@ -37,7 +37,7 @@ struct Options
     int delayForKeySequenceMS = DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;
     bool flipZy = false;
     bool altAltToAlt = false;
-    bool shiftShiftToShiftLock = false;
+    bool shiftShiftToCapsLock = false;
     bool flipAltWinOnAppleKeyboards = false;
     bool LControlLWinBlocksAlphaMapping = false;
     bool processOnlyFirstKeyboard = false;
@@ -566,7 +566,7 @@ void processKeyToModifierMapping()
             }
         }
 
-    if (!stopProcessing && option.shiftShiftToShiftLock)
+    if (!stopProcessing && option.shiftShiftToCapsLock)
     {
         switch (loopState.scancode)
         {
@@ -605,6 +605,7 @@ void playKeyEventSequence(vector<KeyEvent> keyEventSequence)
     KeyEvent newKeyEvent;
     unsigned int delayBetweenKeyEventsMS = option.delayForKeySequenceMS;
     bool inCpsEscape = false;  //inside an escape sequence, read next keyEvent
+    int escapeSequenceType = 0; // 1: escape sequence to temp release modifiers; 2: pause; 3... undefined
 
     IFDEBUG cout << "\t--> SEQUENCE (" << dec << keyEventSequence.size() << ")";
     for (KeyEvent keyEvent : keyEventSequence)
@@ -614,17 +615,17 @@ void playKeyEventSequence(vector<KeyEvent> keyEventSequence)
             if (keyEvent.isDownstroke)
             {
                 if(inCpsEscape)
-                    error("Received double SC_CPS_ESC down.");
+                    error("Internal error: Received double SC_CPS_ESC down.");
                 else
                 {
                     if (globalState.modsTempAltered.size() > 0)
                     {
-                        error("Internal error: previous escape sequence was not undone.");
+                        error("Internal error: previous escape sequence for 'temp alter mods' was not undone.");
                         globalState.modsTempAltered.clear();
                     }
                 }
-            }			
-            else 
+            }
+            else if (escapeSequenceType == CPS_ESC_SEQUENCE_TYPE_TEMPALTERMODIFIERS)
             {
                 if (inCpsEscape) //play the escape sequence
                 {
@@ -636,6 +637,7 @@ void playKeyEventSequence(vector<KeyEvent> keyEventSequence)
                 }
                 else //undo the previous temp modifier changes, in reverse order
                 {
+                    IFDEBUG cout << endl << "undo alter modifiers" << keyEvent.scancode;
                     KeyEvent strk;
                     for (size_t i = globalState.modsTempAltered.size(); i>0; i--)
                     {
@@ -645,39 +647,76 @@ void playKeyEventSequence(vector<KeyEvent> keyEventSequence)
                         Sleep(delayBetweenKeyEventsMS);
                     }
                     globalState.modsTempAltered.clear();
+                    escapeSequenceType = 0;
                 }
+            }
+            else
+            {
+                error("Internal error: received a SC_CPS_ESC UP but we're not in any escape sequence.");
+                escapeSequenceType = 0;
             }
             inCpsEscape = keyEvent.isDownstroke;
             continue;
         }
-        if (inCpsEscape)  //currently only one escape function: conditional break/make of modifiers
+        if (inCpsEscape)  //first key after SC_CAP_ESC = escape function: 1=conditional break/make of modifiers, 2=Pause
         {
-            //the scancode is a modifier bitmask. Press/Release keys as necessary.
-            //make modifier IF the system knows it is up
-            unsigned short tempModChange = keyEvent.scancode;		//escaped scancode carries the modifier bitmask
-            KeyEvent newKeyEvent;
-
-            if (keyEvent.isDownstroke)  //make modifiers when they are up
+            if (escapeSequenceType == 0)
             {
-                unsigned short exor = globalState.modifiers ^ tempModChange; //figure out which ones we must press
-                tempModChange &= exor;
+                switch (keyEvent.scancode)
+                {
+                case 1:
+                case 2:
+                    escapeSequenceType = keyEvent.scancode;
+                    IFDEBUG cout << endl << "CPS_ESC_SEQUENCE_TYPE: " << keyEvent.scancode;
+                    break;
+                default:
+                    error("internal error: escapeSequenceType not defined: " + to_string(keyEvent.scancode));
+                    return;
+                }
             }
-            else	//break mods if down
-                tempModChange &= globalState.modifiers;
-
-            newKeyEvent.isDownstroke = keyEvent.isDownstroke;
-
-            const int NUMBER_OF_MODIFIERS_ALTERED_IN_SEQUENCES = 8; //high modifiers are skipped because they are never sent anyways.
-            for (int i = 0; i < NUMBER_OF_MODIFIERS_ALTERED_IN_SEQUENCES; i++)  //push keycodes for all mods to be altered
+            else if (escapeSequenceType == CPS_ESC_SEQUENCE_TYPE_TEMPALTERMODIFIERS)
             {
-                unsigned short modBitmask = tempModChange & (1 << i);
-                if (!modBitmask)
-                    continue;
-                unsigned short sc = getModifierForBitmask(modBitmask);
-                newKeyEvent.scancode = sc;
-                globalState.modsTempAltered.push_back(newKeyEvent);
+                IFDEBUG cout << endl << "temp alter modifiers" << keyEvent.scancode;
+
+                //the scancode is a modifier bitmask. Press/Release keys as necessary.
+                //make modifier IF the system knows it is up
+                unsigned short tempModChange = keyEvent.scancode;       //escaped scancode carries the modifier bitmask
+                KeyEvent newKeyEvent;
+
+                if (keyEvent.isDownstroke)  //make modifiers when they are up
+                {
+                    unsigned short exor = globalState.modifiers ^ tempModChange; //figure out which ones we must press
+                    tempModChange &= exor;
+                }
+                else	//break mods if down
+                    tempModChange &= globalState.modifiers;
+
+                newKeyEvent.isDownstroke = keyEvent.isDownstroke;
+
+                const int NUMBER_OF_MODIFIERS_ALTERED_IN_SEQUENCES = 8; //high modifiers are skipped because they are never sent anyways.
+                for (int i = 0; i < NUMBER_OF_MODIFIERS_ALTERED_IN_SEQUENCES; i++)  //push keycodes for all mods to be altered
+                {
+                    unsigned short modBitmask = tempModChange & (1 << i);
+                    if (!modBitmask)
+                        continue;
+                    unsigned short sc = getModifierForBitmask(modBitmask);
+                    newKeyEvent.scancode = sc;
+                    globalState.modsTempAltered.push_back(newKeyEvent);
+                }
+                continue;
             }
-            continue;
+            else if (escapeSequenceType == CPS_ESC_SEQUENCE_TYPE_SLEEP)   //PAUSE
+            {
+                IFDEBUG cout << endl << "sleep: " << keyEvent.scancode;
+                Sleep(keyEvent.scancode * 100);
+                inCpsEscape = false;  //type 2 does not need an "escape up" key to finish the sequence
+                escapeSequenceType = 0;
+            }
+            else
+            {
+                error("Internal error: unknown CPS_ESC_SEQUENCE_TYPE: " + to_string(escapeSequenceType));
+                return;
+            }
         }
         else //regular non-escaped keyEvent
         {
@@ -746,7 +785,7 @@ bool parseIniOptions(std::vector<std::string> assembledIni)
 
     option.debug = configHasKey("debug", sectLines);
     option.flipZy = configHasKey("flipZy", sectLines);
-    option.shiftShiftToShiftLock = configHasKey("shiftShiftToShiftLock", sectLines);
+    option.shiftShiftToCapsLock = configHasKey("shiftShiftToCapsLock", sectLines);
     option.altAltToAlt = configHasKey("altAltToAlt", sectLines);
     option.flipAltWinOnAppleKeyboards = configHasKey("flipAltWinOnAppleKeyboards", sectLines);
     option.LControlLWinBlocksAlphaMapping = configHasKey("LControlLWinBlocksAlphaMapping", sectLines);
@@ -800,7 +839,7 @@ bool parseIniCombos(std::vector<std::string> assembledIni)
     for (string line : sectLines)
     {
         unsigned short key;
-        if (parseCombo(line, key, mods, keyEventSequence, SCANCODE_LABELS))
+        if (parseRule(line, key, mods, keyEventSequence, SCANCODE_LABELS))
         {
             bool isDuplicate = false;
             for (ModifierCombo testcombo : allMaps.modCombos)
@@ -1051,7 +1090,7 @@ void printHelloFeatures()
         << endl << "ini version: " << option.iniVersion
         << endl << endl << "FEATURES"
         << endl << (option.flipZy ? "ON:" : "OFF:") << " Z <-> Y"
-        << endl << (option.shiftShiftToShiftLock ? "ON:" : "OFF:") << " LShift + RShift -> ShiftLock"
+        << endl << (option.shiftShiftToCapsLock ? "ON:" : "OFF:") << " LShift + RShift -> ShiftLock"
         << endl << (option.altAltToAlt ? "ON:" : "OFF:") << " LAlt + RAlt -> Alt"
         << endl << (option.flipAltWinOnAppleKeyboards ? "ON:" : "OFF:") << " Alt <-> Win for Apple keyboards"
         << endl << (option.LControlLWinBlocksAlphaMapping ? "ON:" : "OFF:") << " Left Control and Win block alpha key mapping ('Ctrl + C is never changed')"

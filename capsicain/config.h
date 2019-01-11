@@ -2,6 +2,9 @@
 #include <string>
 #include <vector>
 
+const int CPS_ESC_SEQUENCE_TYPE_TEMPALTERMODIFIERS = 1;
+const int CPS_ESC_SEQUENCE_TYPE_SLEEP = 2;
+
 struct KeyEvent
 {
     unsigned short scancode = 0;
@@ -18,6 +21,6 @@ bool getStringValueForTaggedKey(std::string tag, std::string key, std::string & 
 bool getStringValueForKey(std::string key, std::string & value, std::vector<std::string> sectionLines);
 bool getIntValueForTaggedKey(std::string tag, std::string key, int & value, std::vector<std::string> sectionLines);
 bool getIntValueForKey(std::string key, int & value, std::vector<std::string> sectionLines);
-bool parseCombo(std::string line, unsigned short &key, unsigned short(&mods)[3], std::vector<KeyEvent> &strokeSequence, std::string scLabels[]);
+bool parseRule(std::string line, unsigned short &key, unsigned short(&mods)[3], std::vector<KeyEvent> &strokeSequence, std::string scLabels[]);
 bool parseMapFromTo(std::string mapFromTo, unsigned char(&alphamap)[256], std::string scLabels[]);
 bool parseThreeScancodesMapping(std::string line, unsigned char & keyA, unsigned char & keyB, unsigned char & keyC, std::string scLabels[]);

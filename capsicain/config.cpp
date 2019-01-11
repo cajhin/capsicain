@@ -275,7 +275,7 @@ bool parseThreeScancodesMapping(std::string line, unsigned char &keyA, unsigned 
     return true;
 }
 
-//convert ("xy^_v.", 'v') to 000010
+//convert ("xyz_&.", '&') to 000010
 unsigned short parseModString(string modString, char filter)
 {
     string binString = "";
@@ -289,7 +289,7 @@ unsigned short parseModString(string modString, char filter)
     return std::stoi(binString, nullptr, 2);
 }
 
-bool parseCombo(std::string &funcParams, std::string * scLabels, std::vector<KeyEvent> &strokeSeq)
+bool parseFunctionCombo(std::string &funcParams, std::string * scLabels, std::vector<KeyEvent> &strokeSeq)
 {
     vector<string> labels = stringSplit(funcParams, '+');
     unsigned short sc;
@@ -306,8 +306,9 @@ bool parseCombo(std::string &funcParams, std::string * scLabels, std::vector<Key
     return true;
 }
 
-//parse H  [^^^v .--. ....] > function(param)
-bool parseCombo(std::string line, unsigned short &key, unsigned short(&mods)[3], std::vector<KeyEvent> &strokeSequence, std::string scLabels[])
+//parse keyLabel  [!!!& .--. ....] > function(param)
+//returns false if the rule is not valid.
+bool parseRule(std::string line, unsigned short &key, unsigned short(&mods)[3], std::vector<KeyEvent> &strokeSequence, std::string scLabels[])
 {
     string strkey = stringGetFirstToken(line);
     if (strkey.length() < 1)
@@ -327,8 +328,8 @@ bool parseCombo(std::string line, unsigned short &key, unsigned short(&mods)[3],
         return false;
     string mod = line.substr(modIdx1, modIdx2 - modIdx1);
 
-    mods[0] = parseModString(mod, 'v'); //and 
-    mods[1] = parseModString(mod, '!'); //not 
+    mods[0] = parseModString(mod, '&'); //and 
+    mods[1] = parseModString(mod, '^'); //not 
     mods[2] = parseModString(mod, 't'); //tap
 
     //extract function name + param
@@ -357,7 +358,7 @@ bool parseCombo(std::string line, unsigned short &key, unsigned short(&mods)[3],
     }
     else if (funcName == "combo")
     {
-        if (!parseCombo(funcParams, scLabels, strokeSeq))
+        if (!parseFunctionCombo(funcParams, scLabels, strokeSeq))
             return false;
     }
     else if (funcName == "combontimes")
@@ -365,7 +366,7 @@ bool parseCombo(std::string line, unsigned short &key, unsigned short(&mods)[3],
         vector<string> comboTimes = stringSplit(funcParams, ',');
         if (comboTimes.size() != 2)
             return false;
-        if (!parseCombo(comboTimes.at(0), scLabels, strokeSeq))
+        if (!parseFunctionCombo(comboTimes.at(0), scLabels, strokeSeq))
             return false;
         int times = stoi(comboTimes.at(1));
         auto len = strokeSeq.size();
@@ -376,6 +377,7 @@ bool parseCombo(std::string line, unsigned short &key, unsigned short(&mods)[3],
     else if (funcName == "altchar")
     {
         strokeSeq.push_back({ SC_CPS_ESC, true }); //temp release LSHIFT if it is currently down
+        strokeSeq.push_back({ CPS_ESC_SEQUENCE_TYPE_TEMPALTERMODIFIERS, true });
         strokeSeq.push_back({ BITMASK_LSHIFT | BITMASK_RSHIFT | BITMASK_LCTRL | BITMASK_RCTRL , false });
         strokeSeq.push_back({ BITMASK_RALT , true });
         strokeSeq.push_back({ SC_CPS_ESC, false });
@@ -396,17 +398,18 @@ bool parseCombo(std::string line, unsigned short &key, unsigned short(&mods)[3],
     }
     else if (funcName == "moddedkey")
     {
-        vector<string> modKeyParams = stringSplit(funcParams, '&');
+        vector<string> modKeyParams = stringSplit(funcParams, '+');
         if (modKeyParams.size() != 2)
             return false;
         unsigned short sc = getScancode(modKeyParams[0], scLabels);
         if (sc == SC_NOP)
             return false;
 
-        unsigned short modsPress = parseModString(modKeyParams[1], 'v'); //and (press if up)
-        unsigned short modsRelease = parseModString(modKeyParams[1], '!'); //not (release if down)
+        unsigned short modsPress = parseModString(modKeyParams[1], '&'); //and (press if up)
+        unsigned short modsRelease = parseModString(modKeyParams[1], '^'); //not (release if down)
 
         strokeSeq.push_back({ SC_CPS_ESC, true });
+        strokeSeq.push_back({ CPS_ESC_SEQUENCE_TYPE_TEMPALTERMODIFIERS, true });
         if (modsPress > 0)
             strokeSeq.push_back({ modsPress, true });
         if (modsRelease > 0)
@@ -416,9 +419,72 @@ bool parseCombo(std::string line, unsigned short &key, unsigned short(&mods)[3],
         strokeSeq.push_back({ sc, false });
         strokeSeq.push_back({ SC_CPS_ESC, false }); //second UP does UNDO the temp mod changes
     }
-    else if (funcName == "type")
+    else if (funcName == "sequence")
     {
+        const string PAUSE_TAG = "pause:";
+        vector<string> params = stringSplit(funcParams, '_');
+        bool downkeys[256] = { 0 };
 
+        for (string param : params)
+        {
+            //handle the "pause:10" items
+            if (stringStartsWith(param, PAUSE_TAG))
+            {
+                string sleeptime = param.substr(PAUSE_TAG.length());
+                int stime = stoi(sleeptime);
+                if (stime > 255)
+                {
+                    cout << endl << "Sequence() defines pause > 255. Reducing to 255 (25.5 seconds)";
+                    stime = 255;
+                }
+                if (stime == 0)
+                {
+                    cout << endl << "Sequence() defines pause:0. Ignoring the pause.";
+                    continue;
+                }
+                strokeSeq.push_back({ SC_CPS_ESC, true });
+                strokeSeq.push_back({ CPS_ESC_SEQUENCE_TYPE_SLEEP, true });
+                strokeSeq.push_back({ (unsigned short)stime, true });
+                continue;
+            }
+
+            // &key is down, ^key is up, key is both.
+            bool downstroke = true;
+            bool upstroke = true;
+            if (param.at(0) == '&')
+                upstroke = false;
+            else if (param.at(0) == '^')
+                downstroke = false;
+            if (!downstroke || !upstroke)
+                param = param.substr(1);
+
+            unsigned short sc = getScancode(param, scLabels);
+            if (sc == 0)
+            {
+                cout << endl << "Unknown key label in sequence(): " << param;
+                return false;
+            }
+
+            if (downstroke)
+            {
+                strokeSeq.push_back({ sc, true });
+                downkeys[sc] = true;
+            }
+            if (upstroke)
+            {
+                strokeSeq.push_back({ sc, false });
+                downkeys[sc] = false;
+            }
+        }
+        //check if all keys were released
+        for (int i = 0; i < 256; i++)
+        {
+            if (downkeys[i])
+            {
+                cout << endl << "Sequence() does not release key: " << scLabels[i] << " (discarding this rule)";
+                return false;
+            }
+        }
     }
     else
         return false;
