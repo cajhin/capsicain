@@ -30,7 +30,9 @@ And while I'm at it, I like to have a ton of extra features.
 
 - Can remap EVERY key that is sent out by the keyboard.  
 
-- Almost everything is configurable via .ini file   
+- Almost everything is configurable via config file.   
+  Nine separate layers, switch with [ESC]+NumberKey.   
+  Flexible with 'INCLUDE sub_section'.  
 
 - Modifier remapping   
   F and J to Shift, CapsLock to MOD9, LCtrl to Return, Rotate Alt>Shift>Control>Alt. If it sends a scancode, you can remap it.  
@@ -39,13 +41,16 @@ And while I'm at it, I like to have a ton of extra features.
   Can do keycombos with all 15 modifiers with a single one-liner rule.  
   Combine Modifier-Down, Modifier-NOT-down and Modifier-tapped in one combo.  
   
-- Simple, fast and pretty alpha key mapping, to define Workman, Colemak, Dvorak, or play with your own layout. Changing a key position is one character in the .ini file, [ESC]+[R] to reload and you're live.  
+- Simple, fast and pretty alpha key mapping, to define Workman, Colemak, Dvorak, or play with your own layout.  
+  Changing a key position is one character in the .ini file, [ESC]+[R] to reload and you're live.  
 
-- Up to 9 layouts, switch with [ESC]+NumberKey  
+- Unlimited sequences (key macros) with configurable delay between keys.  
 
 - Fast. Low-fat C/C++ code. 1 exe 1 dll 1 ini. Never writes, only reads inside its folder.
     
 ### Features of the default config 
+This is the config I use myself.  
+
 - Hold CapsLock + right hand -> Cursor control layer. I LOVE this!!  
     I J K L = Cursor  
     Z U = Home/End   
@@ -98,7 +103,6 @@ There are various config options, like "flip Z/Y", "flip WIN/ALT on Apple keyboa
 - No modifier-only combos (Shift+Alt -> X). I don't like these, they cause problems.
 - No combos-to-modifier (Ctrl+X -> Alt). Useless?
 - No dead keys / composing (Alt+U, then O -> Ö)
-- No freestyle macros (x -> Win-down, R-down, R-up, Win-up, C M D RETURN)
 - ALT-Numpad combos for special characters ╠═ö€Σε═╣ don't work in Linux VMs.
 
 ## About Interception  
