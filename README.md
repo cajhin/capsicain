@@ -133,12 +133,12 @@ Why the name? Beer made me do it. I like chilis. This tool defines a lot of Caps
 8. start capsicain.exe
 
 ## Your first config
-Out of the box, capsicain.ini is the complete config that I use myself.  
-If you want to play around with something simpler, rename capsicain.example.ini to capsicain.ini.  
+Out of the box, capsicain.ini is a copy of capsicain.cajhin.ini, the complete config that I use myself.  
+If you want to play around with something simpler, copy capsicain.example.ini to capsicain.ini.  
 [ESC]+[R] to reload the config.  
 
 REMEMBER:  
 [ESC]+[X] Exits, always, in case your config makes the keyboard unusable. Capsicain doesn't have to be in the foreground to see ESC command combos.   
-[ESC]+[0] is the softer method (alpha layer 0); it tells Capsicain to not alter any keys - except for [ESC] combos, so you can switch back to your layer 1 later.
+[ESC]+[0] Switch to Layer 0 is the softer 'disable' method; it tells Capsicain to not do anything - except listen for [ESC] combos, so you can switch back to your layer 1 later.  
 
 Feel free to open an issue to ask questions.  
