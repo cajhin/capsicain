@@ -22,7 +22,7 @@ And while I'm at it, I like to have a ton of extra features.
 
 **Tmk / Qmk with Hasu's Usb-to-Usb stick** is very cool, but it cannot do laptop keyboards.  
 
-**Capsicain** does everything I want. Reliably, everywhere.  
+**Capsicain** does everything I want, the way I want it.  
 
 ## Features
 
