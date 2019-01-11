@@ -35,7 +35,8 @@ And while I'm at it, I like to have a ton of extra features.
   Flexible with 'INCLUDE sub_section'.  
 
 - Modifier remapping   
-  F and J to Shift, CapsLock to MOD9, LCtrl to Return, Rotate Alt>Shift>Control>Alt. If it sends a scancode, you can remap it.  
+  F and J to Shift, CapsLock to MOD9, LCtrl to Return, Rotate Alt>Shift>Control>Alt.  
+  If it sends a scancode, you can remap it.  
     
 - Powerful modfier combos  
   Can do keycombos with all 15 modifiers with a single one-liner rule.  
@@ -100,10 +101,11 @@ These talk directly to Capsicain, trigger them with [ESC] + {key}
 There are various config options, like "flip Z/Y", "flip WIN/ALT on Apple keyboards", timing for macros, status, more.
 
 ### What it doesn't do (today)
-- No modifier-only combos (Shift+Alt -> X). I don't like these, they cause problems.
+- No modifier-only combos (Shift+Alt -> X). I don't like these, they cause accidents.
 - No combos-to-modifier (Ctrl+X -> Alt). Useless?
-- No dead keys / composing (Alt+U, then O -> Ö)
-- ALT-Numpad combos for special characters ╠═ö€Σε═╣ don't work in Linux VMs.
+- No dead keys / composing (Alt+U, then O -> Ö). Could be done but what for?
+- ALT-Numpad combos for special characters ╠═ö€Σε═╣ don't work in Linux VMs.  
+  If you need this, you have to create your own config for Linux special chars.  
 
 ## About Interception  
 This is a signed driver ("keyboard driver upper filter"), another project on github. It must be installed for capsicain to work. It provides a DLL to interface with the driver.  
