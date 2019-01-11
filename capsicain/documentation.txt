@@ -1,10 +1,20 @@
-﻿┌─────────────┐
+﻿Sorry there is no documentation.
+Read capsicain.example.ini
+and  capsicain.cajhin.ini
+for a detailed explanation.
+
+┌─────────────┐
 │ LIMITATIONS │
 └─────────────┘
 
 * Capsicain only processes keyboard events.
   Media Keys are usually not keyboard keys, but custom USB codes - just like a gamepad button is no keyboard key.
   If you need this, AutoHotKey is very good at dealing with all kinds of input devices.
+
+* No characters.
+  Capsicain deals with physical keys. Mapping to characters happens later in the Windows keyboard stack.
+  This means, for example, that you cannot send the '!' character. You can only send [Shift]+[1].
+  To send special characters, you can send ALT+NumPad combos. The altChar(123) function does that for you.
 
 * Some special keys are invisible.
   For example, the Fn key is handled internally on many keyboards. If it does not send a scancode over USB, the PC does not know about it.
@@ -18,16 +28,9 @@
   For example, "Alt + S -> Shift" is not possible.
 
 * No dead keys / composing
-  Things like "ALT+U, then O -> ö" are not possible.
+  Things like "ALT+U, then O" -> ö are not possible.
   
 * No ALT+123 special chars in Linux VMs.
   The Windows way to create special chars is ALT+Numpad. For example, ALT+127 produces ⌂
   Linux does not understand this.
-
-* No characters.
-  Capsicain deals with physical keys. Mapping to characters happens later in the Windows keyboard stack.
-  This means, for example, that you cannot send the '!' character. You can only send [Shift]+[1].
-  To send special characters, you can send [Alt][1][2][3] combos. The altChar(123) function does that for you.
   
- * No freestyle macros like "X -> Ctrl-down, F4-down, F4-up, Ctrl-up, H E L L O ENTER"
- 
