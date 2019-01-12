@@ -14,7 +14,7 @@
 
 using namespace std;
 
-const string VERSION = "46";
+const string VERSION = "47";
 
 string SCANCODE_LABELS[256]; // contains [01]="ESC" instead of SC_ESCAPE 
 
@@ -38,7 +38,7 @@ struct Options
     bool flipZy = false;
     bool altAltToAlt = false;
     bool shiftShiftToCapsLock = false;
-    bool graveToEscape = false;
+    unsigned char secondEscapeKey = SC_NOP;
     bool flipAltWinOnAppleKeyboards = false;
     bool LControlLWinBlocksAlphaMapping = false;
     bool processOnlyFirstKeyboard = false;
@@ -181,11 +181,8 @@ int main()
             continue;
         }
 
-        loopState.loopStartTimepoint = timepointNow();
-        resetLoopState();
-
         //check device ID
-        if (globalState.previousInterceptionDevice == NULL	//startup
+        if (globalState.previousInterceptionDevice == NULL    //startup
             || globalState.previousInterceptionDevice != globalState.interceptionDevice)  //keyboard changed
         {
             getHardwareId();
@@ -193,7 +190,11 @@ int main()
             resetCapsNumScrollLock();
             globalState.previousInterceptionDevice = globalState.interceptionDevice;
         }
-        
+
+        loopState.loopStartTimepoint = timepointNow();
+        globalState.previousKeyEventIn = loopState.originalKeyEvent;
+        resetLoopState();
+
         //copy InterceptionKeyStroke (unpleasant to use) to plain KeyEvent
         loopState.originalKeyEvent = ikstroke2keyEvent(loopState.originalIKstroke);
         loopState.scancode = loopState.originalKeyEvent.scancode;
@@ -220,8 +221,11 @@ int main()
             break;
         }
 
-        if (loopState.scancode == SC_1 && option.graveToEscape)
-            loopState.scancode == SC_ESCAPE;
+        if (loopState.scancode == option.secondEscapeKey)
+        {
+            loopState.scancode = SC_ESCAPE;
+            loopState.originalKeyEvent.scancode = SC_ESCAPE;  //ugly. Rewriting history here...
+        }
 
         if (loopState.scancode == SC_ESCAPE)
         {
@@ -230,20 +234,19 @@ int main()
             //ESC alone will send ESC; otherwise block
             if (!loopState.isDownstroke && globalState.previousKeyEventIn.scancode == SC_ESCAPE)
             {
-                IFDEBUG cout << " ESC ";
+                IFDEBUG cout << endl << " ESCv ";
                 sendKeyEvent({ SC_ESCAPE, true });
                 sendKeyEvent({ SC_ESCAPE, false });
             }
-            globalState.previousKeyEventIn = loopState.originalKeyEvent;
+            else
+                IFDEBUG cout << endl << " ESC^ ";
+
             continue;
         }
         else if(globalState.escapeIsDown && loopState.isDownstroke)
         {
             if (processCommand())
-            {
-                globalState.previousKeyEventIn = loopState.originalKeyEvent;
                 continue;
-            }
             else
                 break;
         }
@@ -289,7 +292,6 @@ int main()
         IFDEBUG	cout << "\t (" << dec << millisecondsSinceTimepoint(loopState.loopStartTimepoint) << " ms)";
         IFDEBUG	loopState.loopStartTimepoint = timepointNow();
         sendResultingKeyOrSequence();
-        globalState.previousKeyEventIn = loopState.originalKeyEvent;
         IFDEBUG		cout << "\t (" << dec << millisecondsSinceTimepoint(loopState.loopStartTimepoint) << " ms)";
     }
     interception_destroy_context(globalState.interceptionContext);
@@ -787,11 +789,14 @@ bool parseIniOptions(std::vector<std::string> assembledIni)
         IFDEBUG cout << endl << "No ini setting for 'option delayForKeySequenceMS'. Using default " << DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;
     }
 
+    string secondEscape;
+    if (getStringValueForKey("secondEscapeKey", secondEscape, sectLines))
+        option.secondEscapeKey = getScancode(secondEscape, SCANCODE_LABELS);
+
     option.debug = configHasKey("debug", sectLines);
     option.flipZy = configHasKey("flipZy", sectLines);
     option.shiftShiftToCapsLock = configHasKey("shiftShiftToCapsLock", sectLines);
     option.altAltToAlt = configHasKey("altAltToAlt", sectLines);
-    option.graveToEscape = configHasKey("graveToEscape", sectLines);
     option.flipAltWinOnAppleKeyboards = configHasKey("flipAltWinOnAppleKeyboards", sectLines);
     option.LControlLWinBlocksAlphaMapping = configHasKey("LControlLWinBlocksAlphaMapping", sectLines);
     option.processOnlyFirstKeyboard = configHasKey("processOnlyFirstKeyboard", sectLines);
