@@ -22,7 +22,7 @@ And while I'm at it, I like to have a ton of extra features.
 
 **Tmk / Qmk with Hasu's Usb-to-Usb stick** is very cool, but it cannot do laptop keyboards.  
 
-**Capsicain** does everything I want. Reliably, everywhere.  
+**Capsicain** does everything I want, the way I want it.  
 
 ## Features
 
@@ -30,22 +30,28 @@ And while I'm at it, I like to have a ton of extra features.
 
 - Can remap EVERY key that is sent out by the keyboard.  
 
-- Almost everything is configurable via .ini file   
+- Almost everything is configurable via config file.   
+  Nine separate layers, switch with [ESC]+NumberKey.   
+  Flexible with 'INCLUDE sub_section'.  
 
 - Modifier remapping   
-  F and J to Shift, CapsLock to MOD9, LCtrl to Return, Rotate Alt>Shift>Control>Alt. If it sends a scancode, you can remap it.  
+  F and J to Shift, CapsLock to MOD9, LCtrl to Return, Rotate Alt>Shift>Control>Alt.  
+  If it sends a scancode, you can remap it.  
     
 - Powerful modfier combos  
   Can do keycombos with all 15 modifiers with a single one-liner rule.  
   Combine Modifier-Down, Modifier-NOT-down and Modifier-tapped in one combo.  
   
-- Simple, fast and pretty alpha key mapping, to define Workman, Colemak, Dvorak, or play with your own layout. Changing a key position is one character in the .ini file, [ESC]+[R] to reload and you're live.  
+- Simple, fast and pretty alpha key mapping, to define Workman, Colemak, Dvorak, or play with your own layout.  
+  Changing a key position is one character in the .ini file, [ESC]+[R] to reload and you're live.  
 
-- Up to 9 layouts, switch with [ESC]+NumberKey  
+- Unlimited sequences (key macros) with configurable delay between keys.  
 
 - Fast. Low-fat C/C++ code. 1 exe 1 dll 1 ini. Never writes, only reads inside its folder.
     
 ### Features of the default config 
+This is the config I use myself.  
+
 - Hold CapsLock + right hand -> Cursor control layer. I LOVE this!!  
     I J K L = Cursor  
     Z U = Home/End   
@@ -95,11 +101,11 @@ These talk directly to Capsicain, trigger them with [ESC] + {key}
 There are various config options, like "flip Z/Y", "flip WIN/ALT on Apple keyboards", timing for macros, status, more.
 
 ### What it doesn't do (today)
-- No modifier-only combos (Shift+Alt -> X). I don't like these, they cause problems.
+- No modifier-only combos (Shift+Alt -> X). I don't like these, they cause accidents.
 - No combos-to-modifier (Ctrl+X -> Alt). Useless?
-- No dead keys / composing (Alt+U, then O -> Ö)
-- No freestyle macros (x -> Win-down, R-down, R-up, Win-up, C M D RETURN)
-- ALT-Numpad combos for special characters ╠═ö€Σε═╣ don't work in Linux VMs.
+- No dead keys / composing (Alt+U, then O -> Ö). Could be done but what for?
+- ALT-Numpad combos for special characters ╠═ö€Σε═╣ don't work in Linux VMs.  
+  If you need this, you have to create your own config for Linux special chars.  
 
 ## About Interception  
 This is a signed driver ("keyboard driver upper filter"), another project on github. It must be installed for capsicain to work. It provides a DLL to interface with the driver.  
@@ -127,12 +133,12 @@ Why the name? Beer made me do it. I like chilis. This tool defines a lot of Caps
 8. start capsicain.exe
 
 ## Your first config
-Out of the box, capsicain.ini is the complete config that I use myself.  
-If you want to play around with something simpler, rename capsicain.example.ini to capsicain.ini.  
+Out of the box, capsicain.ini is a copy of capsicain.cajhin.ini, the complete config that I use myself.  
+If you want to play around with something simpler, copy capsicain.example.ini to capsicain.ini.  
 [ESC]+[R] to reload the config.  
 
 REMEMBER:  
 [ESC]+[X] Exits, always, in case your config makes the keyboard unusable. Capsicain doesn't have to be in the foreground to see ESC command combos.   
-[ESC]+[0] is the softer method (alpha layer 0); it tells Capsicain to not alter any keys - except for [ESC] combos, so you can switch back to your layer 1 later.
+[ESC]+[0] Switch to Layer 0 is the softer 'disable' method; it tells Capsicain to not do anything - except listen for [ESC] combos, so you can switch back to your layer 1 later.  
 
 Feel free to open an issue to ask questions.  
