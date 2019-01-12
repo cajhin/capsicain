@@ -220,8 +220,8 @@ std::string stringGetRestBehindFirstToken(std::string line)
     return line;
 }
 
-// parse "a b c MAPTO x y z"
-bool parseMapFromTo(std::string alpha_to, unsigned char (&alphamap)[256], std::string scLabels[])
+// lex "a b c ALPHA_TO x y z"
+bool lexAlphaFromTo(std::string alpha_to, unsigned char (&alphamap)[256], std::string scLabels[])
 {
     size_t idx1 = alpha_to.find(stringToLower(INI_TAG_ALPHA_TO));
     if (idx1 == string::npos)
@@ -257,26 +257,27 @@ bool parseMapFromTo(std::string alpha_to, unsigned char (&alphamap)[256], std::s
     return true;
 }
 
-// parse scancodes "A B C"
-bool parseThreeScancodesMapping(std::string line, unsigned char &keyA, unsigned char &keyB, unsigned char &keyC, std::string scLabels[])
+// parse scancodes "A B"  or  "A B C"
+bool lexScancodeMapping(std::string line, unsigned char &keyA, unsigned char &keyB, unsigned char &keyC, std::string scLabels[])
 {
     vector<string> labels = stringSplit(line, ' ');
-    if (labels.size() != 3)
+    if (labels.size() != 2 && labels.size() != 3)
         return false;
 
     keyA = getScancode(labels[0], scLabels);
     keyB = getScancode(labels[1], scLabels);
-    keyC = getScancode(labels[2], scLabels);
+    if(labels.size() == 3)
+        keyC = getScancode(labels[2], scLabels);
     if ( (keyA == 0 && labels[0] != "nop") ||
          (keyB == 0 && labels[1] != "nop") ||
-         (keyC == 0 && labels[2] != "nop")
+         (labels.size() == 3  && keyC == 0 && labels[2] != "nop")
         )
         return false; //invalid key label
     return true;
 }
 
 //convert ("xyz_&.", '&') to 000010
-unsigned short parseModString(string modString, char filter)
+unsigned short lexModString(string modString, char filter)
 {
     string binString = "";
     for (int i = 0; i < modString.length(); i++)
@@ -289,7 +290,7 @@ unsigned short parseModString(string modString, char filter)
     return std::stoi(binString, nullptr, 2);
 }
 
-bool parseFunctionCombo(std::string &funcParams, std::string * scLabels, std::vector<KeyEvent> &strokeSeq)
+bool lexFunctionCombo(std::string &funcParams, std::string * scLabels, std::vector<KeyEvent> &strokeSeq)
 {
     vector<string> labels = stringSplit(funcParams, '+');
     unsigned short sc;
@@ -308,7 +309,7 @@ bool parseFunctionCombo(std::string &funcParams, std::string * scLabels, std::ve
 
 //parse keyLabel  [!!!& .--. ....] > function(param)
 //returns false if the rule is not valid.
-bool parseRule(std::string line, unsigned short &key, unsigned short(&mods)[3], std::vector<KeyEvent> &strokeSequence, std::string scLabels[])
+bool lexRule(std::string line, unsigned short &key, unsigned short(&mods)[3], std::vector<KeyEvent> &strokeSequence, std::string scLabels[])
 {
     string strkey = stringGetFirstToken(line);
     if (strkey.length() < 1)
@@ -328,9 +329,9 @@ bool parseRule(std::string line, unsigned short &key, unsigned short(&mods)[3], 
         return false;
     string mod = line.substr(modIdx1, modIdx2 - modIdx1);
 
-    mods[0] = parseModString(mod, '&'); //and 
-    mods[1] = parseModString(mod, '^'); //not 
-    mods[2] = parseModString(mod, 't'); //tap
+    mods[0] = lexModString(mod, '&'); //and 
+    mods[1] = lexModString(mod, '^'); //not 
+    mods[2] = lexModString(mod, 't'); //tap
 
     //extract function name + param
     size_t funcIdx1 = line.find_first_of('>') + 1;
@@ -358,7 +359,7 @@ bool parseRule(std::string line, unsigned short &key, unsigned short(&mods)[3], 
     }
     else if (funcName == "combo")
     {
-        if (!parseFunctionCombo(funcParams, scLabels, strokeSeq))
+        if (!lexFunctionCombo(funcParams, scLabels, strokeSeq))
             return false;
     }
     else if (funcName == "combontimes")
@@ -366,7 +367,7 @@ bool parseRule(std::string line, unsigned short &key, unsigned short(&mods)[3], 
         vector<string> comboTimes = stringSplit(funcParams, ',');
         if (comboTimes.size() != 2)
             return false;
-        if (!parseFunctionCombo(comboTimes.at(0), scLabels, strokeSeq))
+        if (!lexFunctionCombo(comboTimes.at(0), scLabels, strokeSeq))
             return false;
         int times = stoi(comboTimes.at(1));
         auto len = strokeSeq.size();
@@ -405,8 +406,8 @@ bool parseRule(std::string line, unsigned short &key, unsigned short(&mods)[3], 
         if (sc == SC_NOP)
             return false;
 
-        unsigned short modsPress = parseModString(modKeyParams[1], '&'); //and (press if up)
-        unsigned short modsRelease = parseModString(modKeyParams[1], '^'); //not (release if down)
+        unsigned short modsPress = lexModString(modKeyParams[1], '&'); //and (press if up)
+        unsigned short modsRelease = lexModString(modKeyParams[1], '^'); //not (release if down)
 
         strokeSeq.push_back({ SC_CPS_ESC, true });
         strokeSeq.push_back({ CPS_ESC_SEQUENCE_TYPE_TEMPALTERMODIFIERS, true });

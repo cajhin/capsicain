@@ -828,7 +828,7 @@ bool parseIniRewire(std::vector<std::string> assembledIni)
                 if (test.inkey == keyIn) 
                 {
                     if( test.outkey != keyOut || test.ifTapped != keyIfTapped)
-                        IFDEBUG cout << endl << "WARNING: ignoring redefinition of " << INI_TAG_REWIRE << " "
+                        IFDEBUG cout << endl << "WARNING: ignoring redefinition of " << INI_TAG_REWIRE
                             << SCANCODE_LABELS[keyIn] << " " << SCANCODE_LABELS[keyOut] << " " << SCANCODE_LABELS[keyIfTapped];
                     isDuplicate = true;
                     break;

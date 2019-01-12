@@ -21,6 +21,6 @@ bool getStringValueForTaggedKey(std::string tag, std::string key, std::string & 
 bool getStringValueForKey(std::string key, std::string & value, std::vector<std::string> sectionLines);
 bool getIntValueForTaggedKey(std::string tag, std::string key, int & value, std::vector<std::string> sectionLines);
 bool getIntValueForKey(std::string key, int & value, std::vector<std::string> sectionLines);
-bool parseRule(std::string line, unsigned short &key, unsigned short(&mods)[3], std::vector<KeyEvent> &strokeSequence, std::string scLabels[]);
-bool parseMapFromTo(std::string mapFromTo, unsigned char(&alphamap)[256], std::string scLabels[]);
-bool parseThreeScancodesMapping(std::string line, unsigned char & keyA, unsigned char & keyB, unsigned char & keyC, std::string scLabels[]);
+bool lexRule(std::string line, unsigned short &key, unsigned short(&mods)[3], std::vector<KeyEvent> &strokeSequence, std::string scLabels[]);
+bool lexAlphaFromTo(std::string mapFromTo, unsigned char(&alphamap)[256], std::string scLabels[]);
+bool lexScancodeMapping(std::string line, unsigned char & keyA, unsigned char & keyB, unsigned char & keyC, std::string scLabels[]);

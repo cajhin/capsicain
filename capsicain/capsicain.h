@@ -14,7 +14,7 @@ enum KEYSTATE
 const std::string INI_TAG_INCLUDE = "INCLUDE";
 const std::string INI_TAG_GLOBAL = "GLOBAL";
 const std::string INI_TAG_OPTIONS = "OPTION";
-const std::string INI_TAG_MODIFIERS = "MODIFIER";
+const std::string INI_TAG_REWIRE = "REWIRE";
 const std::string INI_TAG_COMBOS = "COMBO";
 const std::string INI_TAG_ALPHA_FROM = "ALPHA_FROM";
 const std::string INI_TAG_ALPHA_TO = "ALPHA_TO";
@@ -32,7 +32,7 @@ void processMapAlphaKeys(unsigned short & scancode);
 void processModifiedKeys();
 void playKeyEventSequence(std::vector<KeyEvent> keyEventSequence);
 void processModifierState();
-void processKeyToModifierMapping();
+void processRewire();
 
 void printHelloFeatures();
 
