@@ -38,6 +38,7 @@ struct Options
     bool flipZy = false;
     bool altAltToAlt = false;
     bool shiftShiftToCapsLock = false;
+    bool graveToEscape = false;
     bool flipAltWinOnAppleKeyboards = false;
     bool LControlLWinBlocksAlphaMapping = false;
     bool processOnlyFirstKeyboard = false;
@@ -218,6 +219,9 @@ int main()
         {
             break;
         }
+
+        if (loopState.scancode == SC_1 && option.graveToEscape)
+            loopState.scancode == SC_ESCAPE;
 
         if (loopState.scancode == SC_ESCAPE)
         {
@@ -787,6 +791,7 @@ bool parseIniOptions(std::vector<std::string> assembledIni)
     option.flipZy = configHasKey("flipZy", sectLines);
     option.shiftShiftToCapsLock = configHasKey("shiftShiftToCapsLock", sectLines);
     option.altAltToAlt = configHasKey("altAltToAlt", sectLines);
+    option.graveToEscape = configHasKey("graveToEscape", sectLines);
     option.flipAltWinOnAppleKeyboards = configHasKey("flipAltWinOnAppleKeyboards", sectLines);
     option.LControlLWinBlocksAlphaMapping = configHasKey("LControlLWinBlocksAlphaMapping", sectLines);
     option.processOnlyFirstKeyboard = configHasKey("processOnlyFirstKeyboard", sectLines);
