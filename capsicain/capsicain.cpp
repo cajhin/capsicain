@@ -208,6 +208,12 @@ int main()
             continue;
         }
 
+        if (loopState.originalIKstroke.code == 0)
+        {
+            error("Received unexpected SC_NOP Key Stroke code 0. Ignoring this.");
+            continue;
+        }
+
         // Command stroke: ESC + stroke. ESC tapped -> ESC
         // NOTE: some major key shadowing here...
         // - cherry is good
@@ -230,17 +236,13 @@ int main()
         if (loopState.scancode == SC_ESCAPE)
         {
             globalState.escapeIsDown = loopState.isDownstroke;
-
-            //ESC alone will send ESC; otherwise block
+            //ESC tapped will send ESC; otherwise block
+            IFDEBUG cout << endl << " ESC" << (loopState.isDownstroke ? "v " : "^ ");
             if (!loopState.isDownstroke && globalState.previousKeyEventIn.scancode == SC_ESCAPE)
             {
-                IFDEBUG cout << endl << " ESCv ";
                 sendKeyEvent({ SC_ESCAPE, true });
                 sendKeyEvent({ SC_ESCAPE, false });
             }
-            else
-                IFDEBUG cout << endl << " ESC^ ";
-
             continue;
         }
         else if(globalState.escapeIsDown && loopState.isDownstroke)
@@ -789,10 +791,6 @@ bool parseIniOptions(std::vector<std::string> assembledIni)
         IFDEBUG cout << endl << "No ini setting for 'option delayForKeySequenceMS'. Using default " << DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;
     }
 
-    string secondEscape;
-    if (getStringValueForKey("secondEscapeKey", secondEscape, sectLines))
-        option.secondEscapeKey = getScancode(secondEscape, SCANCODE_LABELS);
-
     option.debug = configHasKey("debug", sectLines);
     option.flipZy = configHasKey("flipZy", sectLines);
     option.shiftShiftToCapsLock = configHasKey("shiftShiftToCapsLock", sectLines);
@@ -810,11 +808,15 @@ bool parseIniModifiers(std::vector<std::string> assembledIni)
         return false;
 
     allMaps.keyModifierIftappedMapping.clear();
+    option.secondEscapeKey = 0;
     unsigned char keyIn, keyOut, keyIfTapped;
     for (string line : sectLines)
     {
         if (parseThreeScancodesMapping(line, keyIn, keyOut, keyIfTapped, SCANCODE_LABELS))
         {
+            if (keyOut == SC_ESCAPE)
+                option.secondEscapeKey = keyIn;
+
             bool isDuplicate = false;
             for (KeyModifierIftappedMapping test : allMaps.keyModifierIftappedMapping)
             {
