@@ -258,6 +258,7 @@ bool lexAlphaFromTo(std::string alpha_to, unsigned char (&alphamap)[256], std::s
 }
 
 // parse scancodes "A B"  or  "A B C"
+// Maps C="LOCK" to C=B
 bool lexScancodeMapping(std::string line, unsigned char &keyA, unsigned char &keyB, unsigned char &keyC, std::string scLabels[])
 {
     vector<string> labels = stringSplit(line, ' ');
@@ -266,8 +267,14 @@ bool lexScancodeMapping(std::string line, unsigned char &keyA, unsigned char &ke
 
     keyA = getScancode(labels[0], scLabels);
     keyB = getScancode(labels[1], scLabels);
-    if(labels.size() == 3)
-        keyC = getScancode(labels[2], scLabels);
+    keyC = SC_NOP;
+    if (labels.size() == 3)
+    {
+        if (labels[2] == "lock")
+            keyC = keyB;
+        else
+            keyC = getScancode(labels[2], scLabels);
+    }
     if ( (keyA == 0 && labels[0] != "nop") ||
          (keyB == 0 && labels[1] != "nop") ||
          (labels.size() == 3  && keyC == 0 && labels[2] != "nop")

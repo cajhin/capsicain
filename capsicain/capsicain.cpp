@@ -72,23 +72,32 @@ struct GlobalState
     int  activeLayer = DEFAULT_ACTIVE_LAYER;
     string layerName = DEFAULT_ACTIVE_LAYER_NAME;
 
-    unsigned short modifierState = 0;
-    unsigned short modsTapped = 0;
-    bool lastModBrokeTapping = false;
-    bool escapeIsDown = false;
-
     InterceptionContext interceptionContext = NULL;
     InterceptionDevice interceptionDevice = NULL;
     InterceptionDevice previousInterceptionDevice = NULL;
 
+    bool escapeIsDown = false;
+
     string deviceIdKeyboard = "";
     bool deviceIsAppleKeyboard = false;
 
-    vector<KeyEvent> modsTempAltered;
-
     KeyEvent previousKeyEventIn = { SC_NOP, 0 };
     bool keysDownSent[256] = { false };
+
+    bool recordingMacro = false;
+    vector<KeyEvent> recordedMacro;
 } globalState;
+
+struct ModifierState
+{
+    unsigned short modifierDown = 0;
+    unsigned short modifierTapped = 0;
+    bool lastModBrokeTapping = false;
+    bool lastModBrokeLocking = false;
+
+    vector<KeyEvent> modsTempAltered;
+
+} modifierState;
 
 struct LoopState
 {
@@ -242,6 +251,8 @@ int main()
             {
                 sendKeyEvent({ SC_ESCAPE, true });
                 sendKeyEvent({ SC_ESCAPE, false });
+                resetLoopState();
+                resetModifierState();
             }
             continue;
         }
@@ -272,12 +283,12 @@ int main()
         
         processModifierState();
     
-        IFDEBUG cout << " [M:" << hex << globalState.modifierState;
-        IFDEBUG if (globalState.modsTapped)  cout << " TAP:" << hex << globalState.modsTapped;
+        IFDEBUG cout << " [M:" << hex << modifierState.modifierDown;
+        IFDEBUG if (modifierState.modifierTapped)  cout << " TAP:" << hex << modifierState.modifierTapped;
         IFDEBUG cout << "] ";
 
         //evaluate modified keys
-        if (!loopState.isModifier && (globalState.modifierState > 0 || globalState.modsTapped > 0))
+        if (!loopState.isModifier && (modifierState.modifierDown > 0 || modifierState.modifierTapped > 0))
         {
             processModifiedKeys();
         }
@@ -320,9 +331,9 @@ void processModifiedKeys()
             if (modcombo.key == loopState.scancode)
             {
                 if (
-                    (globalState.modifierState & modcombo.modAnd) == modcombo.modAnd &&
-                    (globalState.modifierState & modcombo.modNot) == 0 &&
-                    ((globalState.modsTapped & modcombo.modTap) == modcombo.modTap)
+                    (modifierState.modifierDown & modcombo.modAnd) == modcombo.modAnd &&
+                    (modifierState.modifierDown & modcombo.modNot) == 0 &&
+                    ((modifierState.modifierTapped & modcombo.modTap) == modcombo.modTap)
                     )
                 {
                     loopState.resultingKeyEventSequence = modcombo.keyEventSequence;
@@ -331,7 +342,7 @@ void processModifiedKeys()
             }
         }
     }
-    globalState.modsTapped = 0;
+    modifierState.modifierTapped = 0;
 }
 void processMapAlphaKeys(unsigned short &scancode)
 {
@@ -384,15 +395,18 @@ bool processCommand()
         switchLayer(layer);
         break;
     }
+    case SC_W:
+        option.flipAltWinOnAppleKeyboards = !option.flipAltWinOnAppleKeyboards;
+        cout << "Flip ALT<>WIN for Apple boards: " << (option.flipAltWinOnAppleKeyboards ? "ON" : "OFF") << endl;
+        break;
+    case SC_E:
+        cout << "ERROR LOG: " << endl << errorLog << endl;
+        break;
     case SC_R:
         cout << "RESET";
         reset();
         getHardwareId();
         cout << endl << (globalState.deviceIsAppleKeyboard ? "APPLE keyboard (flipping Win<>Alt)" : "PC keyboard");
-        break;
-    case SC_D:
-        option.debug = !option.debug;
-        cout << "DEBUG mode: " << (option.debug ? "ON" : "OFF");
         break;
     case SC_I:
     {
@@ -402,22 +416,34 @@ bool processCommand()
             cout << endl << line;
         break;
     }
-    case SC_Z:
-        option.flipZy = !option.flipZy;
-        cout << "Flip Z<>Y mode: " << (option.flipZy ? "ON" : "OFF");
+    case SC_A:
+    {
+        cout << "Start AHK";
+        string msg = startProgramSameFolder("autohotkey.exe");
+        if (msg != "")
+            cout << endl << "Cannot start: " << msg;
         break;
-    case SC_W:
-        option.flipAltWinOnAppleKeyboards = !option.flipAltWinOnAppleKeyboards;
-        cout << "Flip ALT<>WIN for Apple boards: " << (option.flipAltWinOnAppleKeyboards ? "ON" : "OFF") << endl;
-        break;
-    case SC_E:
-        cout << "ERROR LOG: " << endl << errorLog << endl;
-        break;
+    }
     case SC_S:
         printStatus();
         break;
+    case SC_D:
+        option.debug = !option.debug;
+        cout << "DEBUG mode: " << (option.debug ? "ON" : "OFF");
+        break;
     case SC_H:
         printHelp();
+        break;
+    case SC_K:
+        cout << "Stop AHK";
+        closeOrKillProgram("autohotkey.exe");
+        break;
+    default:
+        cout << "Unknown command";
+        break;
+    case SC_Z:
+        option.flipZy = !option.flipZy;
+        cout << "Flip Z<>Y mode: " << (option.flipZy ? "ON" : "OFF");
         break;
     case SC_COMMA:
         if (option.delayForKeySequenceMS >= 1)
@@ -429,22 +455,8 @@ bool processCommand()
             option.delayForKeySequenceMS += 1;
         cout << "delay between characters in key sequences (ms): " << dec << option.delayForKeySequenceMS;
         break;
-    case SC_A:
-    {
-        cout << "Start AHK";
-        string msg = startProgramSameFolder("autohotkey.exe");
-        if (msg != "")
-            cout << endl << "Cannot start: " << msg;
-        break;
     }
-    case SC_K:
-        cout << "Stop AHK";
-        closeOrKillProgram("autohotkey.exe");
-        break;
-    default:
-        cout << "Unknown command";
-        break;
-    }
+
     return continueLooping;
 }
 
@@ -479,15 +491,11 @@ void processModifierState()
         return; 
 
     unsigned short bitmask = getBitmaskForModifier(loopState.scancode);
-    if (loopState.isDownstroke)
-        globalState.modifierState |= bitmask;
-    else 
-        globalState.modifierState &= ~bitmask;
-
     if ((bitmask & 0xFF00) > 0)
         loopState.blockKey = true;
 
     bool tappedModConfigFound = false;
+    bool tappedModLocksMod = false;
     //a configured tapped mod?
     if (loopState.wasTapped)
     {
@@ -495,7 +503,20 @@ void processModifierState()
         {
             if (loopState.originalKeyEvent.scancode == map.inkey)
             {
-                if (map.ifTapped != SC_NOP)
+                if (map.ifTapped == SC_NOP)
+                    break;
+                //tricky def: if  REWIRE A B LOCK translates to A B B, then tapping A locks state of Key B
+                if (map.ifTapped == map.outkey)  
+                {
+                    if (modifierState.modifierTapped == 0 && !modifierState.lastModBrokeLocking)  //can still be used in tapping sequences
+                    {
+                        IFDEBUG cout << " [Tap Locked Modifier ON]" << tappedModLocksMod;
+                        tappedModLocksMod = true;
+                    }
+                    else
+                        break;
+                }
+                else  // map A to C ifTapped
                 {
                     if (!loopState.blockKey)
                         loopState.resultingKeyEventSequence.push_back({ loopState.scancode, false });
@@ -503,41 +524,54 @@ void processModifierState()
                     loopState.resultingKeyEventSequence.push_back({ map.ifTapped, false });
                     loopState.blockKey = false;
                     tappedModConfigFound = true;
-                    globalState.modsTapped = 0;
+                    modifierState.modifierTapped = 0;
                 }
                 break;
             }
         }
     }
 
-    //Set tapped bitmask. You can combine mod-taps (like tap-Ctrl then tap-Alt).
-    //Double-tap clears all taps
-    if (!tappedModConfigFound)
+    if(!tappedModLocksMod)
     {
-        bool sameKey = loopState.originalKeyEvent.scancode == globalState.previousKeyEventIn.scancode;
-        if (loopState.wasTapped && globalState.lastModBrokeTapping)
-            globalState.modsTapped = 0;
-        else if (loopState.wasTapped)
-            globalState.modsTapped |= bitmask;
-        else if (sameKey && loopState.isDownstroke)
+        if (loopState.isDownstroke)
         {
-            if (globalState.modsTapped & bitmask)
-            {
-                globalState.lastModBrokeTapping = true;
-                globalState.modsTapped &= ~bitmask;
-            }
-            else
-                globalState.lastModBrokeTapping = false;
+            modifierState.lastModBrokeTapping = modifierState.modifierTapped & bitmask;
+            modifierState.lastModBrokeLocking = modifierState.modifierDown & bitmask; //if mod was already down - next tap will not lock mod
+            IFDEBUG if (modifierState.lastModBrokeLocking) cout << "[Tap Locked Modifier OFF]";
+            modifierState.modifierDown |= bitmask;
         }
         else
-            globalState.lastModBrokeTapping = false;
+            modifierState.modifierDown &= ~bitmask;
+    }
+
+    //Set tapped bitmask. You can combine mod-taps (like tap-Ctrl then tap-Alt).
+    //Double-tap clears all taps.
+    //Long presses, release will not register as tapped.
+    if (!tappedModConfigFound && !tappedModLocksMod
+        && !modifierState.lastModBrokeLocking && !modifierState.lastModBrokeTapping)
+    {
+        bool sameKey = loopState.originalKeyEvent.scancode == globalState.previousKeyEventIn.scancode;
+        if (loopState.wasTapped && modifierState.lastModBrokeTapping)
+            modifierState.modifierTapped = 0;
+        else if (loopState.wasTapped)
+            modifierState.modifierTapped |= bitmask;
+        else if (sameKey && loopState.isDownstroke)
+        {
+            if (modifierState.modifierTapped & bitmask)
+            {
+                modifierState.lastModBrokeTapping = true;
+                modifierState.modifierTapped &= ~bitmask;
+            }
+            else
+                modifierState.lastModBrokeTapping = false;
+        }
+        else
+            modifierState.lastModBrokeTapping = false;
     }
 }
 
 void processRewire()
 {
-    bool stopProcessing = false;
-
     if (option.flipAltWinOnAppleKeyboards && globalState.deviceIsAppleKeyboard)
     {
         switch (loopState.scancode)
@@ -549,27 +583,37 @@ void processRewire()
         }
     }
 
+    bool finalScancode = false;
     if (option.altAltToAlt)
     {
         if (loopState.scancode == SC_LALT || loopState.scancode == SC_RALT)
         {
-            if (globalState.previousKeyEventIn.scancode == loopState.originalKeyEvent.scancode
-                && globalState.previousKeyEventIn.isDownstroke 
-                && loopState.originalKeyEvent.isDownstroke) //block auto-repeating alt down
-                loopState.scancode = SC_NOP;
-            else if (loopState.isDownstroke && IS_MOD12_DOWN)
-                globalState.modifierState &= ~BITMASK_MOD12;
-            else if (!loopState.isDownstroke && IS_RALT_DOWN)
-                loopState.scancode = SC_RALT;
-            else if (!loopState.isDownstroke && IS_LALT_DOWN)
-                loopState.scancode = SC_LALT;
+            if (loopState.isDownstroke)
+            {
+                if (globalState.previousKeyEventIn.scancode != loopState.scancode)
+                {
+                    if (IS_MOD12_DOWN)
+                    {
+                        modifierState.modifierDown &= ~BITMASK_MOD12;
+                        finalScancode = true;
+                    }
+                }
+                else
+                {
+                    if (modifierState.modifierDown & (BITMASK_LALT | BITMASK_RALT))
+                        finalScancode = true;
+                }
+            }
             else
-                loopState.scancode = SC_MOD12;
-            stopProcessing = true;
+            {
+                if(    loopState.scancode == SC_LALT && IS_LALT_DOWN
+                    || loopState.scancode == SC_RALT && IS_RALT_DOWN)
+                finalScancode = true;
+            }
         }
     }
 
-    if(!stopProcessing)
+    if(!finalScancode)
         for (RewireIftappedMapping map : allMaps.rewireIftappedMapping)
         {
             if (loopState.scancode == map.inkey)
@@ -579,26 +623,26 @@ void processRewire()
             }
         }
 
-    if (!stopProcessing && option.shiftShiftToCapsLock)
+    if (!finalScancode && option.shiftShiftToCapsLock)
     {
         switch (loopState.scancode)
         {
         case SC_LSHIFT:  //handle LShift+RShift -> CapsLock
             if (loopState.isDownstroke
-                && (globalState.modifierState == (BITMASK_RSHIFT))
+                && (modifierState.modifierDown == (BITMASK_RSHIFT))
                 && (GetKeyState(VK_CAPITAL) & 0x0001)) //ask Win for Capslock state
             {
                 keySequenceAppendMakeBreakKey(SC_CAPS, loopState.resultingKeyEventSequence);
-                stopProcessing = true;
+                finalScancode = true;
             }
             break;
         case SC_RSHIFT:
             if (loopState.isDownstroke
-                && (globalState.modifierState == (BITMASK_LSHIFT))
+                && (modifierState.modifierDown == (BITMASK_LSHIFT))
                 && !(GetKeyState(VK_CAPITAL) & 0x0001))
             {
                 keySequenceAppendMakeBreakKey(SC_CAPS, loopState.resultingKeyEventSequence);
-                stopProcessing = true;
+                finalScancode = true;
             }
             break;
         }
@@ -631,10 +675,10 @@ void playKeyEventSequence(vector<KeyEvent> keyEventSequence)
                     error("Internal error: Received double SC_CPS_ESC down.");
                 else
                 {
-                    if (globalState.modsTempAltered.size() > 0)
+                    if (modifierState.modsTempAltered.size() > 0)
                     {
                         error("Internal error: previous escape sequence for 'temp alter mods' was not undone.");
-                        globalState.modsTempAltered.clear();
+                        modifierState.modsTempAltered.clear();
                     }
                 }
             }
@@ -642,7 +686,7 @@ void playKeyEventSequence(vector<KeyEvent> keyEventSequence)
             {
                 if (inCpsEscape) //play the escape sequence
                 {
-                    for (KeyEvent strk : globalState.modsTempAltered)
+                    for (KeyEvent strk : modifierState.modsTempAltered)
                     {
                         sendKeyEvent(strk);
                         Sleep(delayBetweenKeyEventsMS);
@@ -652,14 +696,14 @@ void playKeyEventSequence(vector<KeyEvent> keyEventSequence)
                 {
                     IFDEBUG cout << endl << "undo alter modifiers" << keyEvent.scancode;
                     KeyEvent strk;
-                    for (size_t i = globalState.modsTempAltered.size(); i>0; i--)
+                    for (size_t i = modifierState.modsTempAltered.size(); i>0; i--)
                     {
-                        strk = globalState.modsTempAltered[i - 1];
+                        strk = modifierState.modsTempAltered[i - 1];
                         strk.isDownstroke = !strk.isDownstroke;
                         sendKeyEvent(strk);
                         Sleep(delayBetweenKeyEventsMS);
                     }
-                    globalState.modsTempAltered.clear();
+                    modifierState.modsTempAltered.clear();
                     escapeSequenceType = 0;
                 }
             }
@@ -698,11 +742,11 @@ void playKeyEventSequence(vector<KeyEvent> keyEventSequence)
 
                 if (keyEvent.isDownstroke)  //make modifiers when they are up
                 {
-                    unsigned short exor = globalState.modifierState ^ tempModChange; //figure out which ones we must press
+                    unsigned short exor = modifierState.modifierDown ^ tempModChange; //figure out which ones we must press
                     tempModChange &= exor;
                 }
                 else	//break mods if down
-                    tempModChange &= globalState.modifierState;
+                    tempModChange &= modifierState.modifierDown;
 
                 newKeyEvent.isDownstroke = keyEvent.isDownstroke;
 
@@ -714,7 +758,7 @@ void playKeyEventSequence(vector<KeyEvent> keyEventSequence)
                         continue;
                     unsigned short sc = getModifierForBitmask(modBitmask);
                     newKeyEvent.scancode = sc;
-                    globalState.modsTempAltered.push_back(newKeyEvent);
+                    modifierState.modsTempAltered.push_back(newKeyEvent);
                 }
                 continue;
             }
@@ -1070,18 +1114,24 @@ void resetLoopState()
     loopState.resultingKeyEventSequence.clear();
 }
 
+void resetModifierState()
+{
+    modifierState.modifierDown = 0;
+    modifierState.modifierTapped = 0;
+    modifierState.lastModBrokeTapping = false;
+    modifierState.lastModBrokeLocking = false;
+    modifierState.modsTempAltered.clear();
+
+    resetCapsNumScrollLock();
+}
 void resetAllStatesToDefault()
 {
     //	globalState.interceptionDevice = NULL;
     globalState.deviceIdKeyboard = "";
     globalState.deviceIsAppleKeyboard = false;
-    globalState.modifierState = 0;
-    globalState.modsTapped = 0;
-    globalState.lastModBrokeTapping = false;
-
     option.delayForKeySequenceMS = DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;
 
-    resetCapsNumScrollLock();
+    resetModifierState();
     resetLoopState();
 }
 
@@ -1132,10 +1182,10 @@ void printStatus()
         << "hardware id:" << globalState.deviceIdKeyboard << endl
         << "Apple keyboard: " << globalState.deviceIsAppleKeyboard << endl
         << "active layer: " << globalState.layerName << endl
-        << "modifier state: " << hex << globalState.modifierState << endl
+        << "modifier state: " << hex << modifierState.modifierDown << endl
         << "delay between keys in sequences (ms): " << option.delayForKeySequenceMS << endl
-        << "number of keys-down sent: " << numMakeSent << endl
-        << (errorLog.length() > 1 ? "ERROR LOG contains entries" : "clean error log") << " (" << errorLog.length() << " chars)" << endl
+        << "number of keys-down sent: " << dec <<   numMakeSent << endl
+        << (errorLog.length() > 1 ? "ERROR LOG contains entries" : "clean error log") << " (" << dec << errorLog.length() << " chars)" << endl
         ;
 }
 

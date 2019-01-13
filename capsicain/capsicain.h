@@ -60,6 +60,8 @@ void resetAlphaMap();
 
 void resetLoopState();
 
+void resetModifierState();
+
 void resetAllStatesToDefault();
 
 #define IFDEBUG if(option.debug) 
