@@ -14,12 +14,12 @@
 
 using namespace std;
 
-const string VERSION = "47";
+const string VERSION = "48";
 
-string SCANCODE_LABELS[256]; // contains [01]="ESC" instead of SC_ESCAPE 
+string SCANCODE_LABELS[256]; // contains e.g. [01]="ESC" instead of SC_ESCAPE 
 
 const int DEFAULT_ACTIVE_LAYER = 0;
-const string DEFAULT_ACTIVE_LAYER_NAME = "(no processing, forward everything)";
+const string DEFAULT_ACTIVE_LAYER_NAME = "no processing, forward everything";
 
 const int DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS = 5;  //System may drop keys when they are sent too fast. Local host needs 0-1ms, Linux VM 5+ms for 100% reliable keystroke detection
 
@@ -93,7 +93,6 @@ struct ModifierState
     unsigned short modifierDown = 0;
     unsigned short modifierTapped = 0;
     bool lastModBrokeTapping = false;
-    bool lastModBrokeLocking = false;
 
     vector<KeyEvent> modsTempAltered;
 
@@ -190,7 +189,7 @@ int main()
             continue;
         }
 
-        //check device ID
+        //check for Apple Keyboard / device ID
         if (globalState.previousInterceptionDevice == NULL    //startup
             || globalState.previousInterceptionDevice != globalState.interceptionDevice)  //keyboard changed
         {
@@ -211,75 +210,99 @@ int main()
         loopState.wasTapped = !loopState.isDownstroke 
             && (loopState.originalKeyEvent.scancode == globalState.previousKeyEventIn.scancode);
 
+        //sanity check
         if (loopState.originalIKstroke.code >= 0x80)
         {
             error("Received unexpected extended Interception Key Stroke code > 0x79: " + to_string(loopState.originalIKstroke.code));
             continue;
         }
-
         if (loopState.originalIKstroke.code == 0)
         {
             error("Received unexpected SC_NOP Key Stroke code 0. Ignoring this.");
             continue;
         }
 
-        // Command stroke: ESC + stroke. ESC tapped -> ESC
-        // NOTE: some major key shadowing here...
-        // - cherry is good
-        // - apple keyboard cannot do RCTRL+CAPS+ESC and ESC+Caps shadows the entire row a-s-d-f-g-....
-        // - Dell cant do ctrl-caps-x
-        // - Cypher has no RControl... :(
-        // - HP shadows the 2-w-s-x and 3-e-d-c lines
+        //ESC+X exits, unconditionally
         if (loopState.scancode == SC_X && loopState.isDownstroke
             && globalState.previousKeyEventIn.scancode == SC_ESCAPE && globalState.previousKeyEventIn.isDownstroke)
         {
             break;
         }
 
-        if (loopState.scancode == option.secondEscapeKey)
+        //ESC+[0]..[9]  layer switch
+        if (loopState.isDownstroke
+            && globalState.previousKeyEventIn.scancode == SC_ESCAPE && globalState.previousKeyEventIn.isDownstroke)
         {
-            loopState.scancode = SC_ESCAPE;
-            loopState.originalKeyEvent.scancode = SC_ESCAPE;  //ugly. Rewriting history here...
-        }
-
-        if (loopState.scancode == SC_ESCAPE)
-        {
-            globalState.escapeIsDown = loopState.isDownstroke;
-            //ESC tapped will send ESC; otherwise block
-            IFDEBUG cout << endl << " ESC" << (loopState.isDownstroke ? "v " : "^ ");
-            if (!loopState.isDownstroke && globalState.previousKeyEventIn.scancode == SC_ESCAPE)
+            if (loopState.scancode == SC_0)
             {
-                sendKeyEvent({ SC_ESCAPE, true });
-                sendKeyEvent({ SC_ESCAPE, false });
-                resetLoopState();
-                resetModifierState();
-            }
-            continue;
-        }
-        else if(globalState.escapeIsDown && loopState.isDownstroke)
-        {
-            if (processCommand())
+                cout << endl << "LAYER CHANGE: 0";
+                switchLayer(DEFAULT_ACTIVE_LAYER);
+                resetAlphaMap();
                 continue;
-            else
-                break;
+            }
+            else if (loopState.scancode >= SC_1 && loopState.scancode <= SC_9)
+            {
+                int layer = loopState.scancode - 1;
+                cout << endl << "LAYER CHANGE: " << layer;
+                switchLayer(layer);
+                continue;
+            }
         }
 
-        if (globalState.activeLayer == DEFAULT_ACTIVE_LAYER)  //standard keyboard, just forward everything except command strokes
+        //Layer 0: standard keyboard, just forward everything
+        if (globalState.activeLayer == DEFAULT_ACTIVE_LAYER)
         {
             interception_send(globalState.interceptionContext, globalState.interceptionDevice, (InterceptionStroke *)&loopState.originalIKstroke, 1);
             continue;
         }
 
-        /////CONFIGURED RULES//////
-        IFDEBUG cout << endl << " [" << SCANCODE_LABELS[loopState.scancode] << getSymbolForIKStrokeState(loopState.originalIKstroke.state)
-            << " =" << hex << loopState.originalIKstroke.code << " " << loopState.originalIKstroke.state << "]";
-
+        //hard rewire everything but esc-x and layer switches
         processRewire();
         if (loopState.scancode == SC_NOP)   //used the mapping to disable keys?
         {
             IFDEBUG cout << " (NOP)";
             continue;
         }
+
+        //ESC tapped -> reset state, send ESC
+        if (loopState.scancode == SC_ESCAPE)
+        {
+            globalState.escapeIsDown = loopState.isDownstroke;
+            IFDEBUG cout << endl << " ESC" << (loopState.isDownstroke ? "v " : "^ ");
+            if (!loopState.isDownstroke && globalState.previousKeyEventIn.scancode == SC_ESCAPE)
+            {
+                resetLoopState();
+                resetModifierState();
+                releaseAllRealModifiers();
+                sendKeyEvent({ SC_ESCAPE, true });
+                sendKeyEvent({ SC_ESCAPE, false });
+            }
+            continue;
+        }
+
+        // ESC + Y commands
+        // NOTE: some major key shadowing here...
+        // - cherry is good
+        // - apple keyboard cannot do RCTRL+CAPS+ESC and ESC+Caps shadows the entire row a-s-d-f-g-....
+        // - Dell cant do ctrl-caps-x
+        // - Cypher has no RControl... :(
+        // - HP shadows the 2-w-s-x and 3-e-d-c lines
+        if(globalState.escapeIsDown)
+        {
+            if (loopState.isDownstroke)
+            {
+                if (processCommand())
+                    continue;
+                else
+                    break;
+            }
+            else if (isModifier(loopState.scancode))  //suppress key up in Esc+modifier combos
+                continue;
+        }
+
+        /////CONFIGURED RULES
+        IFDEBUG cout << endl << " [" << SCANCODE_LABELS[loopState.scancode] << getSymbolForIKStrokeState(loopState.originalIKstroke.state)
+            << " =" << hex << loopState.originalIKstroke.code << " " << loopState.originalIKstroke.state << "]";
         
         processModifierState();
     
@@ -375,26 +398,6 @@ bool processCommand()
         continueLooping = false;
 #endif
         break;
-    case SC_0:
-        cout << "LAYER CHANGE: " << DEFAULT_ACTIVE_LAYER_NAME;
-        switchLayer(DEFAULT_ACTIVE_LAYER);
-        resetAlphaMap();
-        break;
-    case SC_1:
-    case SC_2:
-    case SC_3:
-    case SC_4:
-    case SC_5:
-    case SC_6:
-    case SC_7:
-    case SC_8:
-    case SC_9:
-    {
-        int layer = loopState.scancode - 1;
-        cout << "LAYER CHANGE: " << layer;
-        switchLayer(layer);
-        break;
-    }
     case SC_W:
         option.flipAltWinOnAppleKeyboards = !option.flipAltWinOnAppleKeyboards;
         cout << "Flip ALT<>WIN for Apple boards: " << (option.flipAltWinOnAppleKeyboards ? "ON" : "OFF") << endl;
@@ -438,9 +441,6 @@ bool processCommand()
         cout << "Stop AHK";
         closeOrKillProgram("autohotkey.exe");
         break;
-    default:
-        cout << "Unknown command";
-        break;
     case SC_Z:
         option.flipZy = !option.flipZy;
         cout << "Flip Z<>Y mode: " << (option.flipZy ? "ON" : "OFF");
@@ -455,6 +455,21 @@ bool processCommand()
             option.delayForKeySequenceMS += 1;
         cout << "delay between characters in key sequences (ms): " << dec << option.delayForKeySequenceMS;
         break;
+    default: 
+    {
+        //[ESC]+modifier locks the modifier. Tap [ESC] to release.
+        if (isModifier(loopState.scancode))
+        {
+            modifierState.modifierDown |= getBitmaskForModifier(loopState.scancode);
+            modifierState.modifierTapped = 0;
+            if (isRealModifier(loopState.scancode))
+                sendKeyEvent(loopState.originalKeyEvent);
+            IFDEBUG cout << endl << "Locking modifier: " << SCANCODE_LABELS[loopState.scancode];
+        }
+        else
+            cout << "Unknown command";
+        break;
+    }
     }
 
     return continueLooping;
@@ -494,29 +509,15 @@ void processModifierState()
     if ((bitmask & 0xFF00) > 0)
         loopState.blockKey = true;
 
-    bool tappedModConfigFound = false;
-    bool tappedModLocksMod = false;
     //a configured tapped mod?
+    bool tappedModConfigFound = false;
     if (loopState.wasTapped)
     {
         for (RewireIftappedMapping map : allMaps.rewireIftappedMapping)
         {
             if (loopState.originalKeyEvent.scancode == map.inkey)
             {
-                if (map.ifTapped == SC_NOP)
-                    break;
-                //tricky def: if  REWIRE A B LOCK translates to A B B, then tapping A locks state of Key B
-                if (map.ifTapped == map.outkey)  
-                {
-                    if (modifierState.modifierTapped == 0 && !modifierState.lastModBrokeLocking)  //can still be used in tapping sequences
-                    {
-                        IFDEBUG cout << " [Tap Locked Modifier ON]" << tappedModLocksMod;
-                        tappedModLocksMod = true;
-                    }
-                    else
-                        break;
-                }
-                else  // map A to C ifTapped
+                if (map.ifTapped != SC_NOP)
                 {
                     if (!loopState.blockKey)
                         loopState.resultingKeyEventSequence.push_back({ loopState.scancode, false });
@@ -531,24 +532,19 @@ void processModifierState()
         }
     }
 
-    if(!tappedModLocksMod)
+    //set internal modifier state
+    if (loopState.isDownstroke)
     {
-        if (loopState.isDownstroke)
-        {
-            modifierState.lastModBrokeTapping = modifierState.modifierTapped & bitmask;
-            modifierState.lastModBrokeLocking = modifierState.modifierDown & bitmask; //if mod was already down - next tap will not lock mod
-            IFDEBUG if (modifierState.lastModBrokeLocking) cout << "[Tap Locked Modifier OFF]";
-            modifierState.modifierDown |= bitmask;
-        }
-        else
-            modifierState.modifierDown &= ~bitmask;
+        modifierState.lastModBrokeTapping = modifierState.modifierTapped & bitmask;
+        modifierState.modifierDown |= bitmask;
     }
+    else
+        modifierState.modifierDown &= ~bitmask;
 
     //Set tapped bitmask. You can combine mod-taps (like tap-Ctrl then tap-Alt).
     //Double-tap clears all taps.
     //Long presses, release will not register as tapped.
-    if (!tappedModConfigFound && !tappedModLocksMod
-        && !modifierState.lastModBrokeLocking && !modifierState.lastModBrokeTapping)
+    if (!tappedModConfigFound && !modifierState.lastModBrokeTapping)
     {
         bool sameKey = loopState.originalKeyEvent.scancode == globalState.previousKeyEventIn.scancode;
         if (loopState.wasTapped && modifierState.lastModBrokeTapping)
@@ -1067,12 +1063,12 @@ void switchLayer(int layer)
     if (layer == 0)
     {
         globalState.activeLayer = DEFAULT_ACTIVE_LAYER;
-        globalState.layerName = "(" + to_string(DEFAULT_ACTIVE_LAYER) + ") " + DEFAULT_ACTIVE_LAYER_NAME;
+        globalState.layerName = to_string(DEFAULT_ACTIVE_LAYER) + " (" + DEFAULT_ACTIVE_LAYER_NAME + ")";
     }
     else if (parseIni(layer, newLayerName))
     {
         globalState.activeLayer = layer;
-        globalState.layerName = "(" + to_string(layer) + ") " + newLayerName;
+        globalState.layerName = to_string(layer) + " (" + newLayerName + ")";
     }
     else
     {
@@ -1119,7 +1115,6 @@ void resetModifierState()
     modifierState.modifierDown = 0;
     modifierState.modifierTapped = 0;
     modifierState.lastModBrokeTapping = false;
-    modifierState.lastModBrokeLocking = false;
     modifierState.modsTempAltered.clear();
 
     resetCapsNumScrollLock();
@@ -1268,31 +1263,35 @@ void reset()
 {
     resetAllStatesToDefault();
 
-    for (int i = 0; i < 255; i++)	//Send() suppresses key UP if it thinks it is already up.
-        globalState.keysDownSent[i] = true;
-
-    IFDEBUG cout << endl << "Resetting all modifiers to UP" << endl;
-    vector<KeyEvent> keyEventSequence;
-    keyEventSequence.push_back({SC_LSHIFT, false });
-    keyEventSequence.push_back({SC_RSHIFT, false });
-    keyEventSequence.push_back({SC_LCTRL, false});
-    keyEventSequence.push_back({SC_RCTRL, false});
-    keyEventSequence.push_back({SC_LWIN, false});
-    keyEventSequence.push_back({SC_RWIN, false});
-    keyEventSequence.push_back({SC_LALT, false});
-    keyEventSequence.push_back({SC_RALT, false});
-    keyEventSequence.push_back({SC_CAPS, false});
-    keyEventSequence.push_back({AHK_HOTKEY1, false});
-    keyEventSequence.push_back({AHK_HOTKEY2, false});
-    playKeyEventSequence(keyEventSequence);
-    for (int i = 0; i < 255; i++)
-    {
-        globalState.keysDownSent[i] = false;
-    }
+    releaseAllRealModifiers();
 
     readIniFile(sanitizedIniContent);
     readGlobalsOnStartup();
     switchLayer(globalState.activeLayer);
+}
+
+void releaseAllRealModifiers()
+{
+    IFDEBUG cout << endl << "Resetting all modifiers to UP" << endl;
+    for (int i = 0; i < 255; i++)	//Send() suppresses key UP if it thinks it is already up.
+        globalState.keysDownSent[i] = true;
+
+    vector<KeyEvent> keyEventSequence;
+    keyEventSequence.push_back({ SC_LSHIFT, false });
+    keyEventSequence.push_back({ SC_RSHIFT, false });
+    keyEventSequence.push_back({ SC_LCTRL, false });
+    keyEventSequence.push_back({ SC_RCTRL, false });
+    keyEventSequence.push_back({ SC_LWIN, false });
+    keyEventSequence.push_back({ SC_RWIN, false });
+    keyEventSequence.push_back({ SC_LALT, false });
+    keyEventSequence.push_back({ SC_RALT, false });
+    keyEventSequence.push_back({ SC_CAPS, false });
+    keyEventSequence.push_back({ AHK_HOTKEY1, false });
+    keyEventSequence.push_back({ AHK_HOTKEY2, false });
+    playKeyEventSequence(keyEventSequence);
+
+    for (int i = 0; i < 255; i++)
+        globalState.keysDownSent[i] = false;
 }
 
 

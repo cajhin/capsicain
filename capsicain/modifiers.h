@@ -12,6 +12,10 @@ unsigned short getModifierForBitmask(unsigned short bitmask);
 
 bool isModifier(unsigned short scancode);
 
+bool isRealModifier(unsigned short scancode);
+
+bool isVirtualModifier(unsigned short scancode);
+
 bool isModifierDown(unsigned short modifier, unsigned short modState);
 
 #define BITMASK_LSHIFT      0x001

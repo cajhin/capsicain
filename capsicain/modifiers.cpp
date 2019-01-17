@@ -37,6 +37,17 @@ bool isModifier(unsigned short scancode)
     return (getBitmaskForModifier(scancode) == 0 ? false : true);
 }
 
+bool isRealModifier(unsigned short scancode)
+{
+    unsigned short bitmask = getBitmaskForModifier(scancode);
+    return ((bitmask & 0xFF) > 0);
+}
+bool isVirtualModifier(unsigned short scancode)
+{
+    unsigned short bitmask = getBitmaskForModifier(scancode);
+    return ((bitmask & 0x7F00) > 0);
+}
+
 bool isModifierDown(unsigned short modifier, unsigned short modState)
 {
     for (int i = 0; i < NUMBER_OF_MODIFIERS; i++)

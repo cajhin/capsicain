@@ -52,6 +52,7 @@ void printHelloHeader();
 void printStatus();
 void printHelp();
 void reset();
+void releaseAllRealModifiers();
 std::vector<std::string> assembleLayerConfig(int layer);
 bool parseIni(int layer);
 void switchLayer(int layer);
