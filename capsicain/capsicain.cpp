@@ -14,7 +14,7 @@
 
 using namespace std;
 
-const string VERSION = "48";
+const string VERSION = "49";
 
 string SCANCODE_LABELS[256]; // contains e.g. [01]="ESC" instead of SC_ESCAPE 
 
@@ -22,6 +22,7 @@ const int DEFAULT_ACTIVE_LAYER = 0;
 const string DEFAULT_ACTIVE_LAYER_NAME = "no processing, forward everything";
 
 const int DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS = 5;  //System may drop keys when they are sent too fast. Local host needs 0-1ms, Linux VM 5+ms for 100% reliable keystroke detection
+const int MAX_MACRO_LENGTH = 200;  //stop recording at some point if it was forgotten.
 
 const bool DEFAULT_START_AHK_ON_STARTUP = true;
 const int DEFAULT_DELAY_FOR_AHK = 50;	    //autohotkey is slow
@@ -82,6 +83,7 @@ struct GlobalState
     bool deviceIsAppleKeyboard = false;
 
     KeyEvent previousKeyEventIn = { SC_NOP, 0 };
+    KeyEvent previous2KeyEventIn = { SC_NOP, 0 }; //2 keys ago
     bool keysDownSent[256] = { false };
 
     bool recordingMacro = false;
@@ -138,6 +140,11 @@ void readGlobalsOnStartup()
         option.iniVersion = "GLOBAL iniVersion is undefined";
 }
 
+void storePreviousKeyEvents()
+{
+    globalState.previous2KeyEventIn = globalState.previousKeyEventIn;
+    globalState.previousKeyEventIn = loopState.originalKeyEvent;
+}
 
 int main()
 {
@@ -200,7 +207,6 @@ int main()
         }
 
         loopState.loopStartTimepoint = timepointNow();
-        globalState.previousKeyEventIn = loopState.originalKeyEvent;
         resetLoopState();
 
         //copy InterceptionKeyStroke (unpleasant to use) to plain KeyEvent
@@ -208,7 +214,9 @@ int main()
         loopState.scancode = loopState.originalKeyEvent.scancode;
         loopState.isDownstroke = loopState.originalKeyEvent.isDownstroke;
         loopState.wasTapped = !loopState.isDownstroke 
-            && (loopState.originalKeyEvent.scancode == globalState.previousKeyEventIn.scancode);
+            && (loopState.originalKeyEvent.scancode == globalState.previousKeyEventIn.scancode)
+            && ((loopState.originalKeyEvent.scancode != globalState.previous2KeyEventIn.scancode)
+                || (!globalState.previous2KeyEventIn.isDownstroke));
 
         //sanity check
         if (loopState.originalIKstroke.code >= 0x80)
@@ -245,6 +253,7 @@ int main()
                 int layer = loopState.scancode - 1;
                 cout << endl << "LAYER CHANGE: " << layer;
                 switchLayer(layer);
+                storePreviousKeyEvents();
                 continue;
             }
         }
@@ -253,6 +262,7 @@ int main()
         if (globalState.activeLayer == DEFAULT_ACTIVE_LAYER)
         {
             interception_send(globalState.interceptionContext, globalState.interceptionDevice, (InterceptionStroke *)&loopState.originalIKstroke, 1);
+            storePreviousKeyEvents();
             continue;
         }
 
@@ -261,6 +271,7 @@ int main()
         if (loopState.scancode == SC_NOP)   //used the mapping to disable keys?
         {
             IFDEBUG cout << " (NOP)";
+            storePreviousKeyEvents();
             continue;
         }
 
@@ -277,6 +288,7 @@ int main()
                 sendKeyEvent({ SC_ESCAPE, true });
                 sendKeyEvent({ SC_ESCAPE, false });
             }
+            storePreviousKeyEvents();
             continue;
         }
 
@@ -292,12 +304,18 @@ int main()
             if (loopState.isDownstroke)
             {
                 if (processCommand())
+                {
+                    storePreviousKeyEvents();
                     continue;
+                }
                 else
                     break;
             }
             else if (isModifier(loopState.scancode))  //suppress key up in Esc+modifier combos
+            {
+                storePreviousKeyEvents();
                 continue;
+            }
         }
 
         /////CONFIGURED RULES
@@ -331,10 +349,11 @@ int main()
             }
         }
 
-        IFDEBUG	cout << "\t (" << dec << millisecondsSinceTimepoint(loopState.loopStartTimepoint) << " ms)";
-        IFDEBUG	loopState.loopStartTimepoint = timepointNow();
+        IFDEBUG cout << "\t (" << dec << millisecondsSinceTimepoint(loopState.loopStartTimepoint) << " ms)";
+        IFDEBUG loopState.loopStartTimepoint = timepointNow();
         sendResultingKeyOrSequence();
-        IFDEBUG		cout << "\t (" << dec << millisecondsSinceTimepoint(loopState.loopStartTimepoint) << " ms)";
+        storePreviousKeyEvents();
+        IFDEBUG cout << "\t (" << dec << millisecondsSinceTimepoint(loopState.loopStartTimepoint) << " ms)";
     }
     interception_destroy_context(globalState.interceptionContext);
 
@@ -437,7 +456,23 @@ bool processCommand()
     case SC_H:
         printHelp();
         break;
+    case SC_J:
+        cout << "MACRO START RECORDING";
+        globalState.recordingMacro = true;
+        globalState.recordedMacro.clear();
+        break;
     case SC_K:
+        if (globalState.recordingMacro)
+            cout << "MACRO STOP RECORDING (" << globalState.recordedMacro.size() << ")";
+        else
+            cout << "MACRO RECORDING ALREADY STOPPED";
+        globalState.recordingMacro = false;
+        break;
+    case SC_L:
+        cout << "MACRO PLAYBACK";
+        playKeyEventSequence(globalState.recordedMacro);
+        break;
+    case SC_APOS:
         cout << "Stop AHK";
         closeOrKillProgram("autohotkey.exe");
         break;
@@ -586,7 +621,7 @@ void processRewire()
         {
             if (loopState.isDownstroke)
             {
-                if (globalState.previousKeyEventIn.scancode != loopState.scancode)
+                if (globalState.previousKeyEventIn.scancode != loopState.originalKeyEvent.scancode)
                 {
                     if (IS_MOD12_DOWN)
                     {
@@ -1177,7 +1212,6 @@ void printStatus()
         << "hardware id:" << globalState.deviceIdKeyboard << endl
         << "Apple keyboard: " << globalState.deviceIsAppleKeyboard << endl
         << "active layer: " << globalState.layerName << endl
-        << "modifier state: " << hex << modifierState.modifierDown << endl
         << "delay between keys in sequences (ms): " << option.delayForKeySequenceMS << endl
         << "number of keys-down sent: " << dec <<   numMakeSent << endl
         << (errorLog.length() > 1 ? "ERROR LOG contains entries" : "clean error log") << " (" << dec << errorLog.length() << " chars)" << endl
@@ -1196,7 +1230,8 @@ void printHelp()
         << "[I] Show processed Ini for the active layer" << endl
         << "[E] Error log" << endl
         << "[A] AHK start" << endl
-        << "[K] AHK end" << endl
+        << "[\"] OR [Ö] AHK end" << endl
+        << "[J,K,L] Macro Recording: Start,Stop,Playback"
         << "[0]..[9] switch layers. [0] is the 'do nothing but listen for commands' layer" << endl
         << "[Z] (labeled [Y] on GER keyboard): flip Y <-> Z keys" << endl
         << "[W] flip ALT <-> WIN on Apple keyboards" << endl
@@ -1253,9 +1288,19 @@ void sendKeyEvent(KeyEvent keyEvent)
     }
     globalState.keysDownSent[(unsigned char)keyEvent.scancode] = keyEvent.isDownstroke;
 
+    if (globalState.recordingMacro)
+    {
+        if (globalState.recordedMacro.size() < MAX_MACRO_LENGTH)
+            globalState.recordedMacro.push_back(keyEvent);
+        else
+        {
+            globalState.recordingMacro = false;
+            cout << endl << "Macro Length > " << MAX_MACRO_LENGTH << ". Forgotten Macro? Stopping recording.";
+        }
+    }
+    
     InterceptionKeyStroke iks = keyEvent2ikstroke(keyEvent);
     IFDEBUG cout << " {" << SCANCODE_LABELS[keyEvent.scancode] << (keyEvent.isDownstroke ? "v" : "^") << "}";
-
     interception_send(globalState.interceptionContext, globalState.interceptionDevice, (InterceptionStroke *)&iks, 1);
 }
 
