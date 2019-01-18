@@ -26,13 +26,13 @@ And while I'm at it, I like to have a ton of extra features.
 
 ## Features
 
-- Like a hardware programmable keyboard, Capsicain can mess with key strokes before anyone else does.  
+- Like a hardware programmable keyboard, Capsicain can view and remap key strokes before anyone else does.  
 
 - Can remap EVERY key that is sent out by the keyboard.  
 
 - Almost everything is configurable via config file.   
   Nine separate layers, switch with [ESC]+NumberKey.   
-  Flexible with 'INCLUDE sub_section'.  
+  Modular config with 'INCLUDE moduleXY'.  
 
 - Modifier remapping   
   F and J to Shift, CapsLock to MOD9, LCtrl to Return, Rotate Alt>Shift>Control>Alt.  
@@ -46,40 +46,51 @@ And while I'm at it, I like to have a ton of extra features.
   Changing a key position is one character in the .ini file, [ESC]+[R] to reload and you're live.  
 
 - Unlimited sequences (key macros) with configurable delay between keys.  
+  On the fly recording and playback of macros.  
+  Two dedicated macros for username / password, stored in memory only.  
 
 - Fast. Low-fat C/C++ code. 1 exe 1 dll 1 ini. Never writes, only reads inside its folder.
     
 ### Features of the default config 
-This is the config I use myself.  
+This is the config I use myself. I call it the King Configuration, because, like the King in Chess, fingers must never move more than one key from their base position into any direction to write and edit any text. (Exceptions: Escape, Enter, app-specific combos that I have not considered).  
 
-- Hold CapsLock + right hand -> Cursor control layer. I LOVE this!!  
+- Hold CapsLock + right hand keys -> Cursor control layer. I LOVE this!!  
     I J K L = Cursor  
     Z U = Home/End   
     H = Backspace  
     etc.  
 
+- Hold CapsLock + left hand keys -> Windows Ctrl-Combos  
+    A S D F G = Undo Cut Copy Paste Redo  
+    Q W E R = SelectAll GotoTop Find FindNext  
+    Z X C V = NewFile NewTab Open Save CloseTab   
+
 - Hold TAB + right hand -> NumPad layer  
     U I O = 7 8 9  etc.  
     
-- ALT + letter keys-> all regular symbol characters.
+- ALT + letter keys-> all regular symbol characters.  
   ALT + Q for '!' is an easier combo than Shift + 1, when you get used to it.  
   ! @ # $ % ^ & ( ) ü ß - + * / = \ { } ö ä ` ~ | _ … < > [ ] ...  
   
-- Tap ALT -> Special character layer  
-    e © ° ¹²³ ...  
+- Tap ALT, key -> Special character layer  
+    € © ° ¹²³ ...  
     
-- Tap ALT, Tap Shift -> More special characters
-
-- TAB (NumPad) + Ctrl -> "Table characters"  
+- Tap Caps, Tap ALT, key -> Greek character layer  
+    ε
+    
+- Tap Caps, Tap ALT, Shift + key -> Uppercase greek character layer  
+    Σ
+    
+- TAB (NumPad) + Ctrl + Number -> "Table characters"  
 ```
     ┌────────────────────────┐  
     │ I like these things :) │  
     └────────────────────────┘  
 ```
-- TAB (NumPad) + Ctrl + Shift -> "Fat Table characters"  
+- TAB (NumPad) + Ctrl + Shift + Number -> "Fat Table characters"  
 ```
     ╔═════════════════════╦═══╦══╗  
-    ║ NEEDZ MOAR TABELS!! ╠═══╬══╣  
+    ║     MOAR TABELS!!   ╠═══╬══╣  
     ╚═════════════════════╩═══╩══╝  
 ```
     
@@ -98,7 +109,7 @@ An AHK script must run that catches F14 / F15 key combos.
 These talk directly to Capsicain, trigger them with [ESC] + {key}  
     [X] eXit capsicain  
     [H] Help - list available commands  
-There are various config options, like "flip Z/Y", "flip WIN/ALT on Apple keyboards", timing for macros, status, more.
+There are various options, like "flip Z/Y", "flip WIN/ALT on Apple keyboards", timing for macros, status, more.
 
 ### What it doesn't do (today)
 - No modifier-only combos (Shift+Alt -> X). I don't like these, they cause accidents.
@@ -109,7 +120,7 @@ There are various config options, like "flip Z/Y", "flip WIN/ALT on Apple keyboa
 
 ## About Interception  
 This is a signed driver ("keyboard driver upper filter"), another project on github. It must be installed for capsicain to work. It provides a DLL to interface with the driver.  
-The filter driver does nothing (just forwards all key events from the keyboard driver to the next higher driver) unless a client wants to hook into the keyboard events.    
+The filter driver does nothing (just forwards all key events from the keyboard driver to the next driver in the chain) unless a client wants to hook into the keyboard events.    
 The DLL is free and open source, the driver is free but closed source (sources available for $1000. The guy wants to make some money from commercial projects - I hope he does because he did some really good work here).  
 
 Musings: Capsicain is a normal userspace app, which means you can simply start and stop it anytime. It also means it cannot talk to the keyboard driver directly, so it needs the Interception driver. This is an unavoidable complication in Windows 10, but I actually see it is a good thing: because it is not that easy, no normal application or game will do this - and this means that Capsicain is always #1 in the keyboard processing chain.  
