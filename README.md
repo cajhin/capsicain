@@ -26,13 +26,13 @@ And while I'm at it, I like to have a ton of extra features.
 
 ## Features
 
-- Like a hardware programmable keyboard, Capsicain can mess with key strokes before anyone else does.  
+- Like a hardware programmable keyboard, Capsicain can view and remap key strokes before anyone else does.  
 
 - Can remap EVERY key that is sent out by the keyboard.  
 
 - Almost everything is configurable via config file.   
   Nine separate layers, switch with [ESC]+NumberKey.   
-  Flexible with 'INCLUDE sub_section'.  
+  Modular config with 'INCLUDE moduleXY'.  
 
 - Modifier remapping   
   F and J to Shift, CapsLock to MOD9, LCtrl to Return, Rotate Alt>Shift>Control>Alt.  
@@ -52,12 +52,18 @@ And while I'm at it, I like to have a ton of extra features.
 - Fast. Low-fat C/C++ code. 1 exe 1 dll 1 ini. Never writes, only reads inside its folder.
     
 ### Features of the default config 
-This is the config I use myself. I call it the King Configuration, because, like the King in Chess, fingers must never move more than one key from their base position into any direction to write and edit any text. (Exceptions: Escape, Enter).  
+This is the config I use myself. I call it the King Configuration, because, like the King in Chess, fingers must never move more than one key from their base position into any direction to write and edit any text. (Exceptions: Escape, Enter, app-specific combos that I have not considered).  
 
-- Hold CapsLock + right hand -> Cursor control layer. I LOVE this!!  
+- Hold CapsLock + right hand keys -> Cursor control layer. I LOVE this!!  
     I J K L = Cursor  
     Z U = Home/End   
     H = Backspace  
+    etc.  
+
+- Hold CapsLock + left hand keys -> Windows Ctrl-Combos  
+    A S D F G = Undo Cut Copy Paste Redo  
+    Q W E R = SelectAll GotoTop Find FindNext
+    Z X C V = NewFile NewTab Open Save CloseTab
     etc.  
 
 - Hold TAB + right hand -> NumPad layer  
