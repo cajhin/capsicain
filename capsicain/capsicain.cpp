@@ -14,7 +14,7 @@
 
 using namespace std;
 
-const string VERSION = "50";
+const string VERSION = "51";
 
 string SCANCODE_LABELS[256]; // contains e.g. [01]="ESC" instead of SC_ESCAPE 
 
@@ -1293,12 +1293,12 @@ void printHelp()
         << "[Y] autohotkeY stop" << endl
         << "[U] Username Enter/Playback" << endl
         << "[I] Show processed Ini for the active layer" << endl
-        << "[P] Password Enter/Playback. DO NOT USE when strangers have access to your local machine." << endl
+        << "[P] Password Enter/Playback. DO NOT USE if strangers can access your local machine." << endl
         << "[A] Autohotkey start" << endl
         << "[S] Status" << endl
         << "[D] Debug mode output" << endl
         << "[H] Help" << endl
-        << "[J K L ;] Macro Recording: Start,Stop,Playback,Copy macro definition to clipboard."
+        << "[J][K][L][;] Macro Recording: Start,Stop,Playback,Copy macro definition to clipboard." << endl
         << "[Z] (labeled [Y] on GER keyboard): flip Y <-> Z keys" << endl
         << "[,] and [.]: pause between keys in sequences -/+ 1ms " << endl
         << endl << "These commands work anywhere, Capsicain does not have to be the active window."
