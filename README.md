@@ -62,14 +62,13 @@ This is the config I use myself. I call it the King Configuration, because, like
 
 - Hold CapsLock + left hand keys -> Windows Ctrl-Combos  
     A S D F G = Undo Cut Copy Paste Redo  
-    Q W E R = SelectAll GotoTop Find FindNext
-    Z X C V = NewFile NewTab Open Save CloseTab
-    etc.  
+    Q W E R = SelectAll GotoTop Find FindNext  
+    Z X C V = NewFile NewTab Open Save CloseTab   
 
 - Hold TAB + right hand -> NumPad layer  
     U I O = 7 8 9  etc.  
     
-- ALT + letter keys-> all regular symbol characters.
+- ALT + letter keys-> all regular symbol characters.  
   ALT + Q for '!' is an easier combo than Shift + 1, when you get used to it.  
   ! @ # $ % ^ & ( ) ü ß - + * / = \ { } ö ä ` ~ | _ … < > [ ] ...  
   
