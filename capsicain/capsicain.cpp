@@ -1,4 +1,4 @@
-#pragma once     resetAlphaMap();
+#pragma once;
 
 #include "pch.h"
 #include <iostream>
@@ -14,7 +14,7 @@
 
 using namespace std;
 
-const string VERSION = "49";
+const string VERSION = "50";
 
 string SCANCODE_LABELS[256]; // contains e.g. [01]="ESC" instead of SC_ESCAPE 
 
@@ -84,6 +84,7 @@ struct GlobalState
 
     KeyEvent previousKeyEventIn = { SC_NOP, 0 };
     KeyEvent previous2KeyEventIn = { SC_NOP, 0 }; //2 keys ago
+    KeyEvent previousKeyEventInStore = { SC_NOP, 0 }; //mostly useless but simplifies the handling
     bool keysDownSent[256] = { false };
 
     bool recordingMacro = false;
@@ -138,12 +139,6 @@ void readGlobalsOnStartup()
     getStringValueForTaggedKey(INI_TAG_GLOBAL, "iniVersion", option.iniVersion, sanitizedIniContent);
     if (option.iniVersion == "")
         option.iniVersion = "GLOBAL iniVersion is undefined";
-}
-
-void storePreviousKeyEvents()
-{
-    globalState.previous2KeyEventIn = globalState.previousKeyEventIn;
-    globalState.previousKeyEventIn = loopState.originalKeyEvent;
 }
 
 int main()
@@ -211,6 +206,12 @@ int main()
 
         //copy InterceptionKeyStroke (unpleasant to use) to plain KeyEvent
         loopState.originalKeyEvent = ikstroke2keyEvent(loopState.originalIKstroke);
+
+        //store last key and the one before
+        globalState.previous2KeyEventIn = globalState.previousKeyEventIn;
+        globalState.previousKeyEventIn = globalState.previousKeyEventInStore;
+        globalState.previousKeyEventInStore = loopState.originalKeyEvent;
+        
         loopState.scancode = loopState.originalKeyEvent.scancode;
         loopState.isDownstroke = loopState.originalKeyEvent.isDownstroke;
         loopState.wasTapped = !loopState.isDownstroke 
@@ -253,7 +254,6 @@ int main()
                 int layer = loopState.scancode - 1;
                 cout << endl << "LAYER CHANGE: " << layer;
                 switchLayer(layer);
-                storePreviousKeyEvents();
                 continue;
             }
         }
@@ -262,7 +262,6 @@ int main()
         if (globalState.activeLayer == DEFAULT_ACTIVE_LAYER)
         {
             interception_send(globalState.interceptionContext, globalState.interceptionDevice, (InterceptionStroke *)&loopState.originalIKstroke, 1);
-            storePreviousKeyEvents();
             continue;
         }
 
@@ -271,7 +270,6 @@ int main()
         if (loopState.scancode == SC_NOP)   //used the mapping to disable keys?
         {
             IFDEBUG cout << " (NOP)";
-            storePreviousKeyEvents();
             continue;
         }
 
@@ -280,15 +278,15 @@ int main()
         {
             globalState.escapeIsDown = loopState.isDownstroke;
             IFDEBUG cout << endl << " ESC" << (loopState.isDownstroke ? "v " : "^ ");
-            if (!loopState.isDownstroke && globalState.previousKeyEventIn.scancode == SC_ESCAPE)
+            if (!loopState.isDownstroke 
+                && globalState.previousKeyEventIn.scancode == SC_ESCAPE)
             {
-                resetLoopState();
-                resetModifierState();
-                releaseAllRealModifiers();
                 sendKeyEvent({ SC_ESCAPE, true });
                 sendKeyEvent({ SC_ESCAPE, false });
+                    resetLoopState();
+                resetModifierState();
+                releaseAllRealModifiers();
             }
-            storePreviousKeyEvents();
             continue;
         }
 
@@ -305,7 +303,6 @@ int main()
             {
                 if (processCommand())
                 {
-                    storePreviousKeyEvents();
                     continue;
                 }
                 else
@@ -313,7 +310,6 @@ int main()
             }
             else if (isModifier(loopState.scancode))  //suppress key up in Esc+modifier combos
             {
-                storePreviousKeyEvents();
                 continue;
             }
         }
@@ -336,7 +332,7 @@ int main()
 
         //basic character key layout. Don't remap the Ctrl combos?
         if (!loopState.isModifier && 
-            !((IS_LCTRL_DOWN || IS_LWIN_DOWN) && option.LControlLWinBlocksAlphaMapping))
+            !(option.LControlLWinBlocksAlphaMapping && (IS_LCTRL_DOWN || IS_LWIN_DOWN) ))
         {
             processMapAlphaKeys(loopState.scancode);
             if (option.flipZy)
@@ -352,7 +348,6 @@ int main()
         IFDEBUG cout << "\t (" << dec << millisecondsSinceTimepoint(loopState.loopStartTimepoint) << " ms)";
         IFDEBUG loopState.loopStartTimepoint = timepointNow();
         sendResultingKeyOrSequence();
-        storePreviousKeyEvents();
         IFDEBUG cout << "\t (" << dec << millisecondsSinceTimepoint(loopState.loopStartTimepoint) << " ms)";
     }
     interception_destroy_context(globalState.interceptionContext);
@@ -430,6 +425,10 @@ bool processCommand()
         getHardwareId();
         cout << endl << (globalState.deviceIsAppleKeyboard ? "APPLE keyboard (flipping Win<>Alt)" : "PC keyboard");
         break;
+    case SC_Y:
+        cout << "Stop AHK";
+        closeOrKillProgram("autohotkey.exe");
+        break;
     case SC_I:
     {
         cout << "INI filtered for layer " << globalState.layerName;
@@ -472,10 +471,23 @@ bool processCommand()
         cout << "MACRO PLAYBACK";
         playKeyEventSequence(globalState.recordedMacro);
         break;
-    case SC_APOS:
-        cout << "Stop AHK";
-        closeOrKillProgram("autohotkey.exe");
+    case SC_SEMI:
+    {
+        cout << "COPY MACRO TO CLIPBOARD";
+        string macro = "";
+        for (KeyEvent key : globalState.recordedMacro)
+        {
+            if (macro.size() > 0)
+                macro += "_";
+            if (key.isDownstroke)
+                macro += "&";
+            else
+                macro += "^";
+            macro += SCANCODE_LABELS[key.scancode];
+        }
+        copyToClipBoard(macro);
         break;
+    }
     case SC_Z:
         option.flipZy = !option.flipZy;
         cout << "Flip Z<>Y mode: " << (option.flipZy ? "ON" : "OFF");
@@ -1223,18 +1235,19 @@ void printHelp()
     cout << "HELP" << endl << endl
         << "[ESC] + [{key}] for core commands" << endl << endl
         << "[X] Exit" << endl
-        << "[Q] (dev feature) Stop the debug build if both release and debug are running" << endl
-        << "[S] Status" << endl
-        << "[R] Reset" << endl
-        << "[D] Debug mode output" << endl
-        << "[I] Show processed Ini for the active layer" << endl
-        << "[E] Error log" << endl
-        << "[A] AHK start" << endl
-        << "[\"] OR [Ö] AHK end" << endl
-        << "[J,K,L] Macro Recording: Start,Stop,Playback"
         << "[0]..[9] switch layers. [0] is the 'do nothing but listen for commands' layer" << endl
-        << "[Z] (labeled [Y] on GER keyboard): flip Y <-> Z keys" << endl
+        << "[Q] (dev feature) Stop the debug build if both release and debug are running" << endl
         << "[W] flip ALT <-> WIN on Apple keyboards" << endl
+        << "[E] Error log" << endl
+        << "[R] Reset" << endl
+        << "[Y] autohotkeY stop" << endl
+        << "[I] Show processed Ini for the active layer" << endl
+        << "[A] Autohotkey start" << endl
+        << "[S] Status" << endl
+        << "[D] Debug mode output" << endl
+        << "[H] Help" << endl
+        << "[J K L ;] Macro Recording: Start,Stop,Playback,Copy macro definition to clipboard."
+        << "[Z] (labeled [Y] on GER keyboard): flip Y <-> Z keys" << endl
         << "[,] and [.]: pause between keys in sequences -/+ 1ms " << endl
         << endl << "These commands work anywhere, Capsicain does not have to be the active window."
         ;

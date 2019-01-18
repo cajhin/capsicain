@@ -6,6 +6,7 @@
 #include <iterator>
 #include <windows.h>
 #include <tlhelp32.h>
+#include "utils.h"
 
 
 using namespace std;
@@ -13,6 +14,24 @@ using namespace std;
 void raise_process_priority(void)
 {
     SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
+}
+
+void copyToClipBoard(std::string text)
+{
+    const char* output = text.c_str();
+    const size_t len = strlen(output) + 1;
+    HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, len);
+    if (hMem == 0)
+    {
+        cout << endl << "Cannot allocate memory.";
+        return;
+    }
+    memcpy(GlobalLock(hMem), output, len);
+    GlobalUnlock(hMem);
+    OpenClipboard(0);
+    EmptyClipboard();
+    SetClipboardData(CF_TEXT, hMem);
+    CloseClipboard();
 }
 
 DWORD FindProcessId(string processName)

@@ -4,6 +4,7 @@
 #include <vector>
 
 void raise_process_priority(void);
+void copyToClipBoard(std::string text);
 std::string startProgram(std::string processname, std::string dir);
 std::string startProgramSameFolder(std::string path);
 void closeOrKillProgram(std::string processName);
