@@ -89,6 +89,11 @@ struct GlobalState
 
     bool recordingMacro = false;
     vector<KeyEvent> recordedMacro;
+
+    vector<KeyEvent> username;
+    vector<KeyEvent> password;
+    bool readingUsername = false;
+    bool readingPassword = false;
 } globalState;
 
 struct ModifierState
@@ -314,6 +319,25 @@ int main()
             }
         }
 
+        //Username
+        if (globalState.readingUsername)
+        {
+            if (loopState.scancode == SC_RETURN)
+                globalState.readingUsername = false;
+            else if (loopState.isDownstroke || globalState.username.size() > 0)  //filter upstroke from the command key
+                globalState.username.push_back(loopState.originalKeyEvent);
+            continue;
+        }
+        //Password
+        if (globalState.readingPassword)
+        {
+            if (loopState.scancode == SC_RETURN)
+                globalState.readingPassword = false;
+            else if (loopState.isDownstroke || globalState.password.size() > 0)  //filter upstroke from the command key
+                globalState.password.push_back(loopState.originalKeyEvent);
+            continue;
+        }
+
         /////CONFIGURED RULES
         IFDEBUG cout << endl << " [" << SCANCODE_LABELS[loopState.scancode] << getSymbolForIKStrokeState(loopState.originalIKstroke.state)
             << " =" << hex << loopState.originalIKstroke.code << " " << loopState.originalIKstroke.state << "]";
@@ -429,12 +453,38 @@ bool processCommand()
         cout << "Stop AHK";
         closeOrKillProgram("autohotkey.exe");
         break;
+    case SC_U:
+    {
+        if (globalState.username.size() == 0)
+        {
+            cout << "Type Username (Enter)";
+            globalState.readingUsername = true;
+        }
+        else
+        {
+            playKeyEventSequence(globalState.username);
+        }
+        break;
+    }
     case SC_I:
     {
         cout << "INI filtered for layer " << globalState.layerName;
         vector<string> assembledLayer = assembleLayerConfig(globalState.activeLayer);
         for (string line : assembledLayer)
             cout << endl << line;
+        break;
+    }
+    case SC_P:
+    {
+        if (globalState.password.size() == 0)
+        {
+            cout << "Type Password (Enter)";
+            globalState.readingPassword = true;
+        }
+        else
+        {
+            playKeyEventSequence(globalState.password);
+        }
         break;
     }
     case SC_A:
@@ -1241,7 +1291,9 @@ void printHelp()
         << "[E] Error log" << endl
         << "[R] Reset" << endl
         << "[Y] autohotkeY stop" << endl
+        << "[U] Username Enter/Playback" << endl
         << "[I] Show processed Ini for the active layer" << endl
+        << "[P] Password Enter/Playback. DO NOT USE when strangers have access to your local machine." << endl
         << "[A] Autohotkey start" << endl
         << "[S] Status" << endl
         << "[D] Debug mode output" << endl
