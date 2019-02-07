@@ -14,7 +14,7 @@
 
 using namespace std;
 
-const string VERSION = "51";
+const string VERSION = "52-tested";
 
 string SCANCODE_LABELS[256]; // contains e.g. [01]="ESC" instead of SC_ESCAPE 
 
@@ -186,6 +186,7 @@ int main()
                                  globalState.interceptionDevice = interception_wait(globalState.interceptionContext),
                                  (InterceptionStroke *)&loopState.originalIKstroke, 1)   > 0)
     {
+        IFDEBUG cout << ". ";
         //ignore secondary keyboard?
         if (option.processOnlyFirstKeyboard 
             && (globalState.previousInterceptionDevice != NULL)
@@ -323,7 +324,10 @@ int main()
         if (globalState.readingUsername)
         {
             if (loopState.scancode == SC_RETURN)
+            {
                 globalState.readingUsername = false;
+                cout << " done";
+            }
             else if (loopState.isDownstroke || globalState.username.size() > 0)  //filter upstroke from the command key
                 globalState.username.push_back(loopState.originalKeyEvent);
             continue;
@@ -332,7 +336,10 @@ int main()
         if (globalState.readingPassword)
         {
             if (loopState.scancode == SC_RETURN)
+            {
                 globalState.readingPassword = false;
+                cout << " done";
+            }
             else if (loopState.isDownstroke || globalState.password.size() > 0)  //filter upstroke from the command key
                 globalState.password.push_back(loopState.originalKeyEvent);
             continue;
@@ -462,6 +469,7 @@ bool processCommand()
         }
         else
         {
+            cout << "Play user";
             playKeyEventSequence(globalState.username);
         }
         break;
@@ -483,6 +491,7 @@ bool processCommand()
         }
         else
         {
+            cout << "Play password";
             playKeyEventSequence(globalState.password);
         }
         break;
@@ -613,7 +622,7 @@ void processModifierState()
         for (RewireIftappedMapping map : allMaps.rewireIftappedMapping)
         {
             if (loopState.originalKeyEvent.scancode == map.inkey)
-            {
+                {
                 if (map.ifTapped != SC_NOP)
                 {
                     if (!loopState.blockKey)
