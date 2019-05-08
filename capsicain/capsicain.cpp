@@ -14,7 +14,7 @@
 
 using namespace std;
 
-const string VERSION = "52-tested";
+const string VERSION = "53";
 
 string SCANCODE_LABELS[256]; // contains e.g. [01]="ESC" instead of SC_ESCAPE 
 
@@ -186,7 +186,7 @@ int main()
                                  globalState.interceptionDevice = interception_wait(globalState.interceptionContext),
                                  (InterceptionStroke *)&loopState.originalIKstroke, 1)   > 0)
     {
-        IFDEBUG cout << ". ";
+         IFDEBUG cout << ". ";
         //ignore secondary keyboard?
         if (option.processOnlyFirstKeyboard 
             && (globalState.previousInterceptionDevice != NULL)
@@ -906,7 +906,7 @@ void getHardwareId()
             id = "UNKNOWN_ID";
 
         globalState.deviceIdKeyboard = id;
-        globalState.deviceIsAppleKeyboard = (id.find("VID_05AC") != string::npos);
+        globalState.deviceIsAppleKeyboard = (id.find("VID_05AC") != string::npos) || (id.find("VID&000205ac") != string::npos);
 
         IFDEBUG cout << endl << "getHardwareId:" << id << " / Apple keyboard: " << globalState.deviceIsAppleKeyboard;
     }
