@@ -4,20 +4,36 @@ and  capsicain.cajhin.ini
 for a detailed explanation.
 
 ┌─────────────┐
+│  FEATURES   │
+└─────────────┘
+Random selection of special features.
+Some require the KingCon .ini
+
+-Modifier locking
+  This is nice when you need to keep Ctrl-Shift pressed for 30 seconds.
+  Press Esc + modifier, release modifier then Esc -> the mod stays pressed.
+  Tap Esc to release all locks.
+  For Alt you need to lock two times.
+
+
+┌─────────────┐
 │ LIMITATIONS │
 └─────────────┘
 
 * Capsicain only processes keyboard events.
-  Media Keys are usually not keyboard keys, but custom USB codes - just like a gamepad button is no keyboard key.
+  Some Media Keys are not keyboard keys, but custom USB codes - just like a gamepad button is no keyboard key.
   If you need this, AutoHotKey is very good at dealing with all kinds of input devices.
 
 * No characters.
   Capsicain deals with physical keys. Mapping to characters happens later in the Windows keyboard stack.
   This means, for example, that you cannot send the '!' character. You can only send [Shift]+[1].
   To send special characters, you can send ALT+NumPad combos. The altChar(123) function does that for you.
+    Note that this is a Windows standard; Linux VMs do not understand these Alt combos.
+    Note that in remote desktops you may have to increase the DelayForKeySequenceMS setting (in .ini or live with [ESC]+[,.])
 
 * Some special keys are invisible.
-  For example, the Fn key is handled internally on many keyboards. If it does not send a scancode over USB, the PC does not know about it.
+  For example, the Fn key is handled internally on many keyboards. 
+  If a key does not send a scancode over USB, the PC does not know about it.
   Another example, the 'Program' key on my Vortex keyboard does not produce a scancode.
 
 * No mapping of pure modifier combos.
@@ -26,11 +42,3 @@ for a detailed explanation.
 
 * No mapping of combos to modifiers.
   For example, "Alt + S -> Shift" is not possible.
-
-* No dead keys / composing
-  Things like "ALT+U, then O" -> ö are not possible.
-  
-* No ALT+123 special chars in Linux VMs.
-  The Windows way to create special chars is ALT+Numpad. For example, ALT+127 produces ⌂
-  Linux does not understand this.
-  
