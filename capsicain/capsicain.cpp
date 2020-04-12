@@ -14,7 +14,7 @@
 
 using namespace std;
 
-const string VERSION = "53";
+const string VERSION = "54";
 
 string SCANCODE_LABELS[256]; // contains e.g. [01]="ESC" instead of SC_ESCAPE 
 
@@ -686,6 +686,7 @@ void processRewire()
     }
 
     bool finalScancode = false;
+
     if (option.altAltToAlt)
     {
         if (loopState.scancode == SC_LALT || loopState.scancode == SC_RALT)
@@ -704,13 +705,18 @@ void processRewire()
                 {
                     if (modifierState.modifierDown & (BITMASK_LALT | BITMASK_RALT))
                         finalScancode = true;
+                    else if (modifierState.modifierTapped & BITMASK_MOD12)
+                    {
+                        modifierState.modifierTapped &= ~BITMASK_MOD12;
+                        finalScancode = true;
+                    }
                 }
             }
             else
             {
                 if(    loopState.scancode == SC_LALT && IS_LALT_DOWN
                     || loopState.scancode == SC_RALT && IS_RALT_DOWN)
-                finalScancode = true;
+                    finalScancode = true;
             }
         }
     }
