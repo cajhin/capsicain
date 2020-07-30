@@ -127,6 +127,10 @@ void getAllScancodeLabels(string arr[])
     checkAddLabel(SC_F13, "F13", arr);
     checkAddLabel(SC_F14, "F14", arr);
     checkAddLabel(SC_F15, "F15", arr);
+    checkAddLabel(SC_F16, "F16", arr);
+    checkAddLabel(SC_F17, "F17", arr);
+    checkAddLabel(SC_F18, "F18", arr);
+    checkAddLabel(SC_F19, "F19", arr);
     //CAPSICAIN virtual modifiers:
     checkAddLabel(SC_MOD9, "MOD9", arr);
     checkAddLabel(SC_MOD10, "MOD10", arr);
