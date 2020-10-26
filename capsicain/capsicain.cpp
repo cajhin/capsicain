@@ -14,7 +14,7 @@
 
 using namespace std;
 
-const string VERSION = "55";
+const string VERSION = "56";
 
 string SCANCODE_LABELS[256]; // contains e.g. [01]="ESC" instead of SC_ESCAPE 
 
@@ -550,6 +550,11 @@ bool processCommand()
     case SC_Z:
         option.flipZy = !option.flipZy;
         cout << "Flip Z<>Y mode: " << (option.flipZy ? "ON" : "OFF");
+        break;
+    case SC_C:
+        cout << "List of all Key Labels for scancodes" << endl
+             << "------------------------------------" << endl;
+        printKeylabels();
         break;
     case SC_COMMA:
         if (option.delayForKeySequenceMS >= 1)
@@ -1295,27 +1300,34 @@ void printStatus()
         ;
 }
 
+void printKeylabels()
+{
+    for (int i = 0; i <= 255; i++)
+        cout << "sc " << uppercase << hex << i << " = " << SCANCODE_LABELS[i] << endl;
+}
+
 void printHelp()
 {
     cout << "HELP" << endl << endl
-        << "[ESC] + [{key}] for core commands" << endl << endl
+        << "Press [ESC] + [key] for core commands" << endl << endl
+        << "[H] Help" << endl
         << "[X] Exit" << endl
         << "[0]..[9] switch layers. [0] is the 'do nothing but listen for commands' layer" << endl
-        << "[Q] (dev feature) Stop the debug build if both release and debug are running" << endl
         << "[W] flip ALT <-> WIN on Apple keyboards" << endl
-        << "[E] Error log" << endl
-        << "[R] Reset" << endl
-        << "[Y] autohotkeY stop" << endl
-        << "[U] Username Enter/Playback" << endl
-        << "[I] Show processed Ini for the active layer" << endl
-        << "[P] Password Enter/Playback. DO NOT USE if strangers can access your local machine." << endl
-        << "[A] Autohotkey start" << endl
+        << "[Z] (labeled [Y] on GER keyboard): flip Y <-> Z keys" << endl
         << "[S] Status" << endl
         << "[D] Debug mode output" << endl
-        << "[H] Help" << endl
+        << "[E] Error log" << endl
+        << "[C] Print list of key labels for all scancodes" << endl
+        << "[R] Reset and reload the .ini" << endl
+        << "[U] Username Enter/Playback" << endl
+        << "[P] Password Enter/Playback. DO NOT USE if strangers can access your local machine." << endl
+        << "[I] Show processed Ini for the active layer" << endl
+        << "[A] Autohotkey start" << endl
+        << "[Y] autohotkeY stop" << endl
         << "[J][K][L][;] Macro Recording: Start,Stop,Playback,Copy macro definition to clipboard." << endl
-        << "[Z] (labeled [Y] on GER keyboard): flip Y <-> Z keys" << endl
         << "[,] and [.]: pause between keys in sequences -/+ 1ms " << endl
+        << "[Q] (dev feature) Stop the debug build if both release and debug are running" << endl
         << endl << "These commands work anywhere, Capsicain does not have to be the active window."
         ;
 }

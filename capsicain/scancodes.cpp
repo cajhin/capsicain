@@ -7,7 +7,7 @@
 
 using namespace std;
 
-//returns 0 SC_NOP if not found
+//returns 0 SC_NOP if label is not found, or if given SC_ string is not a number.
 unsigned char getScancode(string label, string* arr)
 {
     string ucLabel = stringToUpper(label);
@@ -27,9 +27,9 @@ void checkAddLabel(int index, string label, string arr[])
         arr[index] = label;
 }
 
-//Map scancode labels to key labels that are used in the .ini
-//GENERATED from scancodes.h then modified - SC_EQUALS becomes '=' for example. 
-
+//Map scancodes via scancode labels to key labels that are used in the .ini
+//GENERATED from scancodes.h then modified - SC_EQUALS becomes '=' for example.
+//All undefined scancodes get a generic label "SC_0XNN" (where NN is a hex value).
 //to re-sync automatically, run this regex in Notepad++ over scancodes.h enum:
 //from:  (.*)SC_(.*?) (.*)
 //to:    checkAddLabel\( SC_\2, "\2", arr\);
@@ -131,6 +131,10 @@ void getAllScancodeLabels(string arr[])
     checkAddLabel(SC_F17, "F17", arr);
     checkAddLabel(SC_F18, "F18", arr);
     checkAddLabel(SC_F19, "F19", arr);
+    checkAddLabel(SC_F20, "F20", arr);
+    checkAddLabel(SC_F21, "F21", arr);
+    checkAddLabel(SC_F22, "F22", arr);
+    checkAddLabel(SC_F23, "F23", arr);
     //CAPSICAIN virtual modifiers:
     checkAddLabel(SC_MOD9, "MOD9", arr);
     checkAddLabel(SC_MOD10, "MOD10", arr);
@@ -139,7 +143,10 @@ void getAllScancodeLabels(string arr[])
     checkAddLabel(SC_MOD13, "MOD13", arr);
     checkAddLabel(SC_MOD14, "MOD14", arr);
     checkAddLabel(SC_MOD15, "MOD15", arr);
+    //messy international special keys
     checkAddLabel(SC_KANA, "KANA", arr);
+    checkAddLabel(SC_LANG2, "LANG2", arr);
+    checkAddLabel(SC_LANG1, "LANG1", arr);
     checkAddLabel(SC_ABNT_C1, "ABNT_C1", arr);
     checkAddLabel(SC_CONVERT, "CONVERT", arr);
     checkAddLabel(SC_NOCONVERT, "NOCONVERT", arr);
@@ -196,4 +203,15 @@ void getAllScancodeLabels(string arr[])
     checkAddLabel(SC_MAIL, "MAIL", arr);
     checkAddLabel(SC_MEDIASELECT, "MEDIASELECT", arr);
     checkAddLabel(SC_CPS_ESC, "CPS_ESC", arr);
+
+    //fill all undefined scancodes with "SC_0XNN" so they can be referenced
+    char buffer[9];
+    for (int i = 0; i <= 255; i++)
+    {
+        if (arr[i] == "")
+        {
+            snprintf(buffer, 9, "SC_0X%02X", i);
+            arr[i].assign(buffer, 7);
+        }
+    }
 }

@@ -50,6 +50,7 @@ void initConsoleWindow();
 
 void printHelloHeader();
 void printStatus();
+void printKeylabels();
 void printHelp();
 void reset();
 void releaseAllRealModifiers();
