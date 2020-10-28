@@ -14,7 +14,7 @@
 
 using namespace std;
 
-const string VERSION = "56";
+const string VERSION = "57";
 
 string SCANCODE_LABELS[256]; // contains e.g. [01]="ESC" instead of SC_ESCAPE 
 
@@ -966,11 +966,11 @@ bool parseIniOptions(std::vector<std::string> assembledIni)
 bool parseIniRewire(std::vector<std::string> assembledIni)
 {
     vector<string> sectLines = getTaggedLinesFromIni(INI_TAG_REWIRE, assembledIni);
+    allMaps.rewireIftappedMapping.clear();
+    option.secondEscapeKey = 0;
     if (sectLines.size() == 0)
         return false;
 
-    allMaps.rewireIftappedMapping.clear();
-    option.secondEscapeKey = 0;
     unsigned char keyIn, keyOut, keyIfTapped;
     for (string line : sectLines)
     {
