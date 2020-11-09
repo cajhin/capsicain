@@ -36,6 +36,38 @@ void normalizeLine(string &line)
     std::transform(line.begin(), line.end(), line.begin(), ::tolower);
 }
 
+int checkSyntax(std::vector<string> iniLines)
+{
+    int errors = 0;
+    bool inAlpha = false;
+    for (std::vector<std::string>::iterator t = iniLines.begin(); t != iniLines.end(); t++) 
+    {
+        if (stringStartsWith(*t, "alpha_from"))
+            inAlpha = true;
+        else if (stringStartsWith(*t, "alpha_end"))
+        {
+            inAlpha = false;
+            continue;
+        }
+        if (inAlpha)
+            continue;
+
+        if (
+            stringStartsWith(*t, "[") ||
+            stringStartsWith(*t, "global") ||
+            stringStartsWith(*t, "include") ||
+            stringStartsWith(*t, "rewire") ||
+            stringStartsWith(*t, "combo") ||
+            stringStartsWith(*t, "option")
+            )
+            continue;
+
+        std::cout << "Syntax error: Unknown keyword: " << *t << std::endl;
+        errors++;
+    }
+    return errors;
+}
+
 // Read .ini file, normalize lines, drop empty lines, drop [Reference* sections
 bool readIniFile(std::vector<string> &iniLines)
 {
@@ -46,7 +78,14 @@ bool readIniFile(std::vector<string> &iniLines)
     if (!f.is_open())
         return false;
 
+    bool detectBom = true;  //that nasty UTF BOM that MS loves so much...
     while (getline(f, line)) {
+        if (detectBom)
+        {
+            detectBom = false;
+            if (line[0] == (char)0xEF)
+                continue;
+        }
         normalizeLine(line);
         if (line == "")
             continue;
@@ -63,7 +102,9 @@ bool readIniFile(std::vector<string> &iniLines)
         cout << "Error while reading .ini file";
         return false;
     }
-
+    int numErrors = checkSyntax(iniLines);
+    if (numErrors>0)
+        cout << "**** There are " << numErrors << " errors in your ini file ****";
     return true;
 }
 
