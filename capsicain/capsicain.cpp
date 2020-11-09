@@ -14,7 +14,7 @@
 
 using namespace std;
 
-const string VERSION = "57";
+const string VERSION = "58";
 
 string SCANCODE_LABELS[256]; // contains e.g. [01]="ESC" instead of SC_ESCAPE 
 
@@ -726,7 +726,8 @@ void processRewire()
         }
     }
 
-    if(!finalScancode)
+    if (!finalScancode)
+    {
         for (RewireIftappedMapping map : allMaps.rewireIftappedMapping)
         {
             if (loopState.scancode == map.inkey)
@@ -735,6 +736,7 @@ void processRewire()
                 break;
             }
         }
+    }
 
     if (!finalScancode && option.shiftShiftToCapsLock)
     {
