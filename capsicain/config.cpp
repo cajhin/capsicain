@@ -240,19 +240,18 @@ bool lexAlphaFromTo(std::string alpha_to, unsigned char (&alphamap)[256], std::s
 
     for (int i = 0; i < sfrom.size(); i++)
     {
-        unsigned char cfrom = getScancode(sfrom[i], scLabels);
-        unsigned char cto = getScancode(sto[i], scLabels);
-        if ((cfrom == 0 && sfrom[i] != "nop")
-            || (cto == 0 && sto[i] != "nop"))
+        int ifrom = getScancode(sfrom[i], scLabels);
+        int ito = getScancode(sto[i], scLabels);
+        if (ifrom < 0 || ito < 0)
         {
             cout << endl << "Unknown scancode labels: " << sfrom[i] << " and " << sto[i];
             return false;
         }
-        if (alphamap[cfrom] != cfrom)
+        if (alphamap[ifrom] != ifrom)
         {
             cout << endl << "WARNING: Ignoring redefinition of alpha key: " << sfrom[i] << " to " << sto[i];
         }
-        alphamap[cfrom] = cto;
+        alphamap[(unsigned char)ifrom] = (unsigned char)ito;
     }
     return true;
 }
@@ -264,16 +263,16 @@ bool lexScancodeMapping(std::string line, unsigned char &keyA, unsigned char &ke
     if (labels.size() != 2 && labels.size() != 3)
         return false;
 
-    keyA = getScancode(labels[0], scLabels);
-    keyB = getScancode(labels[1], scLabels);
-    keyC = SC_NOP;
+    int ikeyA = getScancode(labels[0], scLabels);
+    int ikeyB = getScancode(labels[1], scLabels);
+    int ikeyC = SC_NOP;
     if (labels.size() == 3)
-        keyC = getScancode(labels[2], scLabels);
-    if ( (keyA == 0 && labels[0] != "nop") ||
-         (keyB == 0 && labels[1] != "nop") ||
-         (labels.size() == 3  && keyC == 0 && labels[2] != "nop")
-        )
+        ikeyC = getScancode(labels[2], scLabels);
+    if (ikeyA < 0 || ikeyB < 0 || ikeyC < 0)
         return false; //invalid key label
+    keyA = (unsigned char)ikeyA;
+    keyB = (unsigned char)ikeyB;
+    keyC = (unsigned char)ikeyC;
     return true;
 }
 
@@ -294,13 +293,13 @@ unsigned short lexModString(string modString, char filter)
 bool lexFunctionCombo(std::string &funcParams, std::string * scLabels, std::vector<KeyEvent> &strokeSeq)
 {
     vector<string> labels = stringSplit(funcParams, '+');
-    unsigned short sc;
+    int isc;
     for (string label : labels)
     {
-        sc = getScancode(label, scLabels);
-        if (sc == 0)
+        isc = getScancode(label, scLabels);
+        if (isc < 0)
             return false;
-        strokeSeq.push_back({ sc, true });
+        strokeSeq.push_back({ (unsigned char)isc, true });
     }
     size_t len = strokeSeq.size();
     for (size_t i = len; i > 0; i--)	//copy upstrokes in reverse order
@@ -317,10 +316,10 @@ bool lexRule(std::string line, unsigned short &key, unsigned short(&mods)[3], st
         return false;
     line = line.substr(strkey.length());
 
-    unsigned short tmpKey = getScancode(strkey, scLabels);
-    if (tmpKey == 0)
+    int itmpKey = getScancode(strkey, scLabels);
+    if (itmpKey < 0)
         return false;
-    key = tmpKey;
+    key = (unsigned char)itmpKey;
 
     line.erase(std::remove(line.begin(), line.end(), ' '), line.end());
 
@@ -352,11 +351,11 @@ bool lexRule(std::string line, unsigned short &key, unsigned short(&mods)[3], st
     vector<KeyEvent> strokeSeq;
     if (funcName == "key")
     {
-        unsigned short sc = getScancode(funcParams, scLabels);
-        if (sc == 0)
+        int isc = getScancode(funcParams, scLabels);
+        if (isc < 0)
             return false;
-        strokeSeq.push_back({ sc, true });
-        strokeSeq.push_back({ sc, false });
+        strokeSeq.push_back({ (unsigned char)isc, true });
+        strokeSeq.push_back({ (unsigned char)isc, false });
     }
     else if (funcName == "combo")
     {
@@ -390,11 +389,11 @@ bool lexRule(std::string line, unsigned short &key, unsigned short(&mods)[3], st
                 return false;
             string temp = "NP";
             temp += c;
-            unsigned short sc = getScancode(temp, scLabels);
-            if (sc == 0)
+            int isc = getScancode(temp, scLabels);
+            if (isc < 0)
                 return false;
-            strokeSeq.push_back({ sc, true });
-            strokeSeq.push_back({ sc, false });
+            strokeSeq.push_back({ (unsigned char)isc, true });
+            strokeSeq.push_back({ (unsigned char)isc, false });
         }
         strokeSeq.push_back({ SC_CPS_ESC, false });
     }
@@ -403,8 +402,8 @@ bool lexRule(std::string line, unsigned short &key, unsigned short(&mods)[3], st
         vector<string> modKeyParams = stringSplit(funcParams, '+');
         if (modKeyParams.size() != 2)
             return false;
-        unsigned short sc = getScancode(modKeyParams[0], scLabels);
-        if (sc == SC_NOP)
+        int isc = getScancode(modKeyParams[0], scLabels);
+        if (isc < 0)
             return false;
 
         unsigned short modsPress = lexModString(modKeyParams[1], '&'); //and (press if up)
@@ -417,8 +416,8 @@ bool lexRule(std::string line, unsigned short &key, unsigned short(&mods)[3], st
         if (modsRelease > 0)
             strokeSeq.push_back({ modsRelease, false });
         strokeSeq.push_back({ SC_CPS_ESC, false });
-        strokeSeq.push_back({ sc, true });
-        strokeSeq.push_back({ sc, false });
+        strokeSeq.push_back({ (unsigned char)isc, true });
+        strokeSeq.push_back({ (unsigned char)isc, false });
         strokeSeq.push_back({ SC_CPS_ESC, false }); //second UP does UNDO the temp mod changes
     }
     else if (funcName == "sequence")
@@ -460,8 +459,8 @@ bool lexRule(std::string line, unsigned short &key, unsigned short(&mods)[3], st
             if (!downstroke || !upstroke)
                 param = param.substr(1);
 
-            unsigned short sc = getScancode(param, scLabels);
-            if (sc == 0)
+            int isc = getScancode(param, scLabels);
+            if (isc < 0)
             {
                 cout << endl << "Unknown key label in sequence(): " << param;
                 return false;
@@ -469,13 +468,13 @@ bool lexRule(std::string line, unsigned short &key, unsigned short(&mods)[3], st
 
             if (downstroke)
             {
-                strokeSeq.push_back({ sc, true });
-                downkeys[sc] = true;
+                strokeSeq.push_back({ (unsigned char)isc, true });
+                downkeys[(unsigned char)isc] = true;
             }
             if (upstroke)
             {
-                strokeSeq.push_back({ sc, false });
-                downkeys[sc] = false;
+                strokeSeq.push_back({ (unsigned char)isc, false });
+                downkeys[(unsigned char)isc] = false;
             }
         }
         //check if all keys were released

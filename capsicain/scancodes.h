@@ -2,7 +2,7 @@
 
 #include <string>
 void getAllScancodeLabels(std::string arr[]);
-unsigned char getScancode(std::string label, std::string arr[]);
+int getScancode(std::string label, std::string arr[]);
 
 // taken from https://github.com/wgois/OIS/blob/master/includes/OISKeyboard.h
 // assigns easy to remember labels to the PS2 scan codes set 1 (which the keyboard driver seems to use)
@@ -110,8 +110,8 @@ enum ScanCode {
     SC_F22 = 0x6D,
     SC_F23 = 0x6E,
     SC_KANA = 0x70, // (Japanese keyboard)
-    SC_LANG2 = 0x71, // (Korean 'Hanja key' according to Firefox spec
-    SC_LANG1 = 0x72, // (Korean 'Han/Yeong key' according to Firefox spec
+    SC_LANG2 = 0x71, // (Korean 'Hanja key' according to Firefox spec)
+    SC_LANG1 = 0x72, // (Korean 'Han/Yeong key' according to Firefox spec)
     SC_ABNT_C1 = 0x73, // / ? on Portugese (Brazilian) keyboards
     SC_CONVERT = 0x79, // (Japanese keyboard)
     SC_NOCONVERT = 0x7B, // (Japanese keyboard)

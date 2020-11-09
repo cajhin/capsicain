@@ -7,8 +7,9 @@
 
 using namespace std;
 
-//returns 0 SC_NOP if label is not found, or if given SC_ string is not a number.
-unsigned char getScancode(string label, string* arr)
+//returns -1 if label is not found, or if given SC_ string is not a number,
+//otherwise an 8bit scancode (can cast to unsigned char without checks)
+int getScancode(string label, string* arr)
 {
     string ucLabel = stringToUpper(label);
     for (int i = 0; i < 256; i++)
@@ -16,7 +17,7 @@ unsigned char getScancode(string label, string* arr)
         if (arr[i] == ucLabel)
             return i;
     }
-    return 0;
+    return -1;
 }
 
 void checkAddLabel(int index, string label, string arr[])
@@ -27,6 +28,7 @@ void checkAddLabel(int index, string label, string arr[])
         arr[index] = label;
 }
 
+//List of all 'pretty' key labels that can be used in the .ini
 //Map scancodes via scancode labels to key labels that are used in the .ini
 //GENERATED from scancodes.h then modified - SC_EQUALS becomes '=' for example.
 //All undefined scancodes get a generic label "SC_0XNN" (where NN is a hex value).
