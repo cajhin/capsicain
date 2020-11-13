@@ -14,7 +14,7 @@
 
 using namespace std;
 
-const string VERSION = "58";
+const string VERSION = "59";
 
 string SCANCODE_LABELS[256]; // contains e.g. [01]="ESC" instead of SC_ESCAPE 
 
