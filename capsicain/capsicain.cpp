@@ -1007,11 +1007,11 @@ bool parseIniRewire(std::vector<std::string> assembledIni)
 
 bool parseIniCombos(std::vector<std::string> assembledIni)
 {
+    allMaps.modCombos.clear();
     vector<string> sectLines = getTaggedLinesFromIni(INI_TAG_COMBOS, assembledIni);
     if (sectLines.size() == 0)
         return false;
 
-    allMaps.modCombos.clear();
     unsigned short mods[3] = { 0 }; //and, not, tap (nop, for)
     vector<KeyEvent> keyEventSequence;
 

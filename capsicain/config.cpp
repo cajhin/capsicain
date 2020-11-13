@@ -243,7 +243,7 @@ bool getIntValueForKey(std::string key, int &value, vector<std::string> sectionL
 std::string stringGetFirstToken(std::string line)
 {
     size_t idx = line.find_first_of(" ");
-    if (idx == std::string::npos)
+    if (idx == string::npos)
         idx = line.length();
     return line.substr(0, idx);
 }
@@ -254,7 +254,7 @@ std::string stringGetLastToken(std::string line)
 std::string stringGetRestBehindFirstToken(std::string line)
 {
     size_t idx = line.find_first_of(" ");
-    if (idx == std::string::npos)
+    if (idx == string::npos)
         return("");
     line = line.substr(idx);
     line.erase(0, line.find_first_not_of(' '));
@@ -366,7 +366,7 @@ bool lexRule(std::string line, unsigned short &key, unsigned short(&mods)[3], st
 
     size_t modIdx1 = line.find_first_of('[') + 1;
     size_t modIdx2 = line.find_first_of(']');
-    if (modIdx1 < 1 || modIdx2 < 2 || modIdx1 > modIdx2)
+    if (modIdx1 < 1 || modIdx2 < 2 || modIdx1 > modIdx2 || modIdx1 == string::npos || modIdx2 == string::npos)
         return false;
     string mod = line.substr(modIdx1, modIdx2 - modIdx1);
 
@@ -376,14 +376,23 @@ bool lexRule(std::string line, unsigned short &key, unsigned short(&mods)[3], st
 
     //extract function name + param
     size_t funcIdx1 = line.find_first_of('>') + 1;
-    if (funcIdx1 < 2)
+    if (funcIdx1 == string::npos || funcIdx1 < 2)
+    {
+        cout << endl << "Error in ini: missing '>'";
         return false;
+    }
     size_t funcIdx2 = line.find_first_of('(');
-    if (funcIdx2 < funcIdx1 + 2)
+    if (funcIdx2 == string::npos || funcIdx2 < funcIdx1 + 2)
+    {
+        cout << endl << "Error in ini: missing '('";
         return false;
+    }
     size_t funcIdx3 = line.find_first_of(')');
-    if (funcIdx3 < funcIdx2 + 2)
+    if (funcIdx3 == string::npos || funcIdx3 < funcIdx2 + 2)
+    {
+        cout << endl << "Error in ini: missing ')'";
         return false;
+    }
     string funcName = line.substr(funcIdx1, funcIdx2 - funcIdx1);
     funcIdx2++;
     string funcParams = line.substr(funcIdx2, funcIdx3 - funcIdx2);
