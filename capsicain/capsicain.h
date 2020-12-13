@@ -2,6 +2,7 @@
 #include "interception.h"
 #include "utils.h"
 #include "config.h"
+#include "traybar.h"
 
 enum KEYSTATE
 {

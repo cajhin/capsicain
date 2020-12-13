@@ -36,6 +36,12 @@
     <ClInclude Include="modifiers.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="resource.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="traybar.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -56,11 +62,9 @@
     <ClCompile Include="modifiers.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="capsicain.rc">
-      <Filter>Resource Files</Filter>
-    </ResourceCompile>
+    <ClCompile Include="traybar.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Image Include="capslock.ico">
@@ -77,5 +81,10 @@
     </None>
     <None Include="capsicain.example.ini" />
     <None Include="capsicain.cajhin.ini" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="capsicain.rc">
+      <Filter>Resource Files</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>

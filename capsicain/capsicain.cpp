@@ -11,6 +11,7 @@
 #include "capsicain.h"
 #include "modifiers.h"
 #include "scancodes.h"
+#include "resource.h"
 
 using namespace std;
 
@@ -312,7 +313,10 @@ int main()
                     continue;
                 }
                 else
+                {
+                    DeleteTraybar();
                     break;
+                }
             }
             else if (isModifier(loopState.scancode))  //suppress key up in Esc+modifier combos
             {
@@ -433,6 +437,17 @@ bool processCommand()
 
     switch (loopState.scancode)
     {
+    case SC_N:
+    {
+        cout << "Show traybar";
+        string tooltip = "Capsicain v" + VERSION;
+        ShowTraybar(tooltip);
+        break;
+    }
+    case SC_M: 
+        cout << "Delete traybar";
+        DeleteTraybar();
+        break;
     case SC_Q:   // quit only if a debug build
 #ifdef NDEBUG
         sendKeyEvent({ SC_ESCAPE, true });
