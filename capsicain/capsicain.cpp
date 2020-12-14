@@ -20,7 +20,7 @@ const string VERSION = "59";
 string SCANCODE_LABELS[256]; // contains e.g. [01]="ESC" instead of SC_ESCAPE 
 
 const int DEFAULT_ACTIVE_LAYER = 0;
-const string DEFAULT_ACTIVE_LAYER_NAME = "no processing, forward everything";
+const string DEFAULT_ACTIVE_LAYER_NAME = "Capsicain disabled. No processing, forward everything. Only ESC-X and ESC-0..9 work.";
 
 const int DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS = 5;  //System may drop keys when they are sent too fast. Local host needs 0-1ms, Linux VM 5+ms for 100% reliable keystroke detection
 const int MAX_MACRO_LENGTH = 200;  //stop recording at some point if it was forgotten.
@@ -242,6 +242,7 @@ int main()
         if (loopState.scancode == SC_X && loopState.isDownstroke
             && globalState.previousKeyEventIn.scancode == SC_ESCAPE && globalState.previousKeyEventIn.isDownstroke)
         {
+            DeleteTraybar();
             break;
         }
 
@@ -1203,11 +1204,6 @@ void switchLayer(int layer)
     {
         globalState.activeLayer = layer;
         globalState.layerName = to_string(layer) + " (" + newLayerName + ")";
-    }
-    else
-    {
-        switchLayer(DEFAULT_ACTIVE_LAYER);
-        return;
     }
 
     cout << endl << "ACTIVE LAYER: " << globalState.layerName;

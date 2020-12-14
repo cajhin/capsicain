@@ -129,6 +129,8 @@ std::vector<std::string> getSectionFromIni(std::string sectionName, std::vector<
             sectionContent.push_back(line);
         }
     }
+    if (inSection && sectionContent.size() == 0)
+        sectionContent.push_back("option layername empty_layer_do_nothing");
     return sectionContent;
 }
 //Returns all lines starting with tag, with the tag removed, or empty vector if none
