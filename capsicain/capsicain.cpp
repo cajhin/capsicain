@@ -15,7 +15,7 @@
 
 using namespace std;
 
-const string VERSION = "59";
+const string VERSION = "60";
 
 string SCANCODE_LABELS[256]; // contains e.g. [01]="ESC" instead of SC_ESCAPE 
 
@@ -78,7 +78,7 @@ struct GlobalState
     InterceptionDevice interceptionDevice = NULL;
     InterceptionDevice previousInterceptionDevice = NULL;
 
-    bool escapeIsDown = false;
+    bool realEscapeIsDown = false;
 
     string deviceIdKeyboard = "";
     bool deviceIsAppleKeyboard = false;
@@ -238,26 +238,33 @@ int main()
             continue;
         }
 
+        //remember the hardware ESC key state
+        //do not send v until ^ comes in
         //ESC+X exits, unconditionally
-        if (loopState.scancode == SC_X && loopState.isDownstroke
-            && globalState.previousKeyEventIn.scancode == SC_ESCAPE && globalState.previousKeyEventIn.isDownstroke)
-        {
-            DeleteTraybar();
-            break;
-        }
-
         //ESC+[0]..[9]  layer switch
-        if (loopState.isDownstroke
-            && globalState.previousKeyEventIn.scancode == SC_ESCAPE && globalState.previousKeyEventIn.isDownstroke)
+        //I process those before layer 0 continues, and therefore before the rewire
+        if (loopState.originalKeyEvent.scancode == SC_ESCAPE)
         {
-            if (loopState.scancode == SC_0)
+            globalState.realEscapeIsDown = loopState.originalKeyEvent.isDownstroke;
+        }
+        else if (globalState.realEscapeIsDown && loopState.originalKeyEvent.isDownstroke)
+        {
+            if (loopState.originalKeyEvent.scancode == SC_X) //extra check to make sure Exit is bug free
+            {
+                DeleteTraybar();
+                break;
+            }
+            else if (loopState.originalKeyEvent.scancode == SC_0)
             {
                 cout << endl << "LAYER CHANGE: 0";
                 switchLayer(DEFAULT_ACTIVE_LAYER);
+                resetLoopState();
+                resetModifierState();
+                releaseAllRealModifiers();
                 resetAlphaMap();
                 continue;
             }
-            else if (loopState.scancode >= SC_1 && loopState.scancode <= SC_9)
+            else if (loopState.originalKeyEvent.scancode >= SC_1 && loopState.originalKeyEvent.scancode <= SC_9)
             {
                 int layer = loopState.scancode - 1;
                 cout << endl << "LAYER CHANGE: " << layer;
@@ -266,14 +273,14 @@ int main()
             }
         }
 
-        //Layer 0: standard keyboard, just forward everything
+        //Layer 0: standard keyboard, no further processing, just forward everything
         if (globalState.activeLayer == DEFAULT_ACTIVE_LAYER)
         {
             interception_send(globalState.interceptionContext, globalState.interceptionDevice, (InterceptionStroke *)&loopState.originalIKstroke, 1);
             continue;
         }
 
-        //hard rewire everything but esc-x and layer switches
+        //hard rewire all REWIREd keys
         processRewire();
         if (loopState.scancode == SC_NOP)   //used the mapping to disable keys?
         {
@@ -281,46 +288,48 @@ int main()
             continue;
         }
 
-        //ESC tapped -> reset state, send ESC
-        if (loopState.scancode == SC_ESCAPE)
-        {
-            globalState.escapeIsDown = loopState.isDownstroke;
-            IFDEBUG cout << endl << " ESC" << (loopState.isDownstroke ? "v " : "^ ");
-            if (!loopState.isDownstroke 
-                && globalState.previousKeyEventIn.scancode == SC_ESCAPE)
-            {
-                sendKeyEvent({ SC_ESCAPE, true });
-                sendKeyEvent({ SC_ESCAPE, false });
-                    resetLoopState();
-                resetModifierState();
-                releaseAllRealModifiers();
-            }
-            continue;
-        }
-
-        // ESC + Y commands
+        // All other ESC + key commands
         // NOTE: some major key shadowing here...
         // - cherry is good
         // - apple keyboard cannot do RCTRL+CAPS+ESC and ESC+Caps shadows the entire row a-s-d-f-g-....
         // - Dell cant do ctrl-caps-x
         // - Cypher has no RControl... :(
         // - HP shadows the 2-w-s-x and 3-e-d-c lines
-        if(globalState.escapeIsDown)
+        if (globalState.realEscapeIsDown)
         {
-            if (loopState.isDownstroke)
+            if (loopState.isDownstroke && loopState.originalKeyEvent.scancode != SC_ESCAPE)
             {
                 if (processCommand())
-                {
                     continue;
-                }
                 else
                 {
                     DeleteTraybar();
                     break;
                 }
             }
-            else if (isModifier(loopState.scancode))  //suppress key up in Esc+modifier combos
+            else if(isModifier(loopState.scancode)) //sticky mods with ESC+mod
             {
+                continue;
+            }
+        }
+
+        //Hide ESCv
+        if (loopState.scancode == SC_ESCAPE && loopState.isDownstroke)
+            continue;
+        //ESC tapped -> reset state, send ESC
+        //note: from here on, ESC might be a rewired key
+        if (loopState.scancode == SC_ESCAPE)
+        {
+            IFDEBUG cout << endl << "(Soft ESC" << (loopState.isDownstroke ? "v " : "^ ") << ")";
+            if (!loopState.isDownstroke 
+                && globalState.previousKeyEventIn.scancode == loopState.originalKeyEvent.scancode)
+            {
+                IFDEBUG cout << endl << "clearing all modifier states, sending Escapev^";
+                resetLoopState();
+                resetModifierState();
+                releaseAllRealModifiers();
+                sendKeyEvent({ SC_ESCAPE, true });
+                sendKeyEvent({ SC_ESCAPE, false });
                 continue;
             }
         }
@@ -417,6 +426,7 @@ void processModifiedKeys()
     }
     modifierState.modifierTapped = 0;
 }
+
 void processMapAlphaKeys(unsigned short &scancode)
 {
     if (scancode > 0xFF)
@@ -431,12 +441,13 @@ void processMapAlphaKeys(unsigned short &scancode)
 
 // [ESC]+x combos
 // returns false if exit was requested
+// uses the unwired keys for regular keys, and wired modifiers
 bool processCommand()
 {
     bool continueLooping = true;
     cout << endl << endl << "::";
 
-    switch (loopState.scancode)
+    switch (loopState.originalKeyEvent.scancode)
     {
     case SC_N:
     {
@@ -584,14 +595,17 @@ bool processCommand()
         break;
     default: 
     {
-        //[ESC]+modifier locks the modifier. Tap [ESC] to release.
+        //Sticky modifiers with soft (potentially rewired) ESC+modifier. Tap soft ESC to release.
         if (isModifier(loopState.scancode))
         {
-            modifierState.modifierDown |= getBitmaskForModifier(loopState.scancode);
-            modifierState.modifierTapped = 0;
-            if (isRealModifier(loopState.scancode))
-                sendKeyEvent(loopState.originalKeyEvent);
-            IFDEBUG cout << endl << "Locking modifier: " << SCANCODE_LABELS[loopState.scancode];
+            if (loopState.isDownstroke)
+            {
+                modifierState.modifierDown |= getBitmaskForModifier(loopState.scancode);
+                modifierState.modifierTapped = 0;
+                if (isRealModifier(loopState.scancode))
+                    sendKeyEvent(loopState.originalKeyEvent);
+                IFDEBUG cout << endl << "Locking modifier: " << SCANCODE_LABELS[loopState.scancode];
+            }
         }
         else
             cout << "Unknown command";
