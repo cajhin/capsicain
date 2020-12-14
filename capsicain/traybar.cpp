@@ -5,10 +5,15 @@
 #include "resource.h"
 #include <iostream>
 
+bool IsWindowVisible()
+{
+    return ::IsWindowVisible(::GetConsoleWindow());
+}
+
 bool ShowTraybar(std::string tooltip)
 {
     UINT nID = 11;
-    LPCTSTR lpszTip = tooltip.c_str();
+    LPCTSTR lpszTip = "Capsicain"; // tooltip.c_str();
 
     HMODULE handleToMyself = ::GetModuleHandleA(NULL);
     HICON hIcon = LoadIcon(handleToMyself, MAKEINTRESOURCE(IDI_ICON1));

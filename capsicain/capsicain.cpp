@@ -446,20 +446,24 @@ bool processCommand()
 {
     bool continueLooping = true;
     cout << endl << endl << "::";
-
+     
     switch (loopState.originalKeyEvent.scancode)
     {
-    case SC_N:
+    case SC_T:
     {
-        cout << "Show traybar";
-        string tooltip = "Capsicain v" + VERSION;
-        ShowTraybar(tooltip);
+        if (IsWindowVisible())
+        {
+            cout << "Show traybar";
+            string tooltip = "Capsicain v" + VERSION + " [" + globalState.layerName  + "]";
+            ShowTraybar(tooltip);
+        }
+        else
+        {
+            cout << "Delete traybar";
+            DeleteTraybar();
+        }
         break;
     }
-    case SC_M: 
-        cout << "Delete traybar";
-        DeleteTraybar();
-        break;
     case SC_Q:   // quit only if a debug build
 #ifdef NDEBUG
         sendKeyEvent({ SC_ESCAPE, true });
@@ -1347,6 +1351,7 @@ void printHelp()
         << "[E] Error log" << endl
         << "[C] Print list of key labels for all scancodes" << endl
         << "[R] Reset and reload the .ini" << endl
+        << "[T] Move Taskbar icon to Tray and back" << endl
         << "[U] Username Enter/Playback" << endl
         << "[P] Password Enter/Playback. DO NOT USE if strangers can access your local machine." << endl
         << "[I] Show processed Ini for the active layer" << endl
