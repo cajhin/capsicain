@@ -5,14 +5,46 @@
 #include "resource.h"
 #include <iostream>
 
-bool IsWindowVisible()
+const int TRAYBAR_UID = 11;
+
+bool DeleteIconFromTraybar()
+{
+    ::NOTIFYICONDATA tnid;
+    tnid.cbSize = sizeof(NOTIFYICONDATA);
+    tnid.hWnd = ::GetConsoleWindow();
+    tnid.uID = TRAYBAR_UID;
+    tnid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
+    tnid.uCallbackMessage = 0;
+
+    return (::Shell_NotifyIcon(NIM_DELETE, &tnid) ? true : false);
+}
+
+bool IsCapsicainVisible()
 {
     return ::IsWindowVisible(::GetConsoleWindow());
 }
 
-bool ShowTraybar(std::string tooltip)
+bool IsCapsicainInTray()
 {
-    UINT nID = 11;
+    return !IsCapsicainVisible();  //could be better?
+}
+
+bool ShowInTaskbarMinimized()
+{
+    if (IsCapsicainInTray())
+        DeleteIconFromTraybar();
+    return ::ShowWindow(::GetConsoleWindow(), SW_MINIMIZE);
+}
+
+bool ShowInTaskbar()
+{
+    if (IsCapsicainInTray())
+        DeleteIconFromTraybar();
+    return ::ShowWindow(::GetConsoleWindow(), SW_SHOWDEFAULT);
+}
+
+bool ShowInTraybar()
+{
     LPCTSTR lpszTip = "Capsicain"; // tooltip.c_str();
 
     HMODULE handleToMyself = ::GetModuleHandleA(NULL);
@@ -26,27 +58,14 @@ bool ShowTraybar(std::string tooltip)
     ::NOTIFYICONDATA tnid;
     tnid.cbSize = sizeof(NOTIFYICONDATA);
     tnid.hWnd = ::GetConsoleWindow();
-    tnid.uID = nID;
+    tnid.uID = TRAYBAR_UID;
     tnid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
     tnid.uCallbackMessage = 0;
     tnid.hIcon = hIcon;
     lstrcpy(tnid.szTip, lpszTip);
 
     ::ShowWindow(::GetConsoleWindow(), SW_HIDE);
+
     return (::Shell_NotifyIcon(NIM_ADD, &tnid) ? true : false);
 }
 
-bool DeleteTraybar()
-{
-    UINT nID = 11;
-
-    ::ShowWindow(::GetConsoleWindow(), SW_SHOW);
-    ::NOTIFYICONDATA tnid;
-    tnid.cbSize = sizeof(NOTIFYICONDATA);
-    tnid.hWnd = ::GetConsoleWindow();
-    tnid.uID = nID;
-    tnid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
-    tnid.uCallbackMessage = 0;
-
-    return (::Shell_NotifyIcon(NIM_DELETE, &tnid) ? true : false);
-}

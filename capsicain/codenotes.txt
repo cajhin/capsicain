@@ -1,0 +1,16 @@
+Ongoing stream... no documentation yet
+
+
+New ini GLOBALs
+- delayOnStartupMS {number} (default 0. Useful if you need time to release keys when starting capsicain with a shortcut)
+- startMinimized (default false. Capsicain starts minimized in the taskbar)
+- startInTraybar (overrides startMinimized. Capsicain starts with a traybar icon instead of toolbar icon)
+
+ESC key
+Always lazy key with Capsicain (fires on release)
+ESC + mod makes sticky mods
+REWIRE ESC X   The key will not autorepeat
+
+Modified handling for showing hiding window / taskbar / traybar
+- any command with "info output" pops up the window
+- can't move to tray on minimize (console is out of the Win event loop, it only sees incoming keys)

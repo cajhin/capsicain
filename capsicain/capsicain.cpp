@@ -15,18 +15,19 @@
 
 using namespace std;
 
-const string VERSION = "61";
+const string VERSION = "62";
 
 string SCANCODE_LABELS[256]; // contains e.g. [01]="ESC" instead of SC_ESCAPE 
 
+//defaults and constants
 const int DEFAULT_ACTIVE_LAYER = 0;
 const string DEFAULT_ACTIVE_LAYER_NAME = "Capsicain disabled. No processing, forward everything. Only ESC-X and ESC-0..9 work.";
-
+const int DEFAULT_DELAY_ON_STARTUP_MS = 0; //time to release all keys (e.g. if capsicain is started via shortcut)
 const int DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS = 5;  //System may drop keys when they are sent too fast. Local host needs 0-1ms, Linux VM 5+ms for 100% reliable keystroke detection
 const int MAX_MACRO_LENGTH = 200;  //stop recording at some point if it was forgotten.
 
 const bool DEFAULT_START_AHK_ON_STARTUP = true;
-const int DEFAULT_DELAY_FOR_AHK = 50;	    //autohotkey is slow
+const int DEFAULT_DELAY_FOR_AHK_MS = 50;	    //autohotkey is slow
 const unsigned short AHK_HOTKEY1 = SC_F14;  //this key triggers supporting AHK script
 const unsigned short AHK_HOTKEY2 = SC_F15;
 
@@ -43,6 +44,9 @@ struct Options
     bool flipAltWinOnAppleKeyboards = false;
     bool LControlLWinBlocksAlphaMapping = false;
     bool processOnlyFirstKeyboard = false;
+    int delayOnStartupMS = DEFAULT_DELAY_ON_STARTUP_MS;
+    bool startMinimized = false;
+    bool startInTraybar = false;
 } option;
 
 struct ModifierCombo
@@ -136,23 +140,26 @@ void readGlobalsOnStartup()
     if(!getIntValueForTaggedKey(INI_TAG_GLOBAL, "ActiveLayerOnStartup", globalState.activeLayer, sanitizedIniContent))
     {
         globalState.activeLayer = DEFAULT_ACTIVE_LAYER;
-        IFDEBUG cout << endl << "No ini setting for 'ActiveLayerOnStartup'. Setting default layer " << DEFAULT_ACTIVE_LAYER;
+        IFDEBUG cout << endl << "No ini setting for 'GLOBAL ctiveLayerOnStartup'. Setting default layer " << DEFAULT_ACTIVE_LAYER;
     }
 
     option.debug = configHasTaggedKey(INI_TAG_GLOBAL, "debugOnStartup", sanitizedIniContent);
 
     getStringValueForTaggedKey(INI_TAG_GLOBAL, "iniVersion", option.iniVersion, sanitizedIniContent);
     if (option.iniVersion == "")
-        option.iniVersion = "GLOBAL iniVersion is undefined";
+        option.iniVersion = "iniVersion is undefined";
+
+    if (!getIntValueForTaggedKey(INI_TAG_GLOBAL, "delayOnStartupMS", option.delayOnStartupMS, sanitizedIniContent))
+        IFDEBUG cout << endl << "No ini setting for 'GLOBAL delayOnStartup'. Using default " << DEFAULT_DELAY_ON_STARTUP_MS;
+
+    option.startMinimized = configHasTaggedKey(INI_TAG_GLOBAL, "startMinimized", sanitizedIniContent);
+    option.startInTraybar = configHasTaggedKey(INI_TAG_GLOBAL, "startInTraybar", sanitizedIniContent);
 }
 
 int main()
 {
     initConsoleWindow();
     printHelloHeader();
-
-    cout << endl << "Release all keys now..." << endl;
-    Sleep(1000); //time to release shortcut keys that started capsicain
 
     getAllScancodeLabels(SCANCODE_LABELS);
     resetAllStatesToDefault();
@@ -167,6 +174,9 @@ int main()
     readGlobalsOnStartup();
     switchLayer(globalState.activeLayer);
 
+    cout << endl << "Release all keys now... (waiting DelayOnStartupMS = " << option.delayOnStartupMS << " ms)" << endl;
+    Sleep(option.delayOnStartupMS); //time to release shortcut keys that started capsicain
+
     globalState.interceptionContext = interception_create_context();
     interception_set_filter(globalState.interceptionContext, interception_is_keyboard, INTERCEPTION_FILTER_KEY_ALL);
 
@@ -179,6 +189,11 @@ int main()
     }
     cout << endl << endl << "[ESC] + [X] to stop." << endl << "[ESC] + [H] for Help";
     cout << endl << endl << "capsicain running.... ";
+
+    if (option.startMinimized)
+        ShowInTaskbarMinimized();
+    if (option.startInTraybar)
+        ShowInTraybar();
 
     raise_process_priority(); //careful: if we spam key events, other processes get no timeslots to process them. Sleep a bit...
 
@@ -250,7 +265,7 @@ int main()
         {
             if (loopState.originalKeyEvent.scancode == SC_X) //extra check to make sure Exit is bug free
             {
-                DeleteTraybar();
+                ShowInTaskbar();
                 break;
             }
             else if (loopState.originalKeyEvent.scancode == SC_0)
@@ -324,7 +339,7 @@ int main()
                     continue;
                 else
                 {
-                    DeleteTraybar();
+                    ShowInTaskbar();
                     break;
                 }
             }
@@ -447,22 +462,22 @@ void processMapAlphaKeys(unsigned short &scancode)
 bool processCommand()
 {
     bool continueLooping = true;
+    bool popupConsole = false;
     cout << endl << endl << "::";
-     
+    
     switch (loopState.originalKeyEvent.scancode)
     {
     case SC_T:
     {
-        if (IsWindowVisible())
+        if (IsCapsicainInTray())
         {
-            cout << "Show traybar";
-            string tooltip = "Capsicain v" + VERSION + " [" + globalState.layerName  + "]";
-            ShowTraybar(tooltip);
+            cout << "Show in taskbar";
+            ShowInTaskbar();
         }
         else
         {
-            cout << "Delete traybar";
-            DeleteTraybar();
+            cout << "Show traybar";
+            ShowInTraybar();
         }
         break;
     }
@@ -482,6 +497,7 @@ bool processCommand()
         break;
     case SC_E:
         cout << "ERROR LOG: " << endl << errorLog << endl;
+        popupConsole = true;
         break;
     case SC_R:
         cout << "RESET";
@@ -539,13 +555,16 @@ bool processCommand()
     }
     case SC_S:
         printStatus();
+        popupConsole = true;
         break;
     case SC_D:
         option.debug = !option.debug;
         cout << "DEBUG mode: " << (option.debug ? "ON" : "OFF");
+        popupConsole = true;
         break;
     case SC_H:
         printHelp();
+        popupConsole = true;
         break;
     case SC_J:
         cout << "MACRO START RECORDING";
@@ -588,6 +607,7 @@ bool processCommand()
         cout << "List of all Key Labels for scancodes" << endl
              << "------------------------------------" << endl;
         printKeylabels();
+        popupConsole = true;
         break;
     case SC_COMMA:
         if (option.delayForKeySequenceMS >= 1)
@@ -619,6 +639,10 @@ bool processCommand()
     }
     }
 
+    if(popupConsole)
+    {
+        ShowInTaskbar();
+    }
     return continueLooping;
 }
 
@@ -930,7 +954,7 @@ void playKeyEventSequence(vector<KeyEvent> keyEventSequence)
         {
             sendKeyEvent(keyEvent);
             if (keyEvent.scancode == AHK_HOTKEY1 || keyEvent.scancode == AHK_HOTKEY2)
-                delayBetweenKeyEventsMS = DEFAULT_DELAY_FOR_AHK;
+                delayBetweenKeyEventsMS = DEFAULT_DELAY_FOR_AHK_MS;
             else
                 Sleep(delayBetweenKeyEventsMS);
         }
@@ -977,7 +1001,7 @@ void initConsoleWindow()
     SetConsoleTitle(title.c_str());
 }
 
-// Parses the OPTIONS section.
+// Parses the OPTIONS in the given section.
 // Returns false if section does not exist.
 bool parseIniOptions(std::vector<std::string> assembledIni)
 {
@@ -986,10 +1010,7 @@ bool parseIniOptions(std::vector<std::string> assembledIni)
         return false;
 
     if (!getIntValueForKey("delayForKeySequenceMS", option.delayForKeySequenceMS, sectLines))
-    {
-        option.delayForKeySequenceMS = DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;
         IFDEBUG cout << endl << "No ini setting for 'option delayForKeySequenceMS'. Using default " << DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;
-    }
 
     option.debug = configHasKey("debug", sectLines);
     option.flipZy = configHasKey("flipZy", sectLines);

@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 
-bool IsWindowVisible();
-bool ShowTraybar(std::string tooltip);
-bool DeleteTraybar();
+bool IsCapsicainInTray();
+bool ShowInTaskbar();
+bool ShowInTaskbarMinimized();
+bool ShowInTraybar();

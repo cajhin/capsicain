@@ -74,6 +74,7 @@
   <ItemGroup>
     <Text Include="layoutTest.txt" />
     <Text Include="documentation.txt" />
+    <Text Include="codenotes.txt" />
   </ItemGroup>
   <ItemGroup>
     <None Include="capsicain.ini">
