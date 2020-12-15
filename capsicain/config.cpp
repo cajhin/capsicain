@@ -69,7 +69,7 @@ int checkSyntax(std::vector<string> iniLines)
 }
 
 // Read .ini file, normalize lines, drop empty lines, drop [Reference* sections
-bool readIniFile(std::vector<string> &iniLines)
+bool readSanitizeIniFile(std::vector<string> &iniLines)
 {
     iniLines.clear();
     string line;

@@ -11,7 +11,7 @@ struct KeyEvent
     bool isDownstroke = true;
 };
 
-bool readIniFile(std::vector<std::string>& iniLines);
+bool readSanitizeIniFile(std::vector<std::string>& iniLines);
 
 std::vector<std::string> getSectionFromIni(std::string sectionName, std::vector<std::string> iniContent);
 std::vector<std::string> getTaggedLinesFromIni(std::string tag, std::vector<std::string> iniContent);

@@ -15,7 +15,7 @@
 
 using namespace std;
 
-const string VERSION = "60";
+const string VERSION = "61";
 
 string SCANCODE_LABELS[256]; // contains e.g. [01]="ESC" instead of SC_ESCAPE 
 
@@ -40,7 +40,6 @@ struct Options
     bool flipZy = false;
     bool altAltToAlt = false;
     bool shiftShiftToCapsLock = false;
-    unsigned char secondEscapeKey = SC_NOP;
     bool flipAltWinOnAppleKeyboards = false;
     bool LControlLWinBlocksAlphaMapping = false;
     bool processOnlyFirstKeyboard = false;
@@ -158,7 +157,7 @@ int main()
     getAllScancodeLabels(SCANCODE_LABELS);
     resetAllStatesToDefault();
 
-    if (!readIniFile(sanitizedIniContent))
+    if (!readSanitizeIniFile(sanitizedIniContent))
     {
         cout << endl << "No capsicain.ini - exiting..." << endl;
         Sleep(5000);
@@ -282,9 +281,30 @@ int main()
 
         //hard rewire all REWIREd keys
         processRewire();
-        if (loopState.scancode == SC_NOP)   //used the mapping to disable keys?
+        if (loopState.scancode == SC_NOP)   //rewired to NOP to disable keys
         {
             IFDEBUG cout << " (NOP)";
+            continue;
+        }
+
+        //ESC is lazy key; if it is rewired, that key must not trigger on ESC+command
+        if (loopState.originalKeyEvent.scancode == SC_ESCAPE)
+        {
+            IFDEBUG cout << endl << "(Hard ESC" << (loopState.isDownstroke ? "v " : "^ ") << ")";
+            if (loopState.isDownstroke)
+                continue;
+            //hardware ESC tapped -> reset state incl. sticky modifiers
+            if(globalState.previousKeyEventIn.scancode == SC_ESCAPE)
+            {
+                releaseAllRealModifiers(); //release sticky mods before sending ESC
+                //handle rewired ESC^ (send ESC or whatever it is rewired to)
+                IFDEBUG cout << endl << "(Send " << SCANCODE_LABELS[loopState.scancode] << "v^ )";
+                sendKeyEvent( { loopState.scancode, true } );
+                sendKeyEvent( { loopState.scancode, false } );
+                //reset state on hardware ESC
+                resetLoopState();
+                resetModifierState();
+            }
             continue;
         }
 
@@ -297,7 +317,8 @@ int main()
         // - HP shadows the 2-w-s-x and 3-e-d-c lines
         if (globalState.realEscapeIsDown)
         {
-            if (loopState.isDownstroke && loopState.originalKeyEvent.scancode != SC_ESCAPE)
+
+            if (loopState.isDownstroke)
             {
                 if (processCommand())
                     continue;
@@ -309,27 +330,6 @@ int main()
             }
             else if(isModifier(loopState.scancode)) //sticky mods with ESC+mod
             {
-                continue;
-            }
-        }
-
-        //Hide ESCv
-        if (loopState.scancode == SC_ESCAPE && loopState.isDownstroke)
-            continue;
-        //ESC tapped -> reset state, send ESC
-        //note: from here on, ESC might be a rewired key
-        if (loopState.scancode == SC_ESCAPE)
-        {
-            IFDEBUG cout << endl << "(Soft ESC" << (loopState.isDownstroke ? "v " : "^ ") << ")";
-            if (!loopState.isDownstroke 
-                && globalState.previousKeyEventIn.scancode == loopState.originalKeyEvent.scancode)
-            {
-                IFDEBUG cout << endl << "clearing all modifier states, sending Escapev^";
-                resetLoopState();
-                resetModifierState();
-                releaseAllRealModifiers();
-                sendKeyEvent({ SC_ESCAPE, true });
-                sendKeyEvent({ SC_ESCAPE, false });
                 continue;
             }
         }
@@ -360,7 +360,9 @@ int main()
         }
 
         /////CONFIGURED RULES
-        IFDEBUG cout << endl << " [" << SCANCODE_LABELS[loopState.scancode] << getSymbolForIKStrokeState(loopState.originalIKstroke.state)
+        IFDEBUG cout << endl << " [" << \
+            (loopState.scancode == loopState.originalKeyEvent.scancode ? "" : SCANCODE_LABELS[loopState.originalKeyEvent.scancode] + " => ") \
+            << SCANCODE_LABELS[loopState.scancode] << getSymbolForIKStrokeState(loopState.originalIKstroke.state)
             << " =" << hex << loopState.originalIKstroke.code << " " << loopState.originalIKstroke.state << "]";
         
         processModifierState();
@@ -599,7 +601,7 @@ bool processCommand()
         break;
     default: 
     {
-        //Sticky modifiers with soft (potentially rewired) ESC+modifier. Tap soft ESC to release.
+        //Sticky modifiers with soft (potentially rewired) ESC+modifier. Tap hard ESC to release.
         if (isModifier(loopState.scancode))
         {
             if (loopState.isDownstroke)
@@ -607,7 +609,7 @@ bool processCommand()
                 modifierState.modifierDown |= getBitmaskForModifier(loopState.scancode);
                 modifierState.modifierTapped = 0;
                 if (isRealModifier(loopState.scancode))
-                    sendKeyEvent(loopState.originalKeyEvent);
+                    sendResultingKeyOrSequence();
                 IFDEBUG cout << endl << "Locking modifier: " << SCANCODE_LABELS[loopState.scancode];
             }
         }
@@ -1003,7 +1005,6 @@ bool parseIniRewire(std::vector<std::string> assembledIni)
 {
     vector<string> sectLines = getTaggedLinesFromIni(INI_TAG_REWIRE, assembledIni);
     allMaps.rewireIftappedMapping.clear();
-    option.secondEscapeKey = 0;
     if (sectLines.size() == 0)
         return false;
 
@@ -1012,9 +1013,6 @@ bool parseIniRewire(std::vector<std::string> assembledIni)
     {
         if (lexScancodeMapping(line, keyIn, keyOut, keyIfTapped, SCANCODE_LABELS))
         {
-            if (keyOut == SC_ESCAPE)
-                option.secondEscapeKey = keyIn;
-
             bool isDuplicate = false;
             for (RewireIftappedMapping test : allMaps.rewireIftappedMapping)
             {
@@ -1358,7 +1356,8 @@ void printHelp()
         << "[A] Autohotkey start" << endl
         << "[Y] autohotkeY stop" << endl
         << "[J][K][L][;] Macro Recording: Start,Stop,Playback,Copy macro definition to clipboard." << endl
-        << "[,] and [.]: pause between keys in sequences -/+ 1ms " << endl
+        << "[,] and [.]: delay between keys in sequences -/+ 1ms " << endl
+        << "[any modifier]: 'sticky modifier' : keeps it pressed until you hit ESC"
         << "[Q] (dev feature) Stop the debug build if both release and debug are running" << endl
         << endl << "These commands work anywhere, Capsicain does not have to be the active window."
         ;
@@ -1434,7 +1433,7 @@ void reset()
 
     releaseAllRealModifiers();
 
-    readIniFile(sanitizedIniContent);
+    readSanitizeIniFile(sanitizedIniContent);
     readGlobalsOnStartup();
     switchLayer(globalState.activeLayer);
 }
