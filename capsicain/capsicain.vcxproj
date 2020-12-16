@@ -170,6 +170,7 @@ $(ProjectDir)copy_release.bat</Command>
   <ItemGroup>
     <ClInclude Include="capsicain.h" />
     <ClInclude Include="config.h" />
+    <ClInclude Include="constants.h" />
     <ClInclude Include="traybar.h" />
     <ClInclude Include="interception.h" />
     <ClInclude Include="modifiers.h" />

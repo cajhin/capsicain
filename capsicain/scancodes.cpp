@@ -1,18 +1,22 @@
 #pragma once
 #include "pch.h"
 #include <iostream>
+#include <Windows.h>  //for Sleep()
 
 #include "scancodes.h"
+#include "constants.h"
 #include "utils.h"
 
 using namespace std;
 
 //returns -1 if label is not found, or if given SC_ string is not a number,
 //otherwise an 8bit scancode (can cast to unsigned char without checks)
-int getScancode(string label, string* arr)
+int getVcode(string label, string* arr)
 {
+    if (label == "mod9")
+        cout << "mod9";
     string ucLabel = stringToUpper(label);
-    for (int i = 0; i < 256; i++)
+    for (int i = 0; i < MAX_VKEYS; i++)
     {
         if (arr[i] == ucLabel)
             return i;
@@ -22,6 +26,12 @@ int getScancode(string label, string* arr)
 
 void checkAddLabel(int index, string label, string arr[])
 {
+    if (index >= MAX_VKEYS)
+    {
+        cout << endl << endl <<"***********BUG: scancodes.h defines a virtual code "<< index << " that is bigger than MAX_VKEYS. Increase MAX_VKEYS !";
+        Sleep(10000);
+        exit(1);
+    }
     if (arr[index] != "")
         cout << endl << "ERROR initScancodeLabels: duplicate scancode in scancodes.h: 'SC_" << label << "' (index 0x" << hex << index << ")" << endl;
     else
@@ -36,7 +46,7 @@ void checkAddLabel(int index, string label, string arr[])
 //from:  (.*)SC_(.*?) (.*)
 //to:    checkAddLabel\( SC_\2, "\2", arr\);
 //then make a bunch of modifications for nicer labels...
-void getAllScancodeLabels(string arr[])
+void defineAllPrettyVKLabels(string arr[])
 {
     checkAddLabel(SC_NOP, "NOP", arr);
     checkAddLabel(SC_ESCAPE, "ESC", arr);
@@ -137,14 +147,6 @@ void getAllScancodeLabels(string arr[])
     checkAddLabel(SC_F21, "F21", arr);
     checkAddLabel(SC_F22, "F22", arr);
     checkAddLabel(SC_F23, "F23", arr);
-    //CAPSICAIN virtual modifiers:
-    checkAddLabel(SC_MOD9, "MOD9", arr);
-    checkAddLabel(SC_MOD10, "MOD10", arr);
-    checkAddLabel(SC_MOD11, "MOD11", arr);
-    checkAddLabel(SC_MOD12, "MOD12", arr);
-    checkAddLabel(SC_MOD13, "MOD13", arr);
-    checkAddLabel(SC_MOD14, "MOD14", arr);
-    checkAddLabel(SC_MOD15, "MOD15", arr);
     //messy international special keys
     checkAddLabel(SC_KANA, "KANA", arr);
     checkAddLabel(SC_LANG2, "LANG2", arr);
@@ -216,4 +218,16 @@ void getAllScancodeLabels(string arr[])
             arr[i].assign(buffer, 7);
         }
     }
+
+    //define all Capsicain VK Virtual Keys >= 0x100
+    //Capsicain virtual modifiers:
+    checkAddLabel(VK_MOD9, "MOD9", arr);
+    checkAddLabel(VK_MOD10, "MOD10", arr);
+    checkAddLabel(VK_MOD11, "MOD11", arr);
+    checkAddLabel(VK_MOD12, "MOD12", arr);
+    checkAddLabel(VK_MOD13, "MOD13", arr);
+    checkAddLabel(VK_MOD14, "MOD14", arr);
+    checkAddLabel(VK_MOD15, "MOD15", arr);
+
+
 }

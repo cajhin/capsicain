@@ -1,13 +1,15 @@
 #pragma once
 
 #include <string>
-void getAllScancodeLabels(std::string arr[]);
-int getScancode(std::string label, std::string arr[]);
+void defineAllPrettyVKLabels(std::string arr[]);
+int getVcode(std::string label, std::string arr[]);
 
 // taken from https://github.com/wgois/OIS/blob/master/includes/OISKeyboard.h
 // assigns easy to remember labels to the PS2 scan codes set 1 (which the keyboard driver seems to use)
 
-//Keyboard scan codes
+//Physical Keyboard scan codes and their labels.
+//These labels are only visible while coding.
+
 //Put a space after every SC_X, and do NOT put a second SC_ into a line, not in the comments either
 enum ScanCode {
     SC_NOP = 0x00,  //unassigned, unknown, NoOPeration
@@ -167,14 +169,19 @@ enum ScanCode {
     SC_MYCOMPUTER = 0xEB, // My Computer
     SC_MAIL = 0xEC, // Mail
     SC_MEDIASELECT = 0xED, // Media Select
-    //CAPSICAIN virtual modifier keys. Hope no keyboard ever sends this.
-    SC_MOD9 = 0xF0,
-    SC_MOD10 = 0xF1,
-    SC_MOD11 = 0xF2,
-    SC_MOD12 = 0xF3,
-    SC_MOD13 = 0xF4,
-    SC_MOD14 = 0xF5,
-    SC_MOD15 = 0xF6,
+
     //special escape code for Capsicain key sequences. Do not use this in the .ini
     SC_CPS_ESC = 0xFF
+};
+
+//defined by capsicain, non standard
+enum VirtualCode
+{
+    VK_MOD9 = 0x109,
+    VK_MOD10 = 0x10A,
+    VK_MOD11 = 0x10B,
+    VK_MOD12 = 0x10C,
+    VK_MOD13 = 0x10D,
+    VK_MOD14 = 0x10E,
+    VK_MOD15 = 0x10F
 };

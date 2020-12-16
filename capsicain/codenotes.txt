@@ -14,3 +14,9 @@ REWIRE ESC X   The key will not autorepeat
 Modified handling for showing hiding window / taskbar / traybar
 - any command with "info output" pops up the window
 - can't move to tray on minimize (console is out of the Win event loop, it only sees incoming keys)
+
+
+branch vk
+massive changes...
+scancode is original
+vcode is copy of original or changed later

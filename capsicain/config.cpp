@@ -11,6 +11,7 @@
 
 #include "config.h"
 #include "capsicain.h"
+#include "constants.h"
 #include "utils.h"
 #include "scancodes.h"
 #include "modifiers.h"
@@ -264,7 +265,7 @@ std::string stringGetRestBehindFirstToken(std::string line)
 }
 
 // lex "a b c ALPHA_TO x y z"
-bool lexAlphaFromTo(std::string alpha_to, unsigned char (&alphamap)[256], std::string scLabels[])
+bool lexAlphaFromTo(std::string alpha_to, int (&alphamap)[MAX_VKEYS], std::string scLabels[])
 {
     size_t idx1 = alpha_to.find(stringToLower(INI_TAG_ALPHA_TO));
     if (idx1 == string::npos)
@@ -283,8 +284,8 @@ bool lexAlphaFromTo(std::string alpha_to, unsigned char (&alphamap)[256], std::s
 
     for (int i = 0; i < sfrom.size(); i++)
     {
-        int ifrom = getScancode(sfrom[i], scLabels);
-        int ito = getScancode(sto[i], scLabels);
+        int ifrom = getVcode(sfrom[i], scLabels);
+        int ito = getVcode(sto[i], scLabels);
         if (ifrom < 0 || ito < 0)
         {
             cout << endl << "Unknown scancode labels: " << sfrom[i] << " and " << sto[i];
@@ -300,22 +301,22 @@ bool lexAlphaFromTo(std::string alpha_to, unsigned char (&alphamap)[256], std::s
 }
 
 // parse scancodes "A B"  or  "A B C"
-bool lexScancodeMapping(std::string line, unsigned char &keyA, unsigned char &keyB, unsigned char &keyC, std::string scLabels[])
+bool lexScancodeMapping(std::string line, int &keyA, int &keyB, int &keyC, std::string scLabels[])
 {
     vector<string> labels = stringSplit(line, ' ');
     if (labels.size() != 2 && labels.size() != 3)
         return false;
 
-    int ikeyA = getScancode(labels[0], scLabels);
-    int ikeyB = getScancode(labels[1], scLabels);
+    int ikeyA = getVcode(labels[0], scLabels);
+    int ikeyB = getVcode(labels[1], scLabels);
     int ikeyC = SC_NOP;
     if (labels.size() == 3)
-        ikeyC = getScancode(labels[2], scLabels);
+        ikeyC = getVcode(labels[2], scLabels);
     if (ikeyA < 0 || ikeyB < 0 || ikeyC < 0)
         return false; //invalid key label
-    keyA = (unsigned char)ikeyA;
-    keyB = (unsigned char)ikeyB;
-    keyC = (unsigned char)ikeyC;
+    keyA = ikeyA;
+    keyB = ikeyB;
+    keyC = ikeyC;
     return true;
 }
 
@@ -333,36 +334,36 @@ unsigned short lexModString(string modString, char filter)
     return std::stoi(binString, nullptr, 2);
 }
 
-bool lexFunctionCombo(std::string &funcParams, std::string * scLabels, std::vector<KeyEvent> &strokeSeq)
+bool lexFunctionCombo(std::string &funcParams, std::string * scLabels, std::vector<VKeyEvent> &strokeSeq)
 {
     vector<string> labels = stringSplit(funcParams, '+');
     int isc;
     for (string label : labels)
     {
-        isc = getScancode(label, scLabels);
+        isc = getVcode(label, scLabels);
         if (isc < 0)
             return false;
         strokeSeq.push_back({ (unsigned char)isc, true });
     }
     size_t len = strokeSeq.size();
     for (size_t i = len; i > 0; i--)	//copy upstrokes in reverse order
-        strokeSeq.push_back({ strokeSeq.at(i - 1).scancode,false });
+        strokeSeq.push_back({ strokeSeq.at(i - 1).vcode,false });
     return true;
 }
 
 //parse keyLabel  [!!!& .--. ....] > function(param)
 //returns false if the rule is not valid.
-bool lexRule(std::string line, unsigned short &key, unsigned short(&mods)[3], std::vector<KeyEvent> &strokeSequence, std::string scLabels[])
+bool lexRule(std::string line, int &key, unsigned short(&mods)[3], std::vector<VKeyEvent> &strokeSequence, std::string scLabels[])
 {
     string strkey = stringGetFirstToken(line);
     if (strkey.length() < 1)
         return false;
     line = line.substr(strkey.length());
 
-    int itmpKey = getScancode(strkey, scLabels);
+    int itmpKey = getVcode(strkey, scLabels);
     if (itmpKey < 0)
         return false;
-    key = (unsigned char)itmpKey;
+    key = itmpKey;
 
     line.erase(std::remove(line.begin(), line.end(), ' '), line.end());
 
@@ -400,14 +401,14 @@ bool lexRule(std::string line, unsigned short &key, unsigned short(&mods)[3], st
     string funcParams = line.substr(funcIdx2, funcIdx3 - funcIdx2);
 
     //translate 'function' into a char sequence
-    vector<KeyEvent> strokeSeq;
+    vector<VKeyEvent> strokeSeq;
     if (funcName == "key")
     {
-        int isc = getScancode(funcParams, scLabels);
+        int isc = getVcode(funcParams, scLabels);
         if (isc < 0)
             return false;
-        strokeSeq.push_back({ (unsigned char)isc, true });
-        strokeSeq.push_back({ (unsigned char)isc, false });
+        strokeSeq.push_back({ isc, true });
+        strokeSeq.push_back({ isc, false });
     }
     else if (funcName == "combo")
     {
@@ -441,7 +442,7 @@ bool lexRule(std::string line, unsigned short &key, unsigned short(&mods)[3], st
                 return false;
             string temp = "NP";
             temp += c;
-            int isc = getScancode(temp, scLabels);
+            int isc = getVcode(temp, scLabels);
             if (isc < 0)
                 return false;
             strokeSeq.push_back({ (unsigned char)isc, true });
@@ -454,7 +455,7 @@ bool lexRule(std::string line, unsigned short &key, unsigned short(&mods)[3], st
         vector<string> modKeyParams = stringSplit(funcParams, '+');
         if (modKeyParams.size() != 2)
             return false;
-        int isc = getScancode(modKeyParams[0], scLabels);
+        int isc = getVcode(modKeyParams[0], scLabels);
         if (isc < 0)
             return false;
 
@@ -511,7 +512,7 @@ bool lexRule(std::string line, unsigned short &key, unsigned short(&mods)[3], st
             if (!downstroke || !upstroke)
                 param = param.substr(1);
 
-            int isc = getScancode(param, scLabels);
+            int isc = getVcode(param, scLabels);
             if (isc < 0)
             {
                 cout << endl << "Unknown key label in sequence(): " << param;

@@ -22,29 +22,29 @@ const std::string INI_TAG_ALPHA_TO = "ALPHA_TO";
 const std::string INI_TAG_ALPHA_END = "ALPHA_END";
 
 
-void keySequenceAppendMakeKey(unsigned short scancode, std::vector<KeyEvent> &sequence);
-void keySequenceAppendBreakKey(unsigned short scancode, std::vector<KeyEvent> &sequence);
-void keySequenceAppendMakeBreakKey(unsigned short scancode, std::vector<KeyEvent> &sequence);
+void keySequenceAppendMakeKey(unsigned short scancode, std::vector<VKeyEvent> &sequence);
+void keySequenceAppendBreakKey(unsigned short scancode, std::vector<VKeyEvent> &sequence);
+void keySequenceAppendMakeBreakKey(unsigned short scancode, std::vector<VKeyEvent> &sequence);
 
 std::string getSymbolForIKStrokeState(unsigned short state);
 
 bool processCommand();
 void processMapAlphaKeys(unsigned short & scancode);
 void processModifiedKeys();
-void playKeyEventSequence(std::vector<KeyEvent> keyEventSequence);
+void playKeyEventSequence(std::vector<VKeyEvent> keyEventSequence);
 void processModifierState();
-void processRewire();
+void processRewireScancodeToVirtualcode();
 
 void printHelloFeatures();
 
-void sendKeyEvent(KeyEvent keyEvent);
+void sendVKeyEvent(VKeyEvent keyEvent);
 
 void sendResultingKeyOrSequence();
 
-KeyEvent ikstroke2keyEvent(InterceptionKeyStroke ikStroke);
+VKeyEvent ikstroke2VKeyEvent(InterceptionKeyStroke ikStroke);
 
 void normalizeIKStroke(InterceptionKeyStroke &ikstroke);
-InterceptionKeyStroke keyEvent2ikstroke(KeyEvent keyEvent);
+InterceptionKeyStroke vkeyEvent2ikstroke(VKeyEvent keyEvent);
 void getHardwareId();
 
 void initConsoleWindow();

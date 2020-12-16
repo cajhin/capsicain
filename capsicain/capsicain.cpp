@@ -9,24 +9,25 @@
 #include <Windows.h>  //for Sleep()
 
 #include "capsicain.h"
+#include "constants.h"
 #include "modifiers.h"
 #include "scancodes.h"
 #include "resource.h"
 
 using namespace std;
 
-const string VERSION = "63alpha";
+const string VERSION = "63beta";
 
-string SCANCODE_LABELS[256]; // contains e.g. [01]="ESC" instead of SC_ESCAPE 
+
+string PRETTY_VK_LABELS[MAX_VKEYS]; // contains e.g. [01]="ESC" instead of SC_ESCAPE, and all VKs > 0xFF
 
 //defaults and constants
 const int LAYER_DISABLED = 0; // layer 0 does nothing
 const string LAYER_DISABLED_LAYER_NAME = "Capsicain disabled. No processing, forward everything. Only ESC-X and ESC-0..9 work.";
-const int DEFAULT_ACTIVE_LAYER = 7;
+const int DEFAULT_ACTIVE_LAYER = 1;
 const string DEFAULT_ACTIVE_LAYER_NAME = "Layer not initialized. Forwarding all keys.";
 const int DEFAULT_DELAY_ON_STARTUP_MS = 0; //time to release all keys (e.g. if capsicain is started via shortcut)
 const int DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS = 5;  //System may drop keys when they are sent too fast. Local host needs 0-1ms, Linux VM 5+ms for 100% reliable keystroke detection
-const int MAX_MACRO_LENGTH = 200;  //stop recording at some point if it was forgotten.
 
 const bool DEFAULT_START_AHK_ON_STARTUP = true;
 const int DEFAULT_DELAY_FOR_AHK_MS = 50;	    //autohotkey is slow
@@ -53,25 +54,25 @@ struct Options
 
 struct ModifierCombo
 {
-    unsigned short key = SC_NOP;
+    int key = SC_NOP;
     unsigned short modAnd = 0;
     unsigned short modNot = 0;
     unsigned short modTap = 0;
-    vector<KeyEvent> keyEventSequence;
+    vector<VKeyEvent> keyEventSequence;
 };
 
 struct RewireIftappedMapping
 {
-    unsigned char inkey = SC_NOP;
-    unsigned char outkey = SC_NOP;
-    unsigned char ifTapped = SC_NOP;
+    int inkey = SC_NOP;
+    int outkey = SC_NOP;
+    int ifTapped = SC_NOP;
 };
 
 struct AllMaps
 {
     vector<RewireIftappedMapping> rewireIftappedMapping;
     vector<ModifierCombo> modCombos;
-    unsigned char alphamap[256] = { SC_NOP };
+    int alphamap[MAX_VKEYS] = { SC_NOP };
 } allMaps;
 
 struct GlobalState
@@ -88,16 +89,16 @@ struct GlobalState
     string deviceIdKeyboard = "";
     bool deviceIsAppleKeyboard = false;
 
-    KeyEvent previousKeyEventIn = { SC_NOP, 0 };
-    KeyEvent previous2KeyEventIn = { SC_NOP, 0 }; //2 keys ago
-    KeyEvent previousKeyEventInStore = { SC_NOP, 0 }; //mostly useless but simplifies the handling
-    bool keysDownSent[256] = { false };
+    VKeyEvent previousKeyEventIn = { SC_NOP, 0 };
+    VKeyEvent previous2KeyEventIn = { SC_NOP, 0 }; //2 keys ago
+    VKeyEvent previousKeyEventInStore = { SC_NOP, 0 }; //mostly useless but simplifies the handling
+    bool keysDownSent[256] = { false };  //sent keys must be 8 bit
 
     bool recordingMacro = false;
-    vector<KeyEvent> recordedMacro;
+    vector<VKeyEvent> recordedMacro;
 
-    vector<KeyEvent> username;
-    vector<KeyEvent> password;
+    vector<VKeyEvent> username;
+    vector<VKeyEvent> password;
     bool readingUsername = false;
     bool readingPassword = false;
 } globalState;
@@ -108,22 +109,22 @@ struct ModifierState
     unsigned short modifierTapped = 0;
     bool lastModBrokeTapping = false;
 
-    vector<KeyEvent> modsTempAltered;
+    vector<VKeyEvent> modsTempAltered;
 
 } modifierState;
 
 struct LoopState
 {
-    unsigned short scancode = 0;
+    unsigned short scancode = SC_NOP; //hardware code sent by Interception
+    int vcode = SC_NOP; //key code used internally; equals scancode or a Virtual code > FF
     bool isDownstroke = false;
     bool isModifier = false;
     bool wasTapped = false;
 
     InterceptionKeyStroke originalIKstroke = { SC_NOP, 0 };
-    KeyEvent originalKeyEvent = { SC_NOP, false };
 
     bool blockKey = false;  //true: do not send the current key
-    vector<KeyEvent> resultingKeyEventSequence;
+    vector<VKeyEvent> resultingVKeyEventSequence;
 
     chrono::steady_clock::time_point loopStartTimepoint;
 } loopState;
@@ -155,7 +156,7 @@ void readGlobalsOnStartup()
     {
         globalState.activeLayer = DEFAULT_ACTIVE_LAYER;
         globalState.activeLayerName = DEFAULT_ACTIVE_LAYER_NAME;
-        IFDEBUG cout << endl << "No ini setting for 'GLOBAL activeLayerOnStartup'. Setting default layer " << DEFAULT_ACTIVE_LAYER;
+        cout << endl << "No ini setting for 'GLOBAL activeLayerOnStartup'. Setting default layer " << DEFAULT_ACTIVE_LAYER;
     }
 }
 
@@ -164,7 +165,7 @@ int main()
     initConsoleWindow();
     printHelloHeader();
 
-    getAllScancodeLabels(SCANCODE_LABELS);
+    defineAllPrettyVKLabels(PRETTY_VK_LABELS);
     resetAllStatesToDefault();
 
     if (!readSanitizeIniFile(sanitizedIniContent))
@@ -175,8 +176,7 @@ int main()
     }
 
     readGlobalsOnStartup();
-
-    for (int i = 0; i <= 255; i++)  //initialize to "map to same char"
+    for (int i = 0; i < MAX_VKEYS; i++)  //initialize to "map to same char"
         allMaps.alphamap[i] = i;
     switchLayer(globalState.activeLayer);
 
@@ -187,6 +187,7 @@ int main()
     interception_set_filter(globalState.interceptionContext, interception_is_keyboard, INTERCEPTION_FILTER_KEY_ALL);
 
     printHelloFeatures();
+
     if (DEFAULT_START_AHK_ON_STARTUP)
     {
         string msg = startProgramSameFolder(PROGRAM_NAME_AHK);
@@ -232,18 +233,20 @@ int main()
         resetLoopState();
 
         //copy InterceptionKeyStroke (unpleasant to use) to plain KeyEvent
-        loopState.originalKeyEvent = ikstroke2keyEvent(loopState.originalIKstroke);
+        VKeyEvent originalVKeyEvent = ikstroke2VKeyEvent(loopState.originalIKstroke);
+        loopState.scancode = originalVKeyEvent.vcode;
+        loopState.isDownstroke = originalVKeyEvent.isDownstroke;
 
+        //TODO this is messy
         //store last key and the one before
         globalState.previous2KeyEventIn = globalState.previousKeyEventIn;
         globalState.previousKeyEventIn = globalState.previousKeyEventInStore;
-        globalState.previousKeyEventInStore = loopState.originalKeyEvent;
+        globalState.previousKeyEventInStore = originalVKeyEvent;
         
-        loopState.scancode = loopState.originalKeyEvent.scancode;
-        loopState.isDownstroke = loopState.originalKeyEvent.isDownstroke;
+        //Tapped key?
         loopState.wasTapped = !loopState.isDownstroke 
-            && (loopState.originalKeyEvent.scancode == globalState.previousKeyEventIn.scancode)
-            && ((loopState.originalKeyEvent.scancode != globalState.previous2KeyEventIn.scancode)
+            && (loopState.scancode == globalState.previousKeyEventIn.vcode)
+            && ((loopState.scancode != globalState.previous2KeyEventIn.vcode)
                 || (!globalState.previous2KeyEventIn.isDownstroke));
 
         //sanity check
@@ -262,19 +265,19 @@ int main()
         //do not send v until ^ comes in
         //ESC+X exits, unconditionally
         //ESC+[0]..[9]  layer switch
-        //I process those before layer 0 continues, and therefore before the rewire
-        if (loopState.originalKeyEvent.scancode == SC_ESCAPE)
+        //I process those early, in case layer 0 continues without further checks
+        if (loopState.scancode == SC_ESCAPE)
         {
-            globalState.realEscapeIsDown = loopState.originalKeyEvent.isDownstroke;
+            globalState.realEscapeIsDown = loopState.isDownstroke;
         }
-        else if (globalState.realEscapeIsDown && loopState.originalKeyEvent.isDownstroke)
+        else if (globalState.realEscapeIsDown && loopState.isDownstroke)
         {
-            if (loopState.originalKeyEvent.scancode == SC_X) //extra check to make sure Exit is bug free
+            if (loopState.scancode == SC_X) //extra check to make sure Exit is bug free
             {
                 ShowInTaskbar();
                 break;
             }
-            else if (loopState.originalKeyEvent.scancode == SC_0)
+            else if (loopState.scancode == SC_0)
             {
                 cout << endl << "LAYER CHANGE: " << LAYER_DISABLED;
                 switchLayer(LAYER_DISABLED);
@@ -284,7 +287,7 @@ int main()
                 resetAlphaMap();
                 continue;
             }
-            else if (loopState.originalKeyEvent.scancode >= SC_1 && loopState.originalKeyEvent.scancode <= SC_9)
+            else if (loopState.scancode >= SC_1 && loopState.scancode <= SC_9)
             {
                 int layer = loopState.scancode - 1;
                 cout << endl << "LAYER CHANGE: " << layer;
@@ -301,27 +304,28 @@ int main()
         }
 
         //hard rewire all REWIREd keys
-        processRewire();
-        if (loopState.scancode == SC_NOP)   //rewired to NOP to disable keys
+        loopState.vcode = loopState.scancode;
+        processRewireScancodeToVirtualcode();
+        if (loopState.vcode == SC_NOP)   //rewired to NOP to disable keys
         {
             IFDEBUG cout << " (NOP)";
             continue;
         }
 
-        //ESC is lazy key; if it is rewired, that key must not trigger on ESC+command
-        if (loopState.originalKeyEvent.scancode == SC_ESCAPE)
+        //Hardware ESC is lazy key; if it is rewired, that key must not trigger on ESC+command
+        if (loopState.scancode == SC_ESCAPE)
         {
             IFDEBUG cout << endl << "(Hard ESC" << (loopState.isDownstroke ? "v " : "^ ") << ")";
             if (loopState.isDownstroke)
                 continue;
             //hardware ESC tapped -> reset state incl. sticky modifiers
-            if(globalState.previousKeyEventIn.scancode == SC_ESCAPE)
+            if(globalState.previousKeyEventIn.vcode == SC_ESCAPE)
             {
                 releaseAllRealModifiers(); //release sticky mods before sending ESC
                 //handle rewired ESC^ (send ESC or whatever it is rewired to)
-                IFDEBUG cout << endl << "(Send " << SCANCODE_LABELS[loopState.scancode] << "v^ )";
-                sendKeyEvent( { loopState.scancode, true } );
-                sendKeyEvent( { loopState.scancode, false } );
+                IFDEBUG cout << endl << "(Send " << PRETTY_VK_LABELS[loopState.vcode] << "v^ )";
+                sendVKeyEvent( { loopState.vcode, true } );
+                sendVKeyEvent( { loopState.vcode, false } );
                 //reset state on hardware ESC
                 resetLoopState();
                 resetModifierState();
@@ -338,7 +342,6 @@ int main()
         // - HP shadows the 2-w-s-x and 3-e-d-c lines
         if (globalState.realEscapeIsDown)
         {
-
             if (loopState.isDownstroke)
             {
                 if (processCommand())
@@ -349,7 +352,7 @@ int main()
                     break;
                 }
             }
-            else if(isModifier(loopState.scancode)) //sticky mods with ESC+mod
+            else if(isModifier(loopState.vcode)) //sticky mods with ESC+mod
             {
                 continue;
             }
@@ -358,13 +361,13 @@ int main()
         //Username
         if (globalState.readingUsername)
         {
-            if (loopState.scancode == SC_RETURN)
+            if (loopState.vcode == SC_RETURN)
             {
                 globalState.readingUsername = false;
                 cout << " done";
             }
             else if (loopState.isDownstroke || globalState.username.size() > 0)  //filter upstroke from the command key
-                globalState.username.push_back(loopState.originalKeyEvent);
+                globalState.username.push_back({ loopState.vcode,loopState.isDownstroke });
             continue;
         }
         //Password
@@ -376,16 +379,16 @@ int main()
                 cout << " done";
             }
             else if (loopState.isDownstroke || globalState.password.size() > 0)  //filter upstroke from the command key
-                globalState.password.push_back(loopState.originalKeyEvent);
+                globalState.password.push_back({ loopState.vcode, loopState.isDownstroke });
             continue;
         }
 
         /////CONFIGURED RULES
         IFDEBUG cout << endl << " [" << \
-            (loopState.scancode == loopState.originalKeyEvent.scancode ? "" : SCANCODE_LABELS[loopState.originalKeyEvent.scancode] + " => ") \
-            << SCANCODE_LABELS[loopState.scancode] << getSymbolForIKStrokeState(loopState.originalIKstroke.state)
+            (loopState.vcode == loopState.scancode ? "" : PRETTY_VK_LABELS[loopState.scancode] + " => ") \
+            << PRETTY_VK_LABELS[loopState.vcode] << getSymbolForIKStrokeState(loopState.originalIKstroke.state)
             << " =" << hex << loopState.originalIKstroke.code << " " << loopState.originalIKstroke.state << "]";
-        
+
         processModifierState();
     
         IFDEBUG cout << " [M:" << hex << modifierState.modifierDown;
@@ -433,7 +436,7 @@ void processModifiedKeys()
     {
         for (ModifierCombo modcombo : allMaps.modCombos)
         {
-            if (modcombo.key == loopState.scancode)
+            if (modcombo.key == loopState.vcode)
             {
                 if (
                     (modifierState.modifierDown & modcombo.modAnd) == modcombo.modAnd &&
@@ -441,7 +444,7 @@ void processModifiedKeys()
                     ((modifierState.modifierTapped & modcombo.modTap) == modcombo.modTap)
                     )
                 {
-                    loopState.resultingKeyEventSequence = modcombo.keyEventSequence;
+                    loopState.resultingVKeyEventSequence = modcombo.keyEventSequence;
                     break;
                 }
             }
@@ -471,7 +474,7 @@ bool processCommand()
     bool popupConsole = false;
     cout << endl << endl << "::";
     
-    switch (loopState.originalKeyEvent.scancode)
+    switch (loopState.scancode)
     {
     case SC_T:
     {
@@ -489,10 +492,10 @@ bool processCommand()
     }
     case SC_Q:   // quit only if a debug build
 #ifdef NDEBUG
-        sendKeyEvent({ SC_ESCAPE, true });
-        sendKeyEvent({ SC_Q, true });
-        sendKeyEvent({ SC_Q, false });
-        sendKeyEvent({ SC_ESCAPE, false });
+        sendVKeyEvent({ SC_ESCAPE, true });
+        sendVKeyEvent({ SC_Q, true });
+        sendVKeyEvent({ SC_Q, false });
+        sendVKeyEvent({ SC_ESCAPE, false });
 #else
         continueLooping = false;
 #endif
@@ -592,7 +595,7 @@ bool processCommand()
     {
         cout << "COPY MACRO TO CLIPBOARD";
         string macro = "";
-        for (KeyEvent key : globalState.recordedMacro)
+        for (VKeyEvent key : globalState.recordedMacro)
         {
             if (macro.size() > 0)
                 macro += "_";
@@ -600,7 +603,7 @@ bool processCommand()
                 macro += "&";
             else
                 macro += "^";
-            macro += SCANCODE_LABELS[key.scancode];
+            macro += PRETTY_VK_LABELS[key.vcode];
         }
         copyToClipBoard(macro);
         break;
@@ -628,15 +631,15 @@ bool processCommand()
     default: 
     {
         //Sticky modifiers with soft (potentially rewired) ESC+modifier. Tap hard ESC to release.
-        if (isModifier(loopState.scancode))
+        if (isModifier(loopState.vcode))
         {
             if (loopState.isDownstroke)
             {
-                modifierState.modifierDown |= getBitmaskForModifier(loopState.scancode);
+                modifierState.modifierDown |= getBitmaskForModifier(loopState.vcode);
                 modifierState.modifierTapped = 0;
-                if (isRealModifier(loopState.scancode))
+                if (isRealModifier(loopState.vcode))
                     sendResultingKeyOrSequence();
-                IFDEBUG cout << endl << "Locking modifier: " << SCANCODE_LABELS[loopState.scancode];
+                IFDEBUG cout << endl << "Locking modifier: " << PRETTY_VK_LABELS[loopState.vcode];
             }
         }
         else
@@ -655,9 +658,9 @@ bool processCommand()
 
 void sendResultingKeyOrSequence()
 {
-    if (loopState.resultingKeyEventSequence.size() > 0)
+    if (loopState.resultingVKeyEventSequence.size() > 0)
     {
-        playKeyEventSequence(loopState.resultingKeyEventSequence);
+        playKeyEventSequence(loopState.resultingVKeyEventSequence);
     }
     else
     {
@@ -665,14 +668,14 @@ void sendResultingKeyOrSequence()
         {
             if (loopState.blockKey)
                 cout << "\t--> BLOCKED ";
-            else if (loopState.originalKeyEvent.scancode != loopState.scancode)
-                cout << "\t--> " << SCANCODE_LABELS[loopState.scancode] << " " << getSymbolForIKStrokeState(loopState.originalIKstroke.state);
+            else if (loopState.scancode != loopState.vcode)
+                cout << "\t--> " << PRETTY_VK_LABELS[loopState.vcode] << " " << getSymbolForIKStrokeState(loopState.originalIKstroke.state);
             else
                 cout << "\t--";
         }
-        if (!loopState.blockKey && !loopState.scancode == SC_NOP)
+        if (!loopState.blockKey && loopState.vcode != SC_NOP)
         {
-            sendKeyEvent({ loopState.scancode, loopState.isDownstroke });
+            sendVKeyEvent({ loopState.vcode, loopState.isDownstroke });
         }
     }
 }
@@ -682,7 +685,7 @@ void processModifierState()
     if (!loopState.isModifier)
         return; 
 
-    unsigned short bitmask = getBitmaskForModifier(loopState.scancode);
+    unsigned short bitmask = getBitmaskForModifier(loopState.vcode);
     if ((bitmask & 0xFF00) > 0)
         loopState.blockKey = true;
 
@@ -692,14 +695,14 @@ void processModifierState()
     {
         for (RewireIftappedMapping map : allMaps.rewireIftappedMapping)
         {
-            if (loopState.originalKeyEvent.scancode == map.inkey)
+            if (loopState.vcode == map.inkey)
                 {
                 if (map.ifTapped != SC_NOP)
                 {
                     if (!loopState.blockKey)
-                        loopState.resultingKeyEventSequence.push_back({ loopState.scancode, false });
-                    loopState.resultingKeyEventSequence.push_back({ map.ifTapped, true });
-                    loopState.resultingKeyEventSequence.push_back({ map.ifTapped, false });
+                        loopState.resultingVKeyEventSequence.push_back({ loopState.vcode, false });
+                    loopState.resultingVKeyEventSequence.push_back({ map.ifTapped, true });
+                    loopState.resultingVKeyEventSequence.push_back({ map.ifTapped, false });
                     loopState.blockKey = false;
                     tappedModConfigFound = true;
                     modifierState.modifierTapped = 0;
@@ -723,7 +726,7 @@ void processModifierState()
     //Long presses, release will not register as tapped.
     if (!tappedModConfigFound && !modifierState.lastModBrokeTapping)
     {
-        bool sameKey = loopState.originalKeyEvent.scancode == globalState.previousKeyEventIn.scancode;
+        bool sameKey = loopState.scancode == globalState.previousKeyEventIn.vcode;
         if (loopState.wasTapped && modifierState.lastModBrokeTapping)
             modifierState.modifierTapped = 0;
         else if (loopState.wasTapped)
@@ -744,78 +747,80 @@ void processModifierState()
 }
 
 //handle all REWIRE configs
-void processRewire()
+void processRewireScancodeToVirtualcode()
 {
     if (option.flipAltWinOnAppleKeyboards && globalState.deviceIsAppleKeyboard)
     {
         switch (loopState.scancode)
         {
-        case SC_LALT: loopState.scancode = SC_LWIN; break;
-        case SC_LWIN: loopState.scancode = SC_LALT; break;
-        case SC_RALT: loopState.scancode = SC_RWIN; break;
-        case SC_RWIN: loopState.scancode = SC_RALT; break;
+        case SC_LALT: loopState.vcode = SC_LWIN; break;
+        case SC_LWIN: loopState.vcode = SC_LALT; break;
+        case SC_RALT: loopState.vcode = SC_RWIN; break;
+        case SC_RWIN: loopState.vcode = SC_RALT; break;
         }
     }
 
-    bool finalScancode = false;
+    bool finalVcode = false;
 
+    //TODO too complicated
     if (option.altAltToAlt)
     {
-        if (loopState.scancode == SC_LALT || loopState.scancode == SC_RALT)
+        if (loopState.vcode == SC_LALT || loopState.vcode == SC_RALT)
         {
             if (loopState.isDownstroke)
             {
-                if (globalState.previousKeyEventIn.scancode != loopState.originalKeyEvent.scancode)
+                if (globalState.previousKeyEventIn.vcode != loopState.scancode) //not tapped
                 {
                     if (IS_MOD12_DOWN)
                     {
-                        modifierState.modifierDown &= ~BITMASK_MOD12;
-                        finalScancode = true;
+                        modifierState.modifierDown &= ~BITMASK_MOD12; //clear MOD12
+                        finalVcode = true;
                     }
                 }
-                else
+                else //tapped
                 {
                     if (modifierState.modifierDown & (BITMASK_LALT | BITMASK_RALT))
-                        finalScancode = true;
+                        finalVcode = true;
                     else if (modifierState.modifierTapped & BITMASK_MOD12)
                     {
                         modifierState.modifierTapped &= ~BITMASK_MOD12;
-                        finalScancode = true;
+                        finalVcode = true;
                     }
                 }
             }
             else
             {
-                if(    loopState.scancode == SC_LALT && IS_LALT_DOWN
-                    || loopState.scancode == SC_RALT && IS_RALT_DOWN)
-                    finalScancode = true;
+                if(    loopState.vcode == SC_LALT && IS_LALT_DOWN
+                    || loopState.vcode == SC_RALT && IS_RALT_DOWN)
+                    finalVcode = true;
             }
         }
     }
 
-    if (!finalScancode)
+    //TODO how does this recognize tappings???
+    if (!finalVcode)
     {
         for (RewireIftappedMapping map : allMaps.rewireIftappedMapping)
         {
-            if (loopState.scancode == map.inkey)
+            if (loopState.vcode == map.inkey)
             {
-                loopState.scancode = map.outkey;
+                loopState.vcode = map.outkey;
                 break;
             }
         }
     }
 
-    if (!finalScancode && option.shiftShiftToCapsLock)
+    if (!finalVcode && option.shiftShiftToCapsLock)
     {
-        switch (loopState.scancode)
+        switch (loopState.vcode)
         {
         case SC_LSHIFT:  //handle LShift+RShift -> CapsLock
             if (loopState.isDownstroke
                 && (modifierState.modifierDown == (BITMASK_RSHIFT))
                 && (GetKeyState(VK_CAPITAL) & 0x0001)) //ask Win for Capslock state
             {
-                keySequenceAppendMakeBreakKey(SC_CAPS, loopState.resultingKeyEventSequence);
-                finalScancode = true;
+                keySequenceAppendMakeBreakKey(SC_CAPS, loopState.resultingVKeyEventSequence);
+                finalVcode = true;
             }
             break;
         case SC_RSHIFT:
@@ -823,14 +828,14 @@ void processRewire()
                 && (modifierState.modifierDown == (BITMASK_LSHIFT))
                 && !(GetKeyState(VK_CAPITAL) & 0x0001))
             {
-                keySequenceAppendMakeBreakKey(SC_CAPS, loopState.resultingKeyEventSequence);
-                finalScancode = true;
+                keySequenceAppendMakeBreakKey(SC_CAPS, loopState.resultingVKeyEventSequence);
+                finalVcode = true;
             }
             break;
         }
     }
 
-    loopState.isModifier = isModifier(loopState.scancode) ? true : false;
+    loopState.isModifier = isModifier(loopState.vcode) ? true : false;
 }
 
 //May contain Capsicain Escape sequences, those are a bit hacky. 
@@ -839,17 +844,17 @@ void processRewire()
 //Scancodes inside are modifier bitmasks. State DOWN means "set these modifiers if they are up", UP means "clear those if they are down".
 //Sequence ends with SC_CPS_ESC UP -> the modifier sequence is played.
 //Second SC_CPS_ESC UP -> the previous changes to the modifiers are reverted.
-void playKeyEventSequence(vector<KeyEvent> keyEventSequence)
+void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
 {
-    KeyEvent newKeyEvent;
+    VKeyEvent newKeyEvent;
     unsigned int delayBetweenKeyEventsMS = option.delayForKeySequenceMS;
     bool inCpsEscape = false;  //inside an escape sequence, read next keyEvent
     int escapeSequenceType = 0; // 1: escape sequence to temp release modifiers; 2: pause; 3... undefined
 
     IFDEBUG cout << "\t--> SEQUENCE (" << dec << keyEventSequence.size() << ")";
-    for (KeyEvent keyEvent : keyEventSequence)
+    for (VKeyEvent keyEvent : keyEventSequence)
     {
-        if (keyEvent.scancode == SC_CPS_ESC)
+        if (keyEvent.vcode == SC_CPS_ESC)
         {
             if (keyEvent.isDownstroke)
             {
@@ -868,21 +873,21 @@ void playKeyEventSequence(vector<KeyEvent> keyEventSequence)
             {
                 if (inCpsEscape) //play the escape sequence
                 {
-                    for (KeyEvent strk : modifierState.modsTempAltered)
+                    for (VKeyEvent strk : modifierState.modsTempAltered)
                     {
-                        sendKeyEvent(strk);
+                        sendVKeyEvent(strk);
                         Sleep(delayBetweenKeyEventsMS);
                     }
                 }
                 else //undo the previous temp modifier changes, in reverse order
                 {
-                    IFDEBUG cout << endl << "undo alter modifiers" << keyEvent.scancode;
-                    KeyEvent strk;
+                    IFDEBUG cout << endl << "undo alter modifiers" << keyEvent.vcode;
+                    VKeyEvent strk;
                     for (size_t i = modifierState.modsTempAltered.size(); i>0; i--)
                     {
                         strk = modifierState.modsTempAltered[i - 1];
                         strk.isDownstroke = !strk.isDownstroke;
-                        sendKeyEvent(strk);
+                        sendVKeyEvent(strk);
                         Sleep(delayBetweenKeyEventsMS);
                     }
                     modifierState.modsTempAltered.clear();
@@ -901,26 +906,26 @@ void playKeyEventSequence(vector<KeyEvent> keyEventSequence)
         {
             if (escapeSequenceType == 0)
             {
-                switch (keyEvent.scancode)
+                switch (keyEvent.vcode)
                 {
                 case 1:
                 case 2:
-                    escapeSequenceType = keyEvent.scancode;
-                    IFDEBUG cout << endl << "CPS_ESC_SEQUENCE_TYPE: " << keyEvent.scancode;
+                    escapeSequenceType = keyEvent.vcode;
+                    IFDEBUG cout << endl << "CPS_ESC_SEQUENCE_TYPE: " << keyEvent.vcode;
                     break;
                 default:
-                    error("internal error: escapeSequenceType not defined: " + to_string(keyEvent.scancode));
+                    error("internal error: escapeSequenceType not defined: " + to_string(keyEvent.vcode));
                     return;
                 }
             }
             else if (escapeSequenceType == CPS_ESC_SEQUENCE_TYPE_TEMPALTERMODIFIERS)
             {
-                IFDEBUG cout << endl << "temp alter modifiers" << keyEvent.scancode;
+                IFDEBUG cout << endl << "temp alter modifiers" << keyEvent.vcode;
 
                 //the scancode is a modifier bitmask. Press/Release keys as necessary.
                 //make modifier IF the system knows it is up
-                unsigned short tempModChange = keyEvent.scancode;       //escaped scancode carries the modifier bitmask
-                KeyEvent newKeyEvent;
+                unsigned short tempModChange = keyEvent.vcode;       //escaped scancode carries the modifier bitmask
+                VKeyEvent newKeyEvent;
 
                 if (keyEvent.isDownstroke)  //make modifiers when they are up
                 {
@@ -939,15 +944,15 @@ void playKeyEventSequence(vector<KeyEvent> keyEventSequence)
                     if (!modBitmask)
                         continue;
                     unsigned short sc = getModifierForBitmask(modBitmask);
-                    newKeyEvent.scancode = sc;
+                    newKeyEvent.vcode = sc;
                     modifierState.modsTempAltered.push_back(newKeyEvent);
                 }
                 continue;
             }
             else if (escapeSequenceType == CPS_ESC_SEQUENCE_TYPE_SLEEP)   //PAUSE
             {
-                IFDEBUG cout << endl << "sleep: " << keyEvent.scancode;
-                Sleep(keyEvent.scancode * 100);
+                IFDEBUG cout << endl << "sleep: " << keyEvent.vcode;
+                Sleep(keyEvent.vcode * 100);
                 inCpsEscape = false;  //type 2 does not need an "escape up" key to finish the sequence
                 escapeSequenceType = 0;
             }
@@ -959,8 +964,8 @@ void playKeyEventSequence(vector<KeyEvent> keyEventSequence)
         }
         else //regular non-escaped keyEvent
         {
-            sendKeyEvent(keyEvent);
-            if (keyEvent.scancode == AHK_HOTKEY1 || keyEvent.scancode == AHK_HOTKEY2)
+            sendVKeyEvent(keyEvent);
+            if (keyEvent.vcode == AHK_HOTKEY1 || keyEvent.vcode == AHK_HOTKEY2)
                 delayBetweenKeyEventsMS = DEFAULT_DELAY_FOR_AHK_MS;
             else
                 Sleep(delayBetweenKeyEventsMS);
@@ -1036,10 +1041,10 @@ bool parseIniRewire(std::vector<std::string> assembledIni)
     if (sectLines.size() == 0)
         return false;
 
-    unsigned char keyIn, keyOut, keyIfTapped;
+    int keyIn, keyOut, keyIfTapped;
     for (string line : sectLines)
     {
-        if (lexScancodeMapping(line, keyIn, keyOut, keyIfTapped, SCANCODE_LABELS))
+        if (lexScancodeMapping(line, keyIn, keyOut, keyIfTapped, PRETTY_VK_LABELS))
         {
             bool isDuplicate = false;
             for (RewireIftappedMapping test : allMaps.rewireIftappedMapping)
@@ -1048,7 +1053,7 @@ bool parseIniRewire(std::vector<std::string> assembledIni)
                 {
                     if( test.outkey != keyOut || test.ifTapped != keyIfTapped)
                         IFDEBUG cout << endl << "WARNING: ignoring redefinition of " << INI_TAG_REWIRE << " "
-                            << SCANCODE_LABELS[keyIn] << " " << SCANCODE_LABELS[keyOut] << " " << SCANCODE_LABELS[keyIfTapped];
+                            << PRETTY_VK_LABELS[keyIn] << " " << PRETTY_VK_LABELS[keyOut] << " " << PRETTY_VK_LABELS[keyIfTapped];
                     isDuplicate = true;
                     break;
                 }
@@ -1073,12 +1078,12 @@ bool parseIniCombos(std::vector<std::string> assembledIni)
         return false;
 
     unsigned short mods[3] = { 0 }; //and, not, tap (nop, for)
-    vector<KeyEvent> keyEventSequence;
+    vector<VKeyEvent> keyEventSequence;
 
     for (string line : sectLines)
     {
-        unsigned short key;
-        if (lexRule(line, key, mods, keyEventSequence, SCANCODE_LABELS))
+        int key;
+        if (lexRule(line, key, mods, keyEventSequence, PRETTY_VK_LABELS))
         {
             bool isDuplicate = false;
             for (ModifierCombo testcombo : allMaps.modCombos)
@@ -1092,7 +1097,7 @@ bool parseIniCombos(std::vector<std::string> assembledIni)
                     {
                         for (int i = 0; i < keyEventSequence.size(); i++)
                         {
-                            if (keyEventSequence[i].scancode != testcombo.keyEventSequence[i].scancode
+                            if (keyEventSequence[i].vcode != testcombo.keyEventSequence[i].vcode
                                 || keyEventSequence[i].isDownstroke != testcombo.keyEventSequence[i].isDownstroke)
                             {
                                 redefined = true;
@@ -1105,7 +1110,7 @@ bool parseIniCombos(std::vector<std::string> assembledIni)
 
                     if(redefined)
                         IFDEBUG cout << endl << "WARNING: Ignoring redefinition of Combo: " <<
-                            SCANCODE_LABELS[key] << " [ " << hex << mods[0] << ", " << mods[1] << ", " << mods[2] << "] > ...";
+                        PRETTY_VK_LABELS[key] << " [ " << hex << mods[0] << ", " << mods[1] << ", " << mods[2] << "] > ...";
 
                     isDuplicate = true;
                     break;
@@ -1144,7 +1149,7 @@ bool parseIniAlphaLayout(std::vector<std::string> assembledIni)
         else if (firstToken == tagEnd)
         {
             inMapFromTo = false;
-            if (!lexAlphaFromTo(mapFromTo, allMaps.alphamap, SCANCODE_LABELS))
+            if (!lexAlphaFromTo(mapFromTo, allMaps.alphamap, PRETTY_VK_LABELS))
                 error("Cannot parse the " + INI_TAG_ALPHA_FROM + ".." + INI_TAG_ALPHA_TO + " alpha definition");
         }
         else if (inMapFromTo)
@@ -1256,7 +1261,7 @@ void switchLayer(int layer)
 void resetCapsNumScrollLock()
 {
     //set NumLock, release CapsLock+Scrolllock
-    vector<KeyEvent> sequence;
+    vector<VKeyEvent> sequence;
     if (!(GetKeyState(VK_NUMLOCK) & 0x0001))
         keySequenceAppendMakeBreakKey(SC_NUMLOCK, sequence);
     if (GetKeyState(VK_CAPITAL) & 0x0001)
@@ -1280,9 +1285,7 @@ void resetLoopState()
     loopState.scancode = 0;
     loopState.isModifier = false;
     loopState.wasTapped = false;
-
-    loopState.originalKeyEvent = { SC_NOP, false };
-    loopState.resultingKeyEventSequence.clear();
+    loopState.resultingVKeyEventSequence.clear();
 }
 
 void resetModifierState()
@@ -1361,7 +1364,7 @@ void printStatus()
 void printKeylabels()
 {
     for (int i = 0; i <= 255; i++)
-        cout << "sc " << uppercase << hex << i << " = " << SCANCODE_LABELS[i] << endl;
+        cout << "sc " << uppercase << hex << i << " = " << PRETTY_VK_LABELS[i] << endl;
 }
 
 void printHelp()
@@ -1400,45 +1403,59 @@ void normalizeIKStroke(InterceptionKeyStroke &ikstroke) {
     }
 }
 
-InterceptionKeyStroke keyEvent2ikstroke(KeyEvent ikstroke)
+InterceptionKeyStroke vkeyEvent2ikstroke(VKeyEvent vkstroke)
 {
-    InterceptionKeyStroke iks = { ikstroke.scancode, 0 };
-    if (ikstroke.scancode >= 0x80)
+    InterceptionKeyStroke iks = { (unsigned short) vkstroke.vcode, 0 };
+
+    if (vkstroke.vcode >= 0xFF)
     {
-        iks.code = static_cast<unsigned short>(ikstroke.scancode & 0x7F);
+        error("bug: trying to send an interception keystroke > xFF");
+        iks.code = SC_NOP;
+    }
+
+    if (vkstroke.vcode >= 0x80)
+    {
+        iks.code = static_cast<unsigned short>(vkstroke.vcode & 0x7F);
         iks.state |= 2;
     }
-    if (!ikstroke.isDownstroke)
+    if (!vkstroke.isDownstroke)
         iks.state |= 1;
 
     return iks;
 }
 
-KeyEvent ikstroke2keyEvent(InterceptionKeyStroke ikStroke)
-{	
-    KeyEvent strk;
-    strk.scancode = ikStroke.code;
+VKeyEvent ikstroke2VKeyEvent(InterceptionKeyStroke ikStroke)
+{
+    VKeyEvent strk;
+    strk.vcode = ikStroke.code;
     if ((ikStroke.state & 2) == 2)
-        strk.scancode |= 0x80;
+        strk.vcode |= 0x80;
     strk.isDownstroke = ikStroke.state & 1 ? false : true;
     return strk;
 }
 
-void sendKeyEvent(KeyEvent keyEvent)
+void handleSendVkey(VKeyEvent keyEvent)
 {
-    if (keyEvent.scancode == 0xE4)
+    cout << endl << "TODO: handleSendVkey handle 'sending' high keys";
+}
+
+void sendVKeyEvent(VKeyEvent keyEvent)
+{
+    if (keyEvent.vcode > 0xFF)
+    {
+        handleSendVkey(keyEvent);
+        return;
+    }
+
+    if (keyEvent.vcode == 0xE4)  //what was that for?
         IFDEBUG cout << " {sending E4} ";
-    if (keyEvent.scancode > 0xFF)
+
+    if (!keyEvent.isDownstroke &&  !globalState.keysDownSent[(unsigned char)keyEvent.vcode])  //ignore up when key is already up
     {
-        error("Unexpected scancode > 255: " + to_string(keyEvent.scancode));
+        IFDEBUG cout << " >(blocked " << PRETTY_VK_LABELS[keyEvent.vcode] << " UP: was not down)>";
         return;
     }
-    if (!keyEvent.isDownstroke &&  !globalState.keysDownSent[(unsigned char)keyEvent.scancode])  //ignore up when key is already up
-    {
-        IFDEBUG cout << " >(blocked " << SCANCODE_LABELS[keyEvent.scancode] << " UP: was not down)>";
-        return;
-    }
-    globalState.keysDownSent[(unsigned char)keyEvent.scancode] = keyEvent.isDownstroke;
+    globalState.keysDownSent[(unsigned char)keyEvent.vcode] = keyEvent.isDownstroke;
 
     if (globalState.recordingMacro)
     {
@@ -1451,9 +1468,10 @@ void sendKeyEvent(KeyEvent keyEvent)
         }
     }
     
-    InterceptionKeyStroke iks = keyEvent2ikstroke(keyEvent);
-    IFDEBUG cout << " {" << SCANCODE_LABELS[keyEvent.scancode] << (keyEvent.isDownstroke ? "v" : "^") << "}";
+    InterceptionKeyStroke iks = vkeyEvent2ikstroke(keyEvent);
+    IFDEBUG cout << " {" << PRETTY_VK_LABELS[keyEvent.vcode] << (keyEvent.isDownstroke ? "v" : "^") << "}";
     interception_send(globalState.interceptionContext, globalState.interceptionDevice, (InterceptionStroke *)&iks, 1);
+//    interception_send(globalState.interceptionContext, globalState.interceptionDevice, (InterceptionStroke *)&loopState.originalIKstroke, 1);
 }
 
 void reset()
@@ -1473,7 +1491,7 @@ void releaseAllRealModifiers()
     for (int i = 0; i < 255; i++)	//Send() suppresses key UP if it thinks it is already up.
         globalState.keysDownSent[i] = true;
 
-    vector<KeyEvent> keyEventSequence;
+    vector<VKeyEvent> keyEventSequence;
     keyEventSequence.push_back({ SC_LSHIFT, false });
     keyEventSequence.push_back({ SC_RSHIFT, false });
     keyEventSequence.push_back({ SC_LCTRL, false });
@@ -1492,15 +1510,15 @@ void releaseAllRealModifiers()
 }
 
 
-void keySequenceAppendMakeKey(unsigned short scancode, vector<KeyEvent> &sequence)
+void keySequenceAppendMakeKey(unsigned short scancode, vector<VKeyEvent> &sequence)
 {
     sequence.push_back({ scancode, true });
 }
-void keySequenceAppendBreakKey(unsigned short scancode, vector<KeyEvent> &sequence)
+void keySequenceAppendBreakKey(unsigned short scancode, vector<VKeyEvent> &sequence)
 {
     sequence.push_back({ scancode, false });
 }
-void keySequenceAppendMakeBreakKey(unsigned short scancode, vector<KeyEvent> &sequence)
+void keySequenceAppendMakeBreakKey(unsigned short scancode, vector<VKeyEvent> &sequence)
 {
     sequence.push_back({ scancode, true });
     sequence.push_back({ scancode, false });
