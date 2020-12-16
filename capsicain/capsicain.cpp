@@ -20,8 +20,10 @@ const string VERSION = "62";
 string SCANCODE_LABELS[256]; // contains e.g. [01]="ESC" instead of SC_ESCAPE 
 
 //defaults and constants
-const int DEFAULT_ACTIVE_LAYER = 0;
-const string DEFAULT_ACTIVE_LAYER_NAME = "Capsicain disabled. No processing, forward everything. Only ESC-X and ESC-0..9 work.";
+const int LAYER_DISABLED = 0; // layer 0 does nothing
+const string LAYER_DISABLED_LAYER_NAME = "Capsicain disabled. No processing, forward everything. Only ESC-X and ESC-0..9 work.";
+const int DEFAULT_ACTIVE_LAYER = 7;
+const string DEFAULT_ACTIVE_LAYER_NAME = "Layer not initialized. Forwarding all keys.";
 const int DEFAULT_DELAY_ON_STARTUP_MS = 0; //time to release all keys (e.g. if capsicain is started via shortcut)
 const int DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS = 5;  //System may drop keys when they are sent too fast. Local host needs 0-1ms, Linux VM 5+ms for 100% reliable keystroke detection
 const int MAX_MACRO_LENGTH = 200;  //stop recording at some point if it was forgotten.
@@ -36,7 +38,7 @@ vector<string> sanitizedIniContent;  //loaded on startup and reset
 struct Options
 {
     string iniVersion = "unnamed version - add 'iniVersion xyz' to capsicain.ini";
-    bool debug = false;
+    bool debug = true;
     int delayForKeySequenceMS = DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;
     bool flipZy = false;
     bool altAltToAlt = false;
@@ -74,8 +76,8 @@ struct AllMaps
 
 struct GlobalState
 {
-    int  activeLayer = DEFAULT_ACTIVE_LAYER;
-    string layerName = DEFAULT_ACTIVE_LAYER_NAME;
+    int  activeLayer = 0;
+    string activeLayerName = DEFAULT_ACTIVE_LAYER_NAME;
 
     InterceptionContext interceptionContext = NULL;
     InterceptionDevice interceptionDevice = NULL;
@@ -136,13 +138,6 @@ void error(string txt)
 
 void readGlobalsOnStartup()
 {
-    int initialLayer = DEFAULT_ACTIVE_LAYER;
-    if(!getIntValueForTaggedKey(INI_TAG_GLOBAL, "ActiveLayerOnStartup", globalState.activeLayer, sanitizedIniContent))
-    {
-        globalState.activeLayer = DEFAULT_ACTIVE_LAYER;
-        IFDEBUG cout << endl << "No ini setting for 'GLOBAL ctiveLayerOnStartup'. Setting default layer " << DEFAULT_ACTIVE_LAYER;
-    }
-
     option.debug = configHasTaggedKey(INI_TAG_GLOBAL, "debugOnStartup", sanitizedIniContent);
 
     getStringValueForTaggedKey(INI_TAG_GLOBAL, "iniVersion", option.iniVersion, sanitizedIniContent);
@@ -154,6 +149,14 @@ void readGlobalsOnStartup()
 
     option.startMinimized = configHasTaggedKey(INI_TAG_GLOBAL, "startMinimized", sanitizedIniContent);
     option.startInTraybar = configHasTaggedKey(INI_TAG_GLOBAL, "startInTraybar", sanitizedIniContent);
+
+    int initialLayer = DEFAULT_ACTIVE_LAYER;
+    if (!getIntValueForTaggedKey(INI_TAG_GLOBAL, "ActiveLayerOnStartup", globalState.activeLayer, sanitizedIniContent))
+    {
+        globalState.activeLayer = DEFAULT_ACTIVE_LAYER;
+        globalState.activeLayerName = DEFAULT_ACTIVE_LAYER_NAME;
+        IFDEBUG cout << endl << "No ini setting for 'GLOBAL activeLayerOnStartup'. Setting default layer " << DEFAULT_ACTIVE_LAYER;
+    }
 }
 
 int main()
@@ -172,6 +175,9 @@ int main()
     }
 
     readGlobalsOnStartup();
+
+    for (int i = 0; i <= 255; i++)  //initialize to "map to same char"
+        allMaps.alphamap[i] = i;
     switchLayer(globalState.activeLayer);
 
     cout << endl << "Release all keys now... (waiting DelayOnStartupMS = " << option.delayOnStartupMS << " ms)" << endl;
@@ -270,8 +276,8 @@ int main()
             }
             else if (loopState.originalKeyEvent.scancode == SC_0)
             {
-                cout << endl << "LAYER CHANGE: 0";
-                switchLayer(DEFAULT_ACTIVE_LAYER);
+                cout << endl << "LAYER CHANGE: " << LAYER_DISABLED;
+                switchLayer(LAYER_DISABLED);
                 resetLoopState();
                 resetModifierState();
                 releaseAllRealModifiers();
@@ -288,7 +294,7 @@ int main()
         }
 
         //Layer 0: standard keyboard, no further processing, just forward everything
-        if (globalState.activeLayer == DEFAULT_ACTIVE_LAYER)
+        if (globalState.activeLayer == LAYER_DISABLED)
         {
             interception_send(globalState.interceptionContext, globalState.interceptionDevice, (InterceptionStroke *)&loopState.originalIKstroke, 1);
             continue;
@@ -525,7 +531,7 @@ bool processCommand()
     }
     case SC_I:
     {
-        cout << "INI filtered for layer " << globalState.layerName;
+        cout << "INI filtered for layer " << globalState.activeLayerName;
         vector<string> assembledLayer = assembleLayerConfig(globalState.activeLayer);
         for (string line : assembledLayer)
             cout << endl << line;
@@ -1232,18 +1238,18 @@ void switchLayer(int layer)
 {
     string newLayerName;
 
-    if (layer == 0)
+    if (layer == LAYER_DISABLED)
     {
-        globalState.activeLayer = DEFAULT_ACTIVE_LAYER;
-        globalState.layerName = to_string(DEFAULT_ACTIVE_LAYER) + " (" + DEFAULT_ACTIVE_LAYER_NAME + ")";
+        globalState.activeLayer = LAYER_DISABLED;
+        globalState.activeLayerName = LAYER_DISABLED_LAYER_NAME;
     }
     else if (parseIni(layer, newLayerName))
     {
         globalState.activeLayer = layer;
-        globalState.layerName = to_string(layer) + " (" + newLayerName + ")";
+        globalState.activeLayerName = newLayerName;
     }
 
-    cout << endl << "ACTIVE LAYER: " << globalState.layerName;
+    cout << endl << endl << "ACTIVE LAYER: " << globalState.activeLayer << " = " << globalState.activeLayerName;
 }
 
 void resetCapsNumScrollLock()
@@ -1256,7 +1262,8 @@ void resetCapsNumScrollLock()
         keySequenceAppendMakeBreakKey(SC_CAPS, sequence);
     if (GetKeyState(VK_SCROLL) & 0x0001)
         keySequenceAppendMakeBreakKey(SC_SCRLOCK, sequence);
-    playKeyEventSequence(sequence);
+    if (sequence.size() != 0)
+        playKeyEventSequence(sequence);
 }
 
 void resetAlphaMap()
@@ -1341,9 +1348,9 @@ void printStatus()
     cout << "STATUS" << endl << endl
         << "Capsicain version: " << VERSION << endl
         << "ini version: " << option.iniVersion << endl
-        << "hardware id:" << globalState.deviceIdKeyboard << endl
+        << "keyboard hardware id: " << globalState.deviceIdKeyboard << endl
         << "Apple keyboard: " << globalState.deviceIsAppleKeyboard << endl
-        << "active layer: " << globalState.layerName << endl
+        << "active layer: " << globalState.activeLayer << " = " << globalState.activeLayerName << endl
         << "delay between keys in sequences (ms): " << option.delayForKeySequenceMS << endl
         << "number of keys-down sent: " << dec <<   numMakeSent << endl
         << (errorLog.length() > 1 ? "ERROR LOG contains entries" : "clean error log") << " (" << dec << errorLog.length() << " chars)" << endl
