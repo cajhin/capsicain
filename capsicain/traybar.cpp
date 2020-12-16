@@ -40,7 +40,15 @@ bool ShowInTaskbar()
 {
     if (IsCapsicainInTray())
         DeleteIconFromTraybar();
-    return ::ShowWindow(::GetConsoleWindow(), SW_SHOWDEFAULT);
+    HWND myWindow = ::GetConsoleWindow();
+    if (myWindow == NULL)
+    {
+        std::cout << std::endl << "BUG? GetConsoleWindow() failed";
+        return false;
+    }
+    ShowWindow(myWindow, SW_RESTORE);
+    SetForegroundWindow(myWindow);
+    return true;
 }
 
 bool ShowInTraybar()

@@ -72,7 +72,7 @@ build/
 bld/
 [Bb]in/
 [Oo]bj/
-
+enc_temp_folder/
 # Roslyn cache directories
 *.ide/
 

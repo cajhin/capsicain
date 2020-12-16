@@ -15,7 +15,7 @@
 
 using namespace std;
 
-const string VERSION = "62";
+const string VERSION = "63alpha";
 
 string SCANCODE_LABELS[256]; // contains e.g. [01]="ESC" instead of SC_ESCAPE 
 
@@ -743,6 +743,7 @@ void processModifierState()
     }
 }
 
+//handle all REWIRE configs
 void processRewire()
 {
     if (option.flipAltWinOnAppleKeyboards && globalState.deviceIsAppleKeyboard)
