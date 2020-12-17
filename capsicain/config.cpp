@@ -265,7 +265,7 @@ std::string stringGetRestBehindFirstToken(std::string line)
 }
 
 // lex "a b c ALPHA_TO x y z"
-bool lexAlphaFromTo(std::string alpha_to, int (&alphamap)[MAX_VKEYS], std::string scLabels[])
+bool lexAlphaFromTo(std::string alpha_to, int (&alphamap)[MAX_VCODES], std::string scLabels[])
 {
     size_t idx1 = alpha_to.find(stringToLower(INI_TAG_ALPHA_TO));
     if (idx1 == string::npos)

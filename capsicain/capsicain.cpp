@@ -16,10 +16,10 @@
 
 using namespace std;
 
-const string VERSION = "63beta";
+const string VERSION = "64beta";
 
 
-string PRETTY_VK_LABELS[MAX_VKEYS]; // contains e.g. [01]="ESC" instead of SC_ESCAPE, and all VKs > 0xFF
+string PRETTY_VK_LABELS[MAX_VCODES]; // contains e.g. [01]="ESC" instead of SC_ESCAPE, and all VKs > 0xFF
 
 //defaults and constants
 const int LAYER_DISABLED = 0; // layer 0 does nothing
@@ -72,7 +72,7 @@ struct AllMaps
 {
     vector<RewireIftappedMapping> rewireIftappedMapping;
     vector<ModifierCombo> modCombos;
-    int alphamap[MAX_VKEYS] = { SC_NOP };
+    int alphamap[MAX_VCODES] = { SC_NOP };
 } allMaps;
 
 struct GlobalState
@@ -101,6 +101,9 @@ struct GlobalState
     vector<VKeyEvent> password;
     bool readingUsername = false;
     bool readingPassword = false;
+
+    int debugKeyDownCounter = 0;
+
 } globalState;
 
 struct ModifierState
@@ -136,6 +139,13 @@ void error(string txt)
     errorLog += "\r\n" + txt;
 }
 
+string getPrettyVKLabelPadded(int vcode, int totalLength)
+{
+    string label = PRETTY_VK_LABELS[vcode];
+    if (totalLength > label.size())
+        label.insert(0, totalLength - label.size(), ' ');
+    return label;
+}
 
 void readGlobalsOnStartup()
 {
@@ -176,7 +186,7 @@ int main()
     }
 
     readGlobalsOnStartup();
-    for (int i = 0; i < MAX_VKEYS; i++)  //initialize to "map to same char"
+    for (int i = 0; i < MAX_VCODES; i++)  //initialize to "map to same char"
         allMaps.alphamap[i] = i;
     switchLayer(globalState.activeLayer);
 
@@ -283,7 +293,7 @@ int main()
                 switchLayer(LAYER_DISABLED);
                 resetLoopState();
                 resetModifierState();
-                releaseAllRealModifiers();
+                releaseAllSentKeys();
                 resetAlphaMap();
                 continue;
             }
@@ -319,16 +329,16 @@ int main()
             if (loopState.isDownstroke)
                 continue;
             //hardware ESC tapped -> reset state incl. sticky modifiers
-            if(globalState.previousKeyEventIn.vcode == SC_ESCAPE)
+            if(loopState.wasTapped)
             {
-                releaseAllRealModifiers(); //release sticky mods before sending ESC
-                //handle rewired ESC^ (send ESC or whatever it is rewired to)
-                IFDEBUG cout << endl << "(Send " << PRETTY_VK_LABELS[loopState.vcode] << "v^ )";
-                sendVKeyEvent( { loopState.vcode, true } );
-                sendVKeyEvent( { loopState.vcode, false } );
+                releaseAllSentKeys(); //release sticky mods before sending ESC
                 //reset state on hardware ESC
                 resetLoopState();
                 resetModifierState();
+                //handle rewired ESC^ (send ESC or whatever it is rewired to)
+                IFDEBUG cout << endl << "(Send " << PRETTY_VK_LABELS[loopState.vcode] << "v^ )";
+                sendVKeyEvent({ loopState.vcode, true });
+                sendVKeyEvent({ loopState.vcode, false });
             }
             continue;
         }
@@ -386,7 +396,7 @@ int main()
         /////CONFIGURED RULES
         IFDEBUG cout << endl << " [" << \
             (loopState.vcode == loopState.scancode ? "" : PRETTY_VK_LABELS[loopState.scancode] + " => ") \
-            << PRETTY_VK_LABELS[loopState.vcode] << getSymbolForIKStrokeState(loopState.originalIKstroke.state)
+            << getPrettyVKLabelPadded(loopState.vcode,8) << getSymbolForIKStrokeState(loopState.originalIKstroke.state)
             << " =" << hex << loopState.originalIKstroke.code << " " << loopState.originalIKstroke.state << "]";
 
         processModifierState();
@@ -405,13 +415,13 @@ int main()
         if (!loopState.isModifier && 
             !(option.LControlLWinBlocksAlphaMapping && (IS_LCTRL_DOWN || IS_LWIN_DOWN) ))
         {
-            processMapAlphaKeys(loopState.scancode);
+            processMapAlphaKeys(loopState.vcode);
             if (option.flipZy)
             {
-                switch (loopState.scancode)
+                switch (loopState.vcode)
                 {
-                case SC_Y:		loopState.scancode = SC_Z;		break;
-                case SC_Z:		loopState.scancode = SC_Y;		break;
+                case SC_Y:		loopState.vcode = SC_Z;		break;
+                case SC_Z:		loopState.vcode = SC_Y;		break;
                 }
             }
         }
@@ -420,6 +430,7 @@ int main()
         IFDEBUG loopState.loopStartTimepoint = timepointNow();
         sendResultingKeyOrSequence();
         IFDEBUG cout << "\t (" << dec << millisecondsSinceTimepoint(loopState.loopStartTimepoint) << " ms)";
+        IFDEBUG std::cout << (loopState.wasTapped ? " (tapped)" : "");
     }
     interception_destroy_context(globalState.interceptionContext);
 
@@ -453,15 +464,15 @@ void processModifiedKeys()
     modifierState.modifierTapped = 0;
 }
 
-void processMapAlphaKeys(unsigned short &scancode)
+void processMapAlphaKeys(int &vcode)
 {
-    if (scancode > 0xFF)
+    if (vcode >= MAX_VCODES)
     {
-        error("Unexpected scancode > 255 while mapping alphachars: " + std::to_string(scancode));
+        error("BUG? Unexpected vcode > " + std::to_string(MAX_VCODES) + " while mapping alphachars: " + std::to_string(vcode));
     }
     else
     {
-        scancode = allMaps.alphamap[scancode];
+        vcode = allMaps.alphamap[vcode];
     }
 }
 
@@ -695,7 +706,7 @@ void processModifierState()
     {
         for (RewireIftappedMapping map : allMaps.rewireIftappedMapping)
         {
-            if (loopState.vcode == map.inkey)
+            if (loopState.scancode == map.inkey) //map contains original scancode; vcode is already mapped to modifier
                 {
                 if (map.ifTapped != SC_NOP)
                 {
@@ -797,7 +808,7 @@ void processRewireScancodeToVirtualcode()
         }
     }
 
-    //TODO how does this recognize tappings???
+    //Rewire to modifier; ifTapped is evaluated in processModifierState
     if (!finalVcode)
     {
         for (RewireIftappedMapping map : allMaps.rewireIftappedMapping)
@@ -1197,7 +1208,7 @@ std::vector<std::string> assembleLayerConfig(int layer)
     return assembledIni;
 }
 
-bool parseIni(int layer, std::string &newLayerName)
+bool parseProcessIniLayer(int layer, std::string &newLayerName)
 {
     if (sanitizedIniContent.size() == 0)
     {
@@ -1228,7 +1239,7 @@ bool parseIni(int layer, std::string &newLayerName)
     IFDEBUG
     {
         int remapped = 0;
-        for (int i = 0; i < 256; i++)
+        for (int i = 0; i < MAX_VCODES; i++)
             if (i != allMaps.alphamap[i])
                 remapped++;
         cout << endl << "Alpha  Definitions: " << dec << remapped;
@@ -1249,7 +1260,7 @@ void switchLayer(int layer)
         globalState.activeLayer = LAYER_DISABLED;
         globalState.activeLayerName = LAYER_DISABLED_LAYER_NAME;
     }
-    else if (parseIni(layer, newLayerName))
+    else if (parseProcessIniLayer(layer, newLayerName))
     {
         globalState.activeLayer = layer;
         globalState.activeLayerName = newLayerName;
@@ -1446,16 +1457,24 @@ void sendVKeyEvent(VKeyEvent keyEvent)
         handleSendVkey(keyEvent);
         return;
     }
+    unsigned char scancode = (unsigned char) keyEvent.vcode;
 
-    if (keyEvent.vcode == 0xE4)  //what was that for?
+    if (scancode == 0xE4)  //what was that for?
         IFDEBUG cout << " {sending E4} ";
 
-    if (!keyEvent.isDownstroke &&  !globalState.keysDownSent[(unsigned char)keyEvent.vcode])  //ignore up when key is already up
+    if (!keyEvent.isDownstroke &&  !globalState.keysDownSent[scancode])  //ignore up when key is already up
     {
-        IFDEBUG cout << " >(blocked " << PRETTY_VK_LABELS[keyEvent.vcode] << " UP: was not down)>";
+        IFDEBUG cout << " >(blocked " << PRETTY_VK_LABELS[scancode] << " UP: was not down)>";
         return;
     }
-    globalState.keysDownSent[(unsigned char)keyEvent.vcode] = keyEvent.isDownstroke;
+
+    //consistency check
+    if (globalState.keysDownSent[scancode] == 0 && keyEvent.isDownstroke)
+        globalState.debugKeyDownCounter++;
+    else if (globalState.keysDownSent[scancode] == 1 && !keyEvent.isDownstroke)
+        globalState.debugKeyDownCounter--;
+
+    globalState.keysDownSent[scancode] = keyEvent.isDownstroke;
 
     if (globalState.recordingMacro)
     {
@@ -1469,7 +1488,8 @@ void sendVKeyEvent(VKeyEvent keyEvent)
     }
     
     InterceptionKeyStroke iks = vkeyEvent2ikstroke(keyEvent);
-    IFDEBUG cout << " {" << PRETTY_VK_LABELS[keyEvent.vcode] << (keyEvent.isDownstroke ? "v" : "^") << "}";
+    IFDEBUG cout << " {" << PRETTY_VK_LABELS[keyEvent.vcode] << (keyEvent.isDownstroke ? "v" : "^") << " #" << globalState.debugKeyDownCounter << "}";
+
     interception_send(globalState.interceptionContext, globalState.interceptionDevice, (InterceptionStroke *)&iks, 1);
 //    interception_send(globalState.interceptionContext, globalState.interceptionDevice, (InterceptionStroke *)&loopState.originalIKstroke, 1);
 }
@@ -1478,35 +1498,24 @@ void reset()
 {
     resetAllStatesToDefault();
 
-    releaseAllRealModifiers();
+    releaseAllSentKeys();
 
     readSanitizeIniFile(sanitizedIniContent);
     readGlobalsOnStartup();
     switchLayer(globalState.activeLayer);
 }
 
-void releaseAllRealModifiers()
+//Release all keys to 'up' that have been sent out as 'down'
+void releaseAllSentKeys()
 {
-    IFDEBUG cout << endl << "Resetting all modifiers to UP" << endl;
-    for (int i = 0; i < 255; i++)	//Send() suppresses key UP if it thinks it is already up.
-        globalState.keysDownSent[i] = true;
-
-    vector<VKeyEvent> keyEventSequence;
-    keyEventSequence.push_back({ SC_LSHIFT, false });
-    keyEventSequence.push_back({ SC_RSHIFT, false });
-    keyEventSequence.push_back({ SC_LCTRL, false });
-    keyEventSequence.push_back({ SC_RCTRL, false });
-    keyEventSequence.push_back({ SC_LWIN, false });
-    keyEventSequence.push_back({ SC_RWIN, false });
-    keyEventSequence.push_back({ SC_LALT, false });
-    keyEventSequence.push_back({ SC_RALT, false });
-    keyEventSequence.push_back({ SC_CAPS, false });
-    keyEventSequence.push_back({ AHK_HOTKEY1, false });
-    keyEventSequence.push_back({ AHK_HOTKEY2, false });
-    playKeyEventSequence(keyEventSequence);
-
+    IFDEBUG cout << endl << "Resetting all sent DOWN keys to UP: " << endl;
     for (int i = 0; i < 255; i++)
-        globalState.keysDownSent[i] = false;
+    {
+        if (globalState.keysDownSent[i])
+        {
+            sendVKeyEvent({ i, false });
+        }
+    }
 }
 
 

@@ -16,7 +16,7 @@ int getVcode(string label, string* arr)
     if (label == "mod9")
         cout << "mod9";
     string ucLabel = stringToUpper(label);
-    for (int i = 0; i < MAX_VKEYS; i++)
+    for (int i = 0; i < MAX_VCODES; i++)
     {
         if (arr[i] == ucLabel)
             return i;
@@ -26,7 +26,7 @@ int getVcode(string label, string* arr)
 
 void checkAddLabel(int index, string label, string arr[])
 {
-    if (index >= MAX_VKEYS)
+    if (index >= MAX_VCODES)
     {
         cout << endl << endl <<"***********BUG: scancodes.h defines a virtual code "<< index << " that is bigger than MAX_VKEYS. Increase MAX_VKEYS !";
         Sleep(10000);

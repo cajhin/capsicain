@@ -29,7 +29,7 @@ void keySequenceAppendMakeBreakKey(unsigned short scancode, std::vector<VKeyEven
 std::string getSymbolForIKStrokeState(unsigned short state);
 
 bool processCommand();
-void processMapAlphaKeys(unsigned short & scancode);
+void processMapAlphaKeys(int & scancode);
 void processModifiedKeys();
 void playKeyEventSequence(std::vector<VKeyEvent> keyEventSequence);
 void processModifierState();
@@ -54,7 +54,7 @@ void printStatus();
 void printKeylabels();
 void printHelp();
 void reset();
-void releaseAllRealModifiers();
+void releaseAllSentKeys();
 std::vector<std::string> assembleLayerConfig(int layer);
 bool parseIni(int layer);
 void switchLayer(int layer);
