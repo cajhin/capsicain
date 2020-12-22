@@ -183,5 +183,7 @@ enum VirtualCode
     VK_MOD12 = 0x10C,
     VK_MOD13 = 0x10D,
     VK_MOD14 = 0x10E,
-    VK_MOD15 = 0x10F
+    VK_MOD15 = 0x10F,
+    VK_CAPSON = 0x110, //turns CapsLock on, regardless of current state
+    VK_CAPSOFF = 0x111
 };

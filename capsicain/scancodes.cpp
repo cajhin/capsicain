@@ -13,8 +13,6 @@ using namespace std;
 //otherwise an 8bit scancode (can cast to unsigned char without checks)
 int getVcode(string label, string* arr)
 {
-    if (label == "mod9")
-        cout << "mod9";
     string ucLabel = stringToUpper(label);
     for (int i = 0; i < MAX_VCODES; i++)
     {
@@ -228,6 +226,6 @@ void defineAllPrettyVKLabels(string arr[])
     checkAddLabel(VK_MOD13, "MOD13", arr);
     checkAddLabel(VK_MOD14, "MOD14", arr);
     checkAddLabel(VK_MOD15, "MOD15", arr);
-
-
+    checkAddLabel(VK_CAPSON, "CAPSON", arr);
+    checkAddLabel(VK_CAPSOFF, "CAPSOFF", arr);
 }

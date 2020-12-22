@@ -16,7 +16,7 @@
 
 using namespace std;
 
-const string VERSION = "64beta";
+const string VERSION = "65beta";
 
 
 string PRETTY_VK_LABELS[MAX_VCODES]; // contains e.g. [01]="ESC" instead of SC_ESCAPE, and all VKs > 0xFF
@@ -43,13 +43,13 @@ struct Options
     int delayForKeySequenceMS = DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;
     bool flipZy = false;
     bool altAltToAlt = false;
-    bool shiftShiftToCapsLock = false;
     bool flipAltWinOnAppleKeyboards = false;
     bool LControlLWinBlocksAlphaMapping = false;
     bool processOnlyFirstKeyboard = false;
     int delayOnStartupMS = DEFAULT_DELAY_ON_STARTUP_MS;
     bool startMinimized = false;
     bool startInTraybar = false;
+    bool startAHK = false;
 } option;
 
 struct ModifierCombo
@@ -89,10 +89,11 @@ struct GlobalState
     string deviceIdKeyboard = "";
     bool deviceIsAppleKeyboard = false;
 
-    VKeyEvent previousKeyEventIn = { SC_NOP, 0 };
-    VKeyEvent previous2KeyEventIn = { SC_NOP, 0 }; //2 keys ago
-    VKeyEvent previousKeyEventInStore = { SC_NOP, 0 }; //mostly useless but simplifies the handling
+    VKeyEvent previousKey1EventIn = { SC_NOP, 0 };
+    VKeyEvent previousKey2EventIn = { SC_NOP, 0 }; //2 keys ago
+    VKeyEvent previousKey0EventIn = { SC_NOP, 0 }; //mostly useless but simplifies the handling
     bool keysDownSent[256] = { false };  //sent keys must be 8 bit
+    int debugKeyDownCounter = 0;  //tracks how many keys are actually down that Windows knows about
 
     bool recordingMacro = false;
     vector<VKeyEvent> recordedMacro;
@@ -102,15 +103,13 @@ struct GlobalState
     bool readingUsername = false;
     bool readingPassword = false;
 
-    int debugKeyDownCounter = 0;
-
 } globalState;
 
 struct ModifierState
 {
     unsigned short modifierDown = 0;
     unsigned short modifierTapped = 0;
-    bool lastModBrokeTapping = false;
+    bool lastModClearedTapping = false;
 
     vector<VKeyEvent> modsTempAltered;
 
@@ -126,7 +125,6 @@ struct LoopState
 
     InterceptionKeyStroke originalIKstroke = { SC_NOP, 0 };
 
-    bool blockKey = false;  //true: do not send the current key
     vector<VKeyEvent> resultingVKeyEventSequence;
 
     chrono::steady_clock::time_point loopStartTimepoint;
@@ -160,7 +158,7 @@ void readGlobalsOnStartup()
 
     option.startMinimized = configHasTaggedKey(INI_TAG_GLOBAL, "startMinimized", sanitizedIniContent);
     option.startInTraybar = configHasTaggedKey(INI_TAG_GLOBAL, "startInTraybar", sanitizedIniContent);
-
+    option.startAHK = configHasTaggedKey(INI_TAG_GLOBAL, "startAHK", sanitizedIniContent);
     int initialLayer = DEFAULT_ACTIVE_LAYER;
     if (!getIntValueForTaggedKey(INI_TAG_GLOBAL, "ActiveLayerOnStartup", globalState.activeLayer, sanitizedIniContent))
     {
@@ -198,7 +196,7 @@ int main()
 
     printHelloFeatures();
 
-    if (DEFAULT_START_AHK_ON_STARTUP)
+    if (option.startAHK)
     {
         string msg = startProgramSameFolder(PROGRAM_NAME_AHK);
         cout << endl << endl << "starting AHK... ";
@@ -214,6 +212,7 @@ int main()
 
     raise_process_priority(); //careful: if we spam key events, other processes get no timeslots to process them. Sleep a bit...
 
+    //wait for the next key from Interception
     while (interception_receive( globalState.interceptionContext,
                                  globalState.interceptionDevice = interception_wait(globalState.interceptionContext),
                                  (InterceptionStroke *)&loopState.originalIKstroke, 1)   > 0)
@@ -239,25 +238,25 @@ int main()
             globalState.previousInterceptionDevice = globalState.interceptionDevice;
         }
 
+        //timer is not precise, sleep() even less; just a rough outline
         loopState.loopStartTimepoint = timepointNow();
         resetLoopState();
 
-        //copy InterceptionKeyStroke (unpleasant to use) to plain KeyEvent
-        VKeyEvent originalVKeyEvent = ikstroke2VKeyEvent(loopState.originalIKstroke);
-        loopState.scancode = originalVKeyEvent.vcode;
-        loopState.isDownstroke = originalVKeyEvent.isDownstroke;
+        //copy InterceptionKeyStroke (unpleasant to use) to plain VKeyEvent
+        {
+            VKeyEvent originalVKeyEvent = ikstroke2VKeyEvent(loopState.originalIKstroke);
+            loopState.scancode = originalVKeyEvent.vcode;
+            loopState.isDownstroke = originalVKeyEvent.isDownstroke;
 
-        //TODO this is messy
-        //store last key and the one before
-        globalState.previous2KeyEventIn = globalState.previousKeyEventIn;
-        globalState.previousKeyEventIn = globalState.previousKeyEventInStore;
-        globalState.previousKeyEventInStore = originalVKeyEvent;
-        
-        //Tapped key?
-        loopState.wasTapped = !loopState.isDownstroke 
-            && (loopState.scancode == globalState.previousKeyEventIn.vcode)
-            && ((loopState.scancode != globalState.previous2KeyEventIn.vcode)
-                || (!globalState.previous2KeyEventIn.isDownstroke));
+            //remember last two keys
+            globalState.previousKey2EventIn = globalState.previousKey1EventIn;
+            globalState.previousKey1EventIn = globalState.previousKey0EventIn;
+            globalState.previousKey0EventIn = originalVKeyEvent;
+
+            //Tapped key?
+            loopState.wasTapped = !loopState.isDownstroke
+                && (loopState.scancode == globalState.previousKey1EventIn.vcode);
+        }
 
         //sanity check
         if (loopState.originalIKstroke.code >= 0x80)
@@ -271,11 +270,11 @@ int main()
             continue;
         }
 
+        //Early check for core ESC commands, in case layer 0 continues without further checks
         //remember the hardware ESC key state
         //do not send v until ^ comes in
         //ESC+X exits, unconditionally
         //ESC+[0]..[9]  layer switch
-        //I process those early, in case layer 0 continues without further checks
         if (loopState.scancode == SC_ESCAPE)
         {
             globalState.realEscapeIsDown = loopState.isDownstroke;
@@ -331,14 +330,14 @@ int main()
             //hardware ESC tapped -> reset state incl. sticky modifiers
             if(loopState.wasTapped)
             {
-                releaseAllSentKeys(); //release sticky mods before sending ESC
-                //reset state on hardware ESC
-                resetLoopState();
-                resetModifierState();
                 //handle rewired ESC^ (send ESC or whatever it is rewired to)
                 IFDEBUG cout << endl << "(Send " << PRETTY_VK_LABELS[loopState.vcode] << "v^ )";
                 sendVKeyEvent({ loopState.vcode, true });
                 sendVKeyEvent({ loopState.vcode, false });
+                //reset state on hardware ESC
+                releaseAllSentKeys();
+                resetModifierState();
+                resetLoopState();
             }
             continue;
         }
@@ -406,7 +405,8 @@ int main()
         IFDEBUG cout << "] ";
 
         //evaluate modified keys
-        if (!loopState.isModifier && (modifierState.modifierDown > 0 || modifierState.modifierTapped > 0))
+        //TODO !loopState.isModifier &&
+        if ((modifierState.modifierDown > 0 || modifierState.modifierTapped > 0))
         {
             processModifiedKeys();
         }
@@ -445,6 +445,8 @@ void processModifiedKeys()
 {
     if (loopState.isDownstroke)
     {
+        if (loopState.vcode == SC_LSHIFT)
+            cout << " LSHIFT";
         for (ModifierCombo modcombo : allMaps.modCombos)
         {
             if (modcombo.key == loopState.vcode)
@@ -677,14 +679,14 @@ void sendResultingKeyOrSequence()
     {
         IFDEBUG
         {
-            if (loopState.blockKey)
+            if (loopState.vcode > 254)  //real key but not 255 CAPS_ESC
                 cout << "\t--> BLOCKED ";
             else if (loopState.scancode != loopState.vcode)
                 cout << "\t--> " << PRETTY_VK_LABELS[loopState.vcode] << " " << getSymbolForIKStrokeState(loopState.originalIKstroke.state);
             else
                 cout << "\t--";
         }
-        if (!loopState.blockKey && loopState.vcode != SC_NOP)
+        if (loopState.vcode < 255 && loopState.vcode != SC_NOP)
         {
             sendVKeyEvent({ loopState.vcode, loopState.isDownstroke });
         }
@@ -696,64 +698,39 @@ void processModifierState()
     if (!loopState.isModifier)
         return; 
 
-    unsigned short bitmask = getBitmaskForModifier(loopState.vcode);
-    if ((bitmask & 0xFF00) > 0)
-        loopState.blockKey = true;
-
-    //a configured tapped mod?
-    bool tappedModConfigFound = false;
-    if (loopState.wasTapped)
-    {
-        for (RewireIftappedMapping map : allMaps.rewireIftappedMapping)
-        {
-            if (loopState.scancode == map.inkey) //map contains original scancode; vcode is already mapped to modifier
-                {
-                if (map.ifTapped != SC_NOP)
-                {
-                    if (!loopState.blockKey)
-                        loopState.resultingVKeyEventSequence.push_back({ loopState.vcode, false });
-                    loopState.resultingVKeyEventSequence.push_back({ map.ifTapped, true });
-                    loopState.resultingVKeyEventSequence.push_back({ map.ifTapped, false });
-                    loopState.blockKey = false;
-                    tappedModConfigFound = true;
-                    modifierState.modifierTapped = 0;
-                }
-                break;
-            }
-        }
-    }
+    unsigned short modBitmask = getBitmaskForModifier(loopState.vcode);
 
     //set internal modifier state
     if (loopState.isDownstroke)
     {
-        modifierState.lastModBrokeTapping = modifierState.modifierTapped & bitmask;
-        modifierState.modifierDown |= bitmask;
+        modifierState.lastModClearedTapping = modifierState.modifierTapped & modBitmask;
+        modifierState.modifierDown |= modBitmask;
     }
     else
-        modifierState.modifierDown &= ~bitmask;
+        modifierState.modifierDown &= ~modBitmask;
 
-    //Set tapped bitmask. You can combine mod-taps (like tap-Ctrl then tap-Alt).
+    //Tapped mod key sets tapped bitmask. You can combine mod-taps (like tap-Ctrl then tap-Alt).
     //Double-tap clears all taps.
     //Long presses, release will not register as tapped.
-    if (!tappedModConfigFound && !modifierState.lastModBrokeTapping)
+    if (!modifierState.lastModClearedTapping)
     {
-        bool sameKey = loopState.scancode == globalState.previousKeyEventIn.vcode;
-        if (loopState.wasTapped && modifierState.lastModBrokeTapping)
+        bool sameKeyDownAgain = loopState.isDownstroke && (loopState.scancode == globalState.previousKey1EventIn.vcode);
+        if (loopState.wasTapped && modifierState.lastModClearedTapping)
             modifierState.modifierTapped = 0;
         else if (loopState.wasTapped)
-            modifierState.modifierTapped |= bitmask;
-        else if (sameKey && loopState.isDownstroke)
+            modifierState.modifierTapped |= modBitmask;
+        else if (sameKeyDownAgain)
         {
-            if (modifierState.modifierTapped & bitmask)
+            if (modifierState.modifierTapped & modBitmask)
             {
-                modifierState.lastModBrokeTapping = true;
-                modifierState.modifierTapped &= ~bitmask;
+                modifierState.lastModClearedTapping = true;
+                modifierState.modifierTapped =0;
             }
             else
-                modifierState.lastModBrokeTapping = false;
+                modifierState.lastModClearedTapping = false;
         }
         else
-            modifierState.lastModBrokeTapping = false;
+            modifierState.lastModClearedTapping = false;
     }
 }
 
@@ -780,7 +757,7 @@ void processRewireScancodeToVirtualcode()
         {
             if (loopState.isDownstroke)
             {
-                if (globalState.previousKeyEventIn.vcode != loopState.scancode) //not tapped
+                if (!loopState.wasTapped)
                 {
                     if (IS_MOD12_DOWN)
                     {
@@ -808,7 +785,7 @@ void processRewireScancodeToVirtualcode()
         }
     }
 
-    //Rewire to modifier; ifTapped is evaluated in processModifierState
+    //Rewire to new vcode; check ifTapped
     if (!finalVcode)
     {
         for (RewireIftappedMapping map : allMaps.rewireIftappedMapping)
@@ -816,33 +793,19 @@ void processRewireScancodeToVirtualcode()
             if (loopState.vcode == map.inkey)
             {
                 loopState.vcode = map.outkey;
-                break;
+                if (loopState.wasTapped && map.ifTapped != SC_NOP)  //ifTapped definition applies
+                {
+                    if (map.outkey < 255)  //release the original rewired result (e.g. Shift may be down)
+                        loopState.resultingVKeyEventSequence.push_back({ map.outkey, false });
+                    unsigned short modBitmask = getBitmaskForModifier(map.outkey);
+                    if (modBitmask != 0)
+                        modifierState.modifierDown &= ~modBitmask; //undo previous key down, e.g. clear internal 'MOD10 is down'
+                    loopState.vcode = map.ifTapped;
+                    loopState.resultingVKeyEventSequence.push_back({ map.ifTapped, true });
+                    loopState.resultingVKeyEventSequence.push_back({ map.ifTapped, false });
+                    return;
+                }
             }
-        }
-    }
-
-    if (!finalVcode && option.shiftShiftToCapsLock)
-    {
-        switch (loopState.vcode)
-        {
-        case SC_LSHIFT:  //handle LShift+RShift -> CapsLock
-            if (loopState.isDownstroke
-                && (modifierState.modifierDown == (BITMASK_RSHIFT))
-                && (GetKeyState(VK_CAPITAL) & 0x0001)) //ask Win for Capslock state
-            {
-                keySequenceAppendMakeBreakKey(SC_CAPS, loopState.resultingVKeyEventSequence);
-                finalVcode = true;
-            }
-            break;
-        case SC_RSHIFT:
-            if (loopState.isDownstroke
-                && (modifierState.modifierDown == (BITMASK_LSHIFT))
-                && !(GetKeyState(VK_CAPITAL) & 0x0001))
-            {
-                keySequenceAppendMakeBreakKey(SC_CAPS, loopState.resultingVKeyEventSequence);
-                finalVcode = true;
-            }
-            break;
         }
     }
 
@@ -1029,19 +992,56 @@ void initConsoleWindow()
 bool parseIniOptions(std::vector<std::string> assembledIni)
 {
     vector<string> sectLines = getTaggedLinesFromIni(INI_TAG_OPTIONS, assembledIni);
-    if (sectLines.size() == 0)
-        return false;
+    globalState.activeLayerName = "OPTION_layerName_undefined";
 
-    if (!getIntValueForKey("delayForKeySequenceMS", option.delayForKeySequenceMS, sectLines))
-        IFDEBUG cout << endl << "No ini setting for 'option delayForKeySequenceMS'. Using default " << DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;
+    for (string line : sectLines)
+    {
+        string token = stringGetFirstToken(line);
+        if (token == "layername")
+        {
+            globalState.activeLayerName = stringGetRestBehindFirstToken(line);
+        }
+        else if (token == "debug")
+        {
+            option.debug = true;
+        }
+        else if (token == "flipzy")
+        {
+            option.flipZy = true;
+        }
+        else if (token == "altalttoalt")
+        {
+            option.altAltToAlt = true;
+        }
+        else if (token == "flipaltwinonapplekeyboards")
+        {
+            option.flipAltWinOnAppleKeyboards = true;
+        }
+        else if (token == "lcontrollwinblocksalphamapping")
+        {
+            option.LControlLWinBlocksAlphaMapping = true;
+        }
+        else if (token == "processonlyfirstkeyboard")
+        {
+            option.processOnlyFirstKeyboard = true;
+        }
+        else if (token == "delayforkeysequencems")
+        {
+            getIntValueForKey("delayForKeySequenceMS", option.delayForKeySequenceMS, sectLines);
+        }
+        else if (token == "shiftshifttoshiftlock")
+        {
+            cout << endl << ("WARNING: this is obsolete: OPTION shiftShiftToShiftLock");
+            cout << endl << "  Put this into your .ini instead: "
+                << endl << "    COMBO  LSHF   [& ....] > key(CAPSOFF)"
+                << endl << "    COMBO  RSHF[.&] > key(CAPSON)" << endl;
+        }
+        else
+        {
+            cout << endl << "WARNING: ignoring unknown OPTION " << line << endl;
+        }
+    }
 
-    option.debug = configHasKey("debug", sectLines);
-    option.flipZy = configHasKey("flipZy", sectLines);
-    option.shiftShiftToCapsLock = configHasKey("shiftShiftToCapsLock", sectLines);
-    option.altAltToAlt = configHasKey("altAltToAlt", sectLines);
-    option.flipAltWinOnAppleKeyboards = configHasKey("flipAltWinOnAppleKeyboards", sectLines);
-    option.LControlLWinBlocksAlphaMapping = configHasKey("LControlLWinBlocksAlphaMapping", sectLines);
-    option.processOnlyFirstKeyboard = configHasKey("processOnlyFirstKeyboard", sectLines);
     return true;
 }
 
@@ -1208,7 +1208,7 @@ std::vector<std::string> assembleLayerConfig(int layer)
     return assembledIni;
 }
 
-bool parseProcessIniLayer(int layer, std::string &newLayerName)
+bool parseProcessIniLayer(int layer)
 {
     if (sanitizedIniContent.size() == 0)
     {
@@ -1245,25 +1245,19 @@ bool parseProcessIniLayer(int layer, std::string &newLayerName)
         cout << endl << "Alpha  Definitions: " << dec << remapped;
     }
 
-    if (!getStringValueForTaggedKey(INI_TAG_OPTIONS, "layerName", newLayerName, assembledLayer))
-        newLayerName = "OPTION_layerName_undefined";
-
     return true;
 }
 
 void switchLayer(int layer)
 {
-    string newLayerName;
-
     if (layer == LAYER_DISABLED)
     {
         globalState.activeLayer = LAYER_DISABLED;
         globalState.activeLayerName = LAYER_DISABLED_LAYER_NAME;
     }
-    else if (parseProcessIniLayer(layer, newLayerName))
+    else if (parseProcessIniLayer(layer))
     {
         globalState.activeLayer = layer;
-        globalState.activeLayerName = newLayerName;
     }
 
     cout << endl << endl << "ACTIVE LAYER: " << globalState.activeLayer << " = " << globalState.activeLayerName;
@@ -1291,7 +1285,6 @@ void resetAlphaMap()
 
 void resetLoopState()
 {
-    loopState.blockKey = false;
     loopState.isDownstroke = false;
     loopState.scancode = 0;
     loopState.isModifier = false;
@@ -1303,7 +1296,7 @@ void resetModifierState()
 {
     modifierState.modifierDown = 0;
     modifierState.modifierTapped = 0;
-    modifierState.lastModBrokeTapping = false;
+    modifierState.lastModClearedTapping = false;
     modifierState.modsTempAltered.clear();
 
     resetCapsNumScrollLock();
@@ -1344,7 +1337,6 @@ void printHelloFeatures()
         << endl << "ini version: " << option.iniVersion
         << endl << endl << "FEATURES"
         << endl << (option.flipZy ? "ON:" : "OFF:") << " Z <-> Y"
-        << endl << (option.shiftShiftToCapsLock ? "ON:" : "OFF:") << " LShift + RShift -> ShiftLock"
         << endl << (option.altAltToAlt ? "ON:" : "OFF:") << " LAlt + RAlt -> Alt"
         << endl << (option.flipAltWinOnAppleKeyboards ? "ON:" : "OFF:") << " Alt <-> Win for Apple keyboards"
         << endl << (option.LControlLWinBlocksAlphaMapping ? "ON:" : "OFF:") << " Left Control and Win block alpha key mapping ('Ctrl + C is never changed')"
@@ -1445,16 +1437,42 @@ VKeyEvent ikstroke2VKeyEvent(InterceptionKeyStroke ikStroke)
     return strk;
 }
 
-void handleSendVkey(VKeyEvent keyEvent)
+//handle all special Capsicain VCodes. Trigger events on downstroke only
+void sendCapsicainCodeHandler(VKeyEvent keyEvent)
 {
-    cout << endl << "TODO: handleSendVkey handle 'sending' high keys";
+    if (!keyEvent.isDownstroke)
+        return;
+
+    switch (keyEvent.vcode)
+    {
+    case VK_CAPSON:
+    {
+        if (!(GetKeyState(VK_CAPITAL) & 0x0001))
+        {
+            sendVKeyEvent({ SC_CAPS, true });
+            sendVKeyEvent({ SC_CAPS, false });
+        }
+        break;
+    }
+    case VK_CAPSOFF:
+    {
+        if ((GetKeyState(VK_CAPITAL) & 0x0001))
+        {
+            sendVKeyEvent({ SC_CAPS, true });
+            sendVKeyEvent({ SC_CAPS, false });
+        }
+        break;
+    }
+    }
+
+    IFDEBUG cout << endl << "(CapsicainCode: " << getPrettyVKLabelPadded(keyEvent.vcode,0) << ")";
 }
 
 void sendVKeyEvent(VKeyEvent keyEvent)
 {
     if (keyEvent.vcode > 0xFF)
     {
-        handleSendVkey(keyEvent);
+        sendCapsicainCodeHandler(keyEvent);
         return;
     }
     unsigned char scancode = (unsigned char) keyEvent.vcode;

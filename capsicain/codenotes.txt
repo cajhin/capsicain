@@ -1,5 +1,14 @@
-Ongoing stream... no documentation yet
+Ongoing stream of what I want to remember...
 
+TODO
+- clean up the ugly previousKeyEventInStore
+- refactor the CAPS_ESC sequences; those should be easier now
+- record macros on key in (today) or on key out?
+- nicer macro 'language'
+- enable/disable toggle switch
+- numbered trayicons
+- test if SC_0Xnn still works in ini
+- צהü should not ignore CapsLock ON
 
 New ini GLOBALs
 - delayOnStartupMS {number} (default 0. Useful if you need time to release keys when starting capsicain with a shortcut)
@@ -15,8 +24,21 @@ Modified handling for showing hiding window / taskbar / traybar
 - any command with "info output" pops up the window
 - can't move to tray on minimize (console is out of the Win event loop, it only sees incoming keys)
 
-
-branch vk
-massive changes...
+v63
+git branch vk
+massive changes following the switch from 8bit scancode to int vcode...
 scancode is original
-vcode is copy of original or changed later
+vcode is copy of original; possibly changed later
+now free to define many virtual codes for specific functions like "turn LED on"
+rewireIfTapped: Tab is first mapped to mod10, then 'iftapped' to Tab later
+now assume that keysDownSent[] really knows the state of what Windows knows
+
+v65beta
+rework the tapping stuff
+double tap no longer breaks tap //TODO rework
+removed OPTION ShiftShiftToCapsLock (obsolete)
+COMBO can deal with modifiers like COMBO LSHF [&.] > key (CAPSON)
+new VKeys CAPSON, CAPSOFF
+warn about unknown options
+add GLOBAL startAHK
+
