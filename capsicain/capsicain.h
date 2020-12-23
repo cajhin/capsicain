@@ -21,8 +21,9 @@ void keySequenceAppendMakeBreakKey(unsigned short scancode, std::vector<VKeyEven
 std::string getSymbolForIKStrokeState(unsigned short state);
 
 bool processCommand();
-void processMapAlphaKeys(int & scancode);
-void processModifiedKeys();
+void processMapAlphaKeys();
+void processCombos();
+void DetectTapping(const VKeyEvent &originalVKeyEvent);
 void playKeyEventSequence(std::vector<VKeyEvent> keyEventSequence);
 void processModifierState();
 void processRewireScancodeToVirtualcode();

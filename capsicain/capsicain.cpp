@@ -2,6 +2,7 @@
 
 #include "pch.h"
 #include <iostream>
+#include <iomanip>
 #include <chrono>
 #include <vector>
 #include <algorithm>
@@ -89,14 +90,13 @@ struct GlobalState
     bool readingUsername = false;
     bool readingPassword = false;
 
+    chrono::steady_clock::time_point timepointPreviousKeyEvent;
 } globalState;
 
 struct ModifierState
 {
     unsigned short modifierDown = 0;
     unsigned short modifierTapped = 0;
-    bool lastModClearedTapping = false;
-
     vector<VKeyEvent> modsTempAltered;
 
 } modifierState;
@@ -104,16 +104,19 @@ struct ModifierState
 struct LoopState
 {
     unsigned char scancode = SC_NOP; //hardware code sent by Interception
-    int vcode = SC_NOP; //key code used internally; equals scancode or a Virtual code > FF
+    int vcode = -1; //key code used internally; equals scancode or a Virtual code > FF
     bool isDownstroke = false;
     bool isModifier = false;
     bool wasTapped = false;
+    bool wasTappedSlow = false;  //autorepeat set in before key release
 
     InterceptionKeyStroke originalIKstroke = { SC_NOP, 0 };
 
     vector<VKeyEvent> resultingVKeyEventSequence;
 
-    chrono::steady_clock::time_point loopStartTimepoint;
+    chrono::steady_clock::time_point timepointLoopStart;
+    chrono::steady_clock::time_point timepointStopwatch;
+    long timeSinceLastKeyEventMS = 0;
 } loopState;
 
 string errorLog = "";
@@ -160,6 +163,27 @@ void parseIniGlobals()
         cout << endl << "No ini setting for 'GLOBAL activeLayerOnStartup'. Setting default layer " << global.activeLayerOnStartup;
 }
 
+void DetectTapping(const VKeyEvent &originalVKeyEvent)
+{
+    //remember last two keys
+    globalState.previousKey2EventIn = globalState.previousKey1EventIn;
+    globalState.previousKey1EventIn = globalState.previousKey0EventIn;
+    globalState.previousKey0EventIn = originalVKeyEvent;
+
+    //Tapped key?
+    loopState.wasTapped = !loopState.isDownstroke
+        && (loopState.scancode == globalState.previousKey1EventIn.vcode)
+        && (globalState.previousKey1EventIn.isDownstroke);
+
+    //Slow tap?
+    loopState.wasTappedSlow = loopState.wasTapped
+        && (globalState.previousKey2EventIn.vcode == loopState.scancode)
+        && (globalState.previousKey2EventIn.isDownstroke);
+
+    if (loopState.wasTappedSlow)
+        loopState.wasTapped = false;
+}
+
 int main()
 {
     initConsoleWindow();
@@ -167,6 +191,7 @@ int main()
 
     defineAllPrettyVKLabels(PRETTY_VK_LABELS);
     resetAllStatesToDefault();
+    loopState.timepointLoopStart = timeSetTimepointNow();
 
     if (!readSanitizeIniFile(sanitizedIniContent))
     {
@@ -202,6 +227,7 @@ int main()
 
     raise_process_priority(); //careful: if we spam key events, other processes get no timeslots to process them. Sleep a bit...
 
+    //CORE LOOP
     //wait for the next key from Interception
     while (interception_receive( globalState.interceptionContext,
                                  globalState.interceptionDevice = interception_wait(globalState.interceptionContext),
@@ -228,25 +254,23 @@ int main()
             globalState.previousInterceptionDevice = globalState.interceptionDevice;
         }
 
-        //timer is not precise, sleep() even less; just a rough outline
-        loopState.loopStartTimepoint = timepointNow();
+        //Timing. Timer is not precise, sleep() even less; just a rough outline. Expect occasional 30ms sleeps from thread scheduling.
+        globalState.timepointPreviousKeyEvent = loopState.timepointLoopStart;
+        loopState.timepointLoopStart = timeSetTimepointNow();
         resetLoopState();
+        loopState.timeSinceLastKeyEventMS = timeBetweenTimepointsMS(globalState.timepointPreviousKeyEvent, loopState.timepointLoopStart);
 
         //copy InterceptionKeyStroke (unpleasant to use) to plain VKeyEvent
-        {
-            VKeyEvent originalVKeyEvent = ikstroke2VKeyEvent(loopState.originalIKstroke);
-            loopState.scancode = originalVKeyEvent.vcode;
-            loopState.isDownstroke = originalVKeyEvent.isDownstroke;
+        VKeyEvent originalVKeyEvent = ikstroke2VKeyEvent(loopState.originalIKstroke);
+        loopState.scancode = originalVKeyEvent.vcode;  //scancode is write-once
+        loopState.vcode = loopState.scancode;          //vcode may be altered below
+        loopState.isDownstroke = originalVKeyEvent.isDownstroke;
 
-            //remember last two keys
-            globalState.previousKey2EventIn = globalState.previousKey1EventIn;
-            globalState.previousKey1EventIn = globalState.previousKey0EventIn;
-            globalState.previousKey0EventIn = originalVKeyEvent;
-
-            //Tapped key?
-            loopState.wasTapped = !loopState.isDownstroke
-                && (loopState.scancode == globalState.previousKey1EventIn.vcode);
-        }
+        //Tapdance
+        DetectTapping(originalVKeyEvent);
+        //slow tap breaks tapping
+        if (loopState.wasTappedSlow)
+            modifierState.modifierTapped = 0;
 
         //sanity check
         if (loopState.originalIKstroke.code >= 0x80)
@@ -382,12 +406,13 @@ int main()
             continue;
         }
 
-        /////CONFIGURED RULES
-        IFDEBUG cout << endl << " [" << \
+
+        IFDEBUG cout << endl << "(" << setw(5) << loopState.timeSinceLastKeyEventMS <<" ms) [" << \
             (loopState.vcode == loopState.scancode ? "" : PRETTY_VK_LABELS[loopState.scancode] + " => ") \
             << getPrettyVKLabelPadded(loopState.vcode,8) << getSymbolForIKStrokeState(loopState.originalIKstroke.state)
             << " =" << hex << loopState.originalIKstroke.code << " " << loopState.originalIKstroke.state << "]";
 
+        //evaluate modifiers
         processModifierState();
     
         IFDEBUG cout << " [M:" << hex << modifierState.modifierDown;
@@ -395,32 +420,31 @@ int main()
         IFDEBUG cout << "] ";
 
         //evaluate modified keys
-        //TODO !loopState.isModifier &&
-        if ((modifierState.modifierDown > 0 || modifierState.modifierTapped > 0))
+        processCombos();
+
+        //alphakeys: basic character key layout. Don't remap the Ctrl combos?
+        processMapAlphaKeys();
+
+        //break tapped state?
+        if (!isModifier(loopState.vcode))
+            modifierState.modifierTapped = 0;
+
+        IFDEBUG 
         {
-            processModifiedKeys();
+            cout << "\t (" << dec << timeMillisecondsSinceTimepoint(loopState.timepointLoopStart) << " ms)";
+            loopState.timepointStopwatch = timeSetTimepointNow();
         }
 
-        //basic character key layout. Don't remap the Ctrl combos?
-        if (!loopState.isModifier && 
-            !(option.LControlLWinBlocksAlphaMapping && (IS_LCTRL_DOWN || IS_LWIN_DOWN) ))
-        {
-            processMapAlphaKeys(loopState.vcode);
-            if (option.flipZy)
-            {
-                switch (loopState.vcode)
-                {
-                case SC_Y:		loopState.vcode = SC_Z;		break;
-                case SC_Z:		loopState.vcode = SC_Y;		break;
-                }
-            }
-        }
-
-        IFDEBUG cout << "\t (" << dec << millisecondsSinceTimepoint(loopState.loopStartTimepoint) << " ms)";
-        IFDEBUG loopState.loopStartTimepoint = timepointNow();
         sendResultingKeyOrSequence();
-        IFDEBUG cout << "\t (" << dec << millisecondsSinceTimepoint(loopState.loopStartTimepoint) << " ms)";
-        IFDEBUG std::cout << (loopState.wasTapped ? " (tapped)" : "");
+
+        IFDEBUG
+        {
+            long sendtime = timeMillisecondsSinceTimepoint(loopState.timepointStopwatch);
+            if(sendtime > 2)
+                cout << "\t (slow to send: " << dec << sendtime << " ms)";
+            cout << (loopState.wasTappedSlow ? " (slow tap)" : "");
+            cout << (loopState.wasTapped ? " (tap)" : "");
+        }
     }
     interception_destroy_context(globalState.interceptionContext);
 
@@ -431,40 +455,46 @@ int main()
 ///////////////////////////////////////////////////////////////////////////////////////
 
 
-void processModifiedKeys()
+void processCombos()
 {
-    if (loopState.isDownstroke)
+    if (!loopState.isDownstroke || (modifierState.modifierDown == 0 && modifierState.modifierTapped == 0))
+        return;
+
+    for (ModifierCombo modcombo : allMaps.modCombos)
     {
-        if (loopState.vcode == SC_LSHIFT)
-            cout << " LSHIFT";
-        for (ModifierCombo modcombo : allMaps.modCombos)
+        if (modcombo.vkey == loopState.vcode)
         {
-            if (modcombo.vkey == loopState.vcode)
+            if (
+                (modifierState.modifierDown & modcombo.modAnd) == modcombo.modAnd &&
+                (modifierState.modifierDown & modcombo.modNot) == 0 &&
+                ((modifierState.modifierTapped & modcombo.modTap) == modcombo.modTap)
+                )
             {
-                if (
-                    (modifierState.modifierDown & modcombo.modAnd) == modcombo.modAnd &&
-                    (modifierState.modifierDown & modcombo.modNot) == 0 &&
-                    ((modifierState.modifierTapped & modcombo.modTap) == modcombo.modTap)
-                    )
-                {
-                    loopState.resultingVKeyEventSequence = modcombo.keyEventSequence;
-                    break;
-                }
+                loopState.resultingVKeyEventSequence = modcombo.keyEventSequence;
+                modifierState.modifierTapped = 0;
+                break;
             }
         }
     }
-    modifierState.modifierTapped = 0;
 }
 
-void processMapAlphaKeys(int &vcode)
+void processMapAlphaKeys()
 {
-    if (vcode >= MAX_VCODES)
+    if (loopState.isModifier ||
+        (option.LControlLWinBlocksAlphaMapping && (IS_LCTRL_DOWN || IS_LWIN_DOWN)))
     {
-        error("BUG? Unexpected vcode > " + std::to_string(MAX_VCODES) + " while mapping alphachars: " + std::to_string(vcode));
+        return;
     }
-    else
+
+    loopState.vcode = allMaps.alphamap[loopState.vcode];
+
+    if (option.flipZy)
     {
-        vcode = allMaps.alphamap[vcode];
+        switch (loopState.vcode)
+        {
+        case SC_Y:		loopState.vcode = SC_Z;		break;
+        case SC_Z:		loopState.vcode = SC_Y;		break;
+        }
     }
 }
 
@@ -685,43 +715,19 @@ void sendResultingKeyOrSequence()
 
 void processModifierState()
 {
-    if (!loopState.isModifier)
-        return; 
-
     unsigned short modBitmask = getBitmaskForModifier(loopState.vcode);
 
     //set internal modifier state
     if (loopState.isDownstroke)
-    {
-        modifierState.lastModClearedTapping = modifierState.modifierTapped & modBitmask;
         modifierState.modifierDown |= modBitmask;
-    }
     else
         modifierState.modifierDown &= ~modBitmask;
 
+    //Default tapping logic without specific rules
     //Tapped mod key sets tapped bitmask. You can combine mod-taps (like tap-Ctrl then tap-Alt).
-    //Double-tap clears all taps.
-    //Long presses, release will not register as tapped.
-    if (!modifierState.lastModClearedTapping)
-    {
-        bool sameKeyDownAgain = loopState.isDownstroke && (loopState.scancode == globalState.previousKey1EventIn.vcode);
-        if (loopState.wasTapped && modifierState.lastModClearedTapping)
-            modifierState.modifierTapped = 0;
-        else if (loopState.wasTapped)
-            modifierState.modifierTapped |= modBitmask;
-        else if (sameKeyDownAgain)
-        {
-            if (modifierState.modifierTapped & modBitmask)
-            {
-                modifierState.lastModClearedTapping = true;
-                modifierState.modifierTapped =0;
-            }
-            else
-                modifierState.lastModClearedTapping = false;
-        }
-        else
-            modifierState.lastModClearedTapping = false;
-    }
+    //TODO Long presses, release will not register as tapped.
+    if (loopState.wasTapped)
+        modifierState.modifierTapped |= modBitmask;
 }
 
 //handle all REWIRE configs
@@ -776,7 +782,7 @@ void processRewireScancodeToVirtualcode()
         }
     }
 
-    //Rewire to new vcode; check ifTapped
+    //Rewire to new vcode; check for Tapped rule
     if (!finalVcode)
     {
         int rewoutkey = allMaps.rewiremap[loopState.scancode][REWIRE_OUT];
@@ -788,21 +794,26 @@ void processRewireScancodeToVirtualcode()
             int rewtapkey = allMaps.rewiremap[loopState.scancode][REWIRE_TAP];
             if (loopState.wasTapped && rewtapkey >= 0 )  //ifTapped definition applies
             {
+                //rewired tap (like TAB to TAB) clears all previous modifier taps. Good?
+                modifierState.modifierTapped = 0;
+
                 //release the original rewired result for hardware keys (e.g. Shift may be down)
-                if (rewoutkey < 255)
-                    loopState.resultingVKeyEventSequence.push_back({ rewoutkey, false });
-                //update the internal modifier state
-                unsigned short modBitmask = getBitmaskForModifier(rewoutkey);
-                if (modBitmask != 0)
-                    modifierState.modifierDown &= ~modBitmask; //undo previous key down, e.g. clear internal 'MOD10 is down'
+                loopState.resultingVKeyEventSequence.push_back({ rewoutkey, false });
+                if (isModifier(loopState.vcode))
+                {
+                    unsigned short modBitmask = getBitmaskForModifier(loopState.vcode);
+                    if (modBitmask != 0)
+                        modifierState.modifierDown &= ~modBitmask; //undo previous key down, e.g. clear internal 'MOD10 is down'
+                }
+                //send tap key
                 loopState.vcode = rewtapkey;
                 loopState.resultingVKeyEventSequence.push_back({ rewtapkey, true });
                 loopState.resultingVKeyEventSequence.push_back({ rewtapkey, false });
-                return;
             }
         }
     }
 
+    //update the internal modifier state
     loopState.isModifier = isModifier(loopState.vcode) ? true : false;
 }
 
@@ -1048,24 +1059,26 @@ void parseIniRewires(std::vector<std::string> assembledIni)
 
     int tagCounter = 0;
     unsigned char keyIn;
-    int keyOut, keyIfTapped;
+    int keyOut, keyTapped;
     for (string line : sectLines)
     {
-        keyIfTapped = -1;
-        if (lexRewireRule(line, keyIn, keyOut, keyIfTapped, PRETTY_VK_LABELS))
+        keyTapped = -1;
+        if (lexRewireRule(line, keyIn, keyOut, keyTapped, PRETTY_VK_LABELS))
         {
+            //duplicate?
             if (allMaps.rewiremap[keyIn][REWIRE_OUT] >= 0)
             {
                 IFDEBUG cout << endl << "WARNING: ignoring redefinition of " << INI_TAG_REWIRE << " "
-                    << PRETTY_VK_LABELS[keyIn] << " " << PRETTY_VK_LABELS[keyOut] << " " << PRETTY_VK_LABELS[keyIfTapped];
+                    << PRETTY_VK_LABELS[keyIn] << " " << PRETTY_VK_LABELS[keyOut] << " " << PRETTY_VK_LABELS[keyTapped];
+                continue;
             }
 
-            if (!isModifier(keyOut) && keyIfTapped > 0)
-                IFDEBUG cout << endl << "WARNING: 'If-Tapped' definition does not work for non-modifier: " << INI_TAG_REWIRE << " " << line;
+            if (!isModifier(keyOut) && keyTapped > 0)
+                IFDEBUG cout << endl << "WARNING: 'If-Tapped' definition only makes sense for modifiers: " << INI_TAG_REWIRE << " " << line;
 
             tagCounter++;
             allMaps.rewiremap[keyIn][REWIRE_OUT] = keyOut;
-            allMaps.rewiremap[keyIn][REWIRE_TAP] = keyIfTapped;
+            allMaps.rewiremap[keyIn][REWIRE_TAP] = keyTapped;
         }
         else
             error("Bad Rewire / key mapping: " + line);
@@ -1290,6 +1303,7 @@ void resetLoopState()
     loopState.scancode = 0;
     loopState.isModifier = false;
     loopState.wasTapped = false;
+    loopState.wasTappedSlow = false;
     loopState.resultingVKeyEventSequence.clear();
 }
 
@@ -1297,7 +1311,6 @@ void resetModifierState()
 {
     modifierState.modifierDown = 0;
     modifierState.modifierTapped = 0;
-    modifierState.lastModClearedTapping = false;
     modifierState.modsTempAltered.clear();
 
     resetCapsNumScrollLock();

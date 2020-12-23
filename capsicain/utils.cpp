@@ -145,13 +145,18 @@ void closeOrKillProgram(string processName)
 }
 
 //time stuff
-unsigned int millisecondsSinceTimepoint(chrono::steady_clock::time_point timepoint)
+unsigned int timeMillisecondsSinceTimepoint(chrono::steady_clock::time_point timepoint)
 {
     return (int)chrono::duration_cast<chrono::milliseconds>(std::chrono::steady_clock::now() - timepoint).count();
 }
-std::chrono::steady_clock::time_point timepointNow()
+std::chrono::steady_clock::time_point timeSetTimepointNow()
 {
     return std::chrono::steady_clock::now();
+}
+long timeBetweenTimepointsMS(std::chrono::steady_clock::time_point timepoint1, std::chrono::steady_clock::time_point timepoint2)
+{
+    long dura = (long) std::chrono::duration_cast<std::chrono::milliseconds>(timepoint2 - timepoint1).count();
+    return dura;
 }
 
 //String stuff

@@ -301,16 +301,20 @@ bool lexAlphaFromTo(std::string alpha_to, int (&alphamap)[MAX_VCODES], std::stri
 }
 
 // parse scancodes "A B"  or  "A B C". Does not touch optional keys that are not defined in the line.
+// the // symbol stands for -1 "do nothing with this"
 bool lexRewireRule(std::string line, unsigned char &keyA, int &keyB, int &keyC, std::string scLabels[])
 {
     vector<string> labels = stringSplit(line, ' ');
     if (labels.size() != 2 && labels.size() != 3)
+    {
+        cout << endl << "ERROR: REWIRE must have 2 or 3 tokens: " << line;
         return false;
+    }
 
     int ikeyA = getVcode(labels[0], scLabels);
     int ikeyB = getVcode(labels[1], scLabels);
     int ikeyC;
-    bool hasTapConfig = labels.size() == 3;
+    bool hasTapConfig = labels.size() >= 3 && labels[2] != "//";
     if (hasTapConfig)
         ikeyC = getVcode(labels[2], scLabels);
 

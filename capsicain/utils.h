@@ -9,8 +9,9 @@ std::string startProgram(std::string processname, std::string dir);
 std::string startProgramSameFolder(std::string path);
 void closeOrKillProgram(std::string processName);
 
-unsigned int millisecondsSinceTimepoint(std::chrono::steady_clock::time_point timepoint);
-std::chrono::steady_clock::time_point timepointNow();
+unsigned int timeMillisecondsSinceTimepoint(std::chrono::steady_clock::time_point timepoint);
+std::chrono::steady_clock::time_point timeSetTimepointNow();
+long timeBetweenTimepointsMS(std::chrono::steady_clock::time_point timepoint1, std::chrono::steady_clock::time_point timepoint2);
 
 bool stringStartsWith(std::string haystack, std::string needle);
 std::string stringGetLastToken(std::string line);
