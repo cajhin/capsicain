@@ -1,11 +1,12 @@
 Ongoing stream of what I want to remember...
 
 TODO
+- tap+hold Alt
 - clean up the ugly previousKeyEventInStore
 - refactor the CAPS_ESC sequences; those should be easier now
 - record macros on key in (today) or on key out?
 - nicer macro 'language'
-- enable/disable toggle switch
+- enable/disable (layer0) toggle switch/vkey
 - numbered trayicons
 - test if SC_0Xnn still works in ini
 - צהü should not ignore CapsLock ON
@@ -39,6 +40,10 @@ double tap no longer breaks tap //TODO rework
 removed OPTION ShiftShiftToCapsLock (obsolete)
 COMBO can deal with modifiers like COMBO LSHF [&.] > key (CAPSON)
 new VKeys CAPSON, CAPSOFF
-warn about unknown options
+warn about unknown OPTIONs
 add GLOBAL startAHK
 
+v66beta
+check for unknown GLOBALs
+move constants to constants.h
+move rewire conf to array

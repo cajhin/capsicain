@@ -16,29 +16,23 @@
 
 using namespace std;
 
-const string VERSION = "65beta";
-
 
 string PRETTY_VK_LABELS[MAX_VCODES]; // contains e.g. [01]="ESC" instead of SC_ESCAPE, and all VKs > 0xFF
 
-//defaults and constants
-const int LAYER_DISABLED = 0; // layer 0 does nothing
-const string LAYER_DISABLED_LAYER_NAME = "Capsicain disabled. No processing, forward everything. Only ESC-X and ESC-0..9 work.";
-const int DEFAULT_ACTIVE_LAYER = 1;
-const string DEFAULT_ACTIVE_LAYER_NAME = "Layer not initialized. Forwarding all keys.";
-const int DEFAULT_DELAY_ON_STARTUP_MS = 0; //time to release all keys (e.g. if capsicain is started via shortcut)
-const int DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS = 5;  //System may drop keys when they are sent too fast. Local host needs 0-1ms, Linux VM 5+ms for 100% reliable keystroke detection
-
-const bool DEFAULT_START_AHK_ON_STARTUP = true;
-const int DEFAULT_DELAY_FOR_AHK_MS = 50;	    //autohotkey is slow
-const unsigned short AHK_HOTKEY1 = SC_F14;  //this key triggers supporting AHK script
-const unsigned short AHK_HOTKEY2 = SC_F15;
-
 vector<string> sanitizedIniContent;  //loaded on startup and reset
+
+struct Globals
+{
+    string iniVersion = "unnamed version - add 'iniVersion xyz123' to capsicain.ini";
+    int activeLayerOnStartup = DEFAULT_ACTIVE_LAYER;
+    int delayOnStartupMS = DEFAULT_DELAY_ON_STARTUP_MS;
+    bool startMinimized = false;
+    bool startInTraybar = false;
+    bool startAHK = false;
+} global;
 
 struct Options
 {
-    string iniVersion = "unnamed version - add 'iniVersion xyz' to capsicain.ini";
     bool debug = true;
     int delayForKeySequenceMS = DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;
     bool flipZy = false;
@@ -46,33 +40,25 @@ struct Options
     bool flipAltWinOnAppleKeyboards = false;
     bool LControlLWinBlocksAlphaMapping = false;
     bool processOnlyFirstKeyboard = false;
-    int delayOnStartupMS = DEFAULT_DELAY_ON_STARTUP_MS;
-    bool startMinimized = false;
-    bool startInTraybar = false;
-    bool startAHK = false;
 } option;
 
 struct ModifierCombo
 {
-    int key = SC_NOP;
+    int vkey = SC_NOP;
     unsigned short modAnd = 0;
     unsigned short modNot = 0;
     unsigned short modTap = 0;
     vector<VKeyEvent> keyEventSequence;
 };
 
-struct RewireIftappedMapping
-{
-    int inkey = SC_NOP;
-    int outkey = SC_NOP;
-    int ifTapped = SC_NOP;
-};
-
 struct AllMaps
 {
-    vector<RewireIftappedMapping> rewireIftappedMapping;
-    vector<ModifierCombo> modCombos;
     int alphamap[MAX_VCODES] = { SC_NOP };
+    vector<ModifierCombo> modCombos;// = new vector<ModifierCombo>();
+    
+    //inkey outkey (tapped)
+    //-1 = undefined key
+    int rewiremap[REWIRE_ROWS][REWIRE_COLS] = { SC_NOP };
 } allMaps;
 
 struct GlobalState
@@ -92,10 +78,10 @@ struct GlobalState
     VKeyEvent previousKey1EventIn = { SC_NOP, 0 };
     VKeyEvent previousKey2EventIn = { SC_NOP, 0 }; //2 keys ago
     VKeyEvent previousKey0EventIn = { SC_NOP, 0 }; //mostly useless but simplifies the handling
-    bool keysDownSent[256] = { false };  //sent keys must be 8 bit
+    bool keysDownSent[256] = { false };  //Remember all forwarded to Windows. Sent keys must be 8 bit
     int debugKeyDownCounter = 0;  //tracks how many keys are actually down that Windows knows about
 
-    bool recordingMacro = false;
+    bool recordingMacro = false; //currently recordingq
     vector<VKeyEvent> recordedMacro;
 
     vector<VKeyEvent> username;
@@ -117,7 +103,7 @@ struct ModifierState
 
 struct LoopState
 {
-    unsigned short scancode = SC_NOP; //hardware code sent by Interception
+    unsigned char scancode = SC_NOP; //hardware code sent by Interception
     int vcode = SC_NOP; //key code used internally; equals scancode or a Virtual code > FF
     bool isDownstroke = false;
     bool isModifier = false;
@@ -137,35 +123,41 @@ void error(string txt)
     errorLog += "\r\n" + txt;
 }
 
-string getPrettyVKLabelPadded(int vcode, int totalLength)
+string getPrettyVKLabelPadded(int vcode, int resultLength)
 {
     string label = PRETTY_VK_LABELS[vcode];
-    if (totalLength > label.size())
-        label.insert(0, totalLength - label.size(), ' ');
+    if (resultLength > label.size())
+        label.insert(0, resultLength - label.size(), ' ');
     return label;
 }
 
-void readGlobalsOnStartup()
+void parseIniGlobals()
 {
-    option.debug = configHasTaggedKey(INI_TAG_GLOBAL, "debugOnStartup", sanitizedIniContent);
+    vector<string> sectLines = getTaggedLinesFromIni(INI_TAG_GLOBAL, sanitizedIniContent);
 
-    getStringValueForTaggedKey(INI_TAG_GLOBAL, "iniVersion", option.iniVersion, sanitizedIniContent);
-    if (option.iniVersion == "")
-        option.iniVersion = "iniVersion is undefined";
-
-    if (!getIntValueForTaggedKey(INI_TAG_GLOBAL, "delayOnStartupMS", option.delayOnStartupMS, sanitizedIniContent))
-        IFDEBUG cout << endl << "No ini setting for 'GLOBAL delayOnStartup'. Using default " << DEFAULT_DELAY_ON_STARTUP_MS;
-
-    option.startMinimized = configHasTaggedKey(INI_TAG_GLOBAL, "startMinimized", sanitizedIniContent);
-    option.startInTraybar = configHasTaggedKey(INI_TAG_GLOBAL, "startInTraybar", sanitizedIniContent);
-    option.startAHK = configHasTaggedKey(INI_TAG_GLOBAL, "startAHK", sanitizedIniContent);
-    int initialLayer = DEFAULT_ACTIVE_LAYER;
-    if (!getIntValueForTaggedKey(INI_TAG_GLOBAL, "ActiveLayerOnStartup", globalState.activeLayer, sanitizedIniContent))
+    for (string line : sectLines)
     {
-        globalState.activeLayer = DEFAULT_ACTIVE_LAYER;
-        globalState.activeLayerName = DEFAULT_ACTIVE_LAYER_NAME;
-        cout << endl << "No ini setting for 'GLOBAL activeLayerOnStartup'. Setting default layer " << DEFAULT_ACTIVE_LAYER;
+        string token = stringGetFirstToken(line);
+        if (token == "debugonstartup")
+            option.debug = true;
+        else if (token == "iniversion")
+            global.iniVersion = stringGetRestBehindFirstToken(line);
+        else if (token == "delayonstartupmS")
+            getIntValueForTaggedKey(INI_TAG_GLOBAL, "delayOnStartupMS", global.delayOnStartupMS, sanitizedIniContent);
+        else if (token == "startminimized")
+            global.startMinimized = true;
+        else if (token == "startintraybar")
+            global.startInTraybar = true;
+        else if (token == "startahk")
+            global.startAHK = true;
+        else if (token == "activelayeronstartup")
+            cout << endl;
+        else
+            cout << endl << "WARNING: unknown GLOBAL " << token;
     }
+
+    if (!getIntValueForTaggedKey(INI_TAG_GLOBAL, "ActiveLayerOnStartup", global.activeLayerOnStartup, sanitizedIniContent))
+        cout << endl << "No ini setting for 'GLOBAL activeLayerOnStartup'. Setting default layer " << global.activeLayerOnStartup;
 }
 
 int main()
@@ -183,20 +175,18 @@ int main()
         return 0;
     }
 
-    readGlobalsOnStartup();
-    for (int i = 0; i < MAX_VCODES; i++)  //initialize to "map to same char"
-        allMaps.alphamap[i] = i;
-    switchLayer(globalState.activeLayer);
+    parseIniGlobals();
+    switchLayer(global.activeLayerOnStartup);
 
-    cout << endl << "Release all keys now... (waiting DelayOnStartupMS = " << option.delayOnStartupMS << " ms)" << endl;
-    Sleep(option.delayOnStartupMS); //time to release shortcut keys that started capsicain
+    cout << endl << "Release all keys now... (waiting DelayOnStartupMS = " << global.delayOnStartupMS << " ms)" << endl;
+    Sleep(global.delayOnStartupMS); //time to release shortcut keys that started capsicain
 
     globalState.interceptionContext = interception_create_context();
     interception_set_filter(globalState.interceptionContext, interception_is_keyboard, INTERCEPTION_FILTER_KEY_ALL);
 
     printHelloFeatures();
 
-    if (option.startAHK)
+    if (global.startAHK)
     {
         string msg = startProgramSameFolder(PROGRAM_NAME_AHK);
         cout << endl << endl << "starting AHK... ";
@@ -205,9 +195,9 @@ int main()
     cout << endl << endl << "[ESC] + [X] to stop." << endl << "[ESC] + [H] for Help";
     cout << endl << endl << "capsicain running.... ";
 
-    if (option.startMinimized)
+    if (global.startMinimized)
         ShowInTaskbarMinimized();
-    if (option.startInTraybar)
+    if (global.startInTraybar)
         ShowInTraybar();
 
     raise_process_priority(); //careful: if we spam key events, other processes get no timeslots to process them. Sleep a bit...
@@ -293,7 +283,7 @@ int main()
                 resetLoopState();
                 resetModifierState();
                 releaseAllSentKeys();
-                resetAlphaMap();
+                resetAlphamap();
                 continue;
             }
             else if (loopState.scancode >= SC_1 && loopState.scancode <= SC_9)
@@ -449,7 +439,7 @@ void processModifiedKeys()
             cout << " LSHIFT";
         for (ModifierCombo modcombo : allMaps.modCombos)
         {
-            if (modcombo.key == loopState.vcode)
+            if (modcombo.vkey == loopState.vcode)
             {
                 if (
                     (modifierState.modifierDown & modcombo.modAnd) == modcombo.modAnd &&
@@ -737,6 +727,7 @@ void processModifierState()
 //handle all REWIRE configs
 void processRewireScancodeToVirtualcode()
 {
+    //TODO this won't work with new rewire style
     if (option.flipAltWinOnAppleKeyboards && globalState.deviceIsAppleKeyboard)
     {
         switch (loopState.scancode)
@@ -788,23 +779,26 @@ void processRewireScancodeToVirtualcode()
     //Rewire to new vcode; check ifTapped
     if (!finalVcode)
     {
-        for (RewireIftappedMapping map : allMaps.rewireIftappedMapping)
+        int rewoutkey = allMaps.rewiremap[loopState.scancode][REWIRE_OUT];
+        if(rewoutkey >=0)
         {
-            if (loopState.vcode == map.inkey)
+            loopState.vcode = rewoutkey;
+
+            //tapped?
+            int rewtapkey = allMaps.rewiremap[loopState.scancode][REWIRE_TAP];
+            if (loopState.wasTapped && rewtapkey >= 0 )  //ifTapped definition applies
             {
-                loopState.vcode = map.outkey;
-                if (loopState.wasTapped && map.ifTapped != SC_NOP)  //ifTapped definition applies
-                {
-                    if (map.outkey < 255)  //release the original rewired result (e.g. Shift may be down)
-                        loopState.resultingVKeyEventSequence.push_back({ map.outkey, false });
-                    unsigned short modBitmask = getBitmaskForModifier(map.outkey);
-                    if (modBitmask != 0)
-                        modifierState.modifierDown &= ~modBitmask; //undo previous key down, e.g. clear internal 'MOD10 is down'
-                    loopState.vcode = map.ifTapped;
-                    loopState.resultingVKeyEventSequence.push_back({ map.ifTapped, true });
-                    loopState.resultingVKeyEventSequence.push_back({ map.ifTapped, false });
-                    return;
-                }
+                //release the original rewired result for hardware keys (e.g. Shift may be down)
+                if (rewoutkey < 255)
+                    loopState.resultingVKeyEventSequence.push_back({ rewoutkey, false });
+                //update the internal modifier state
+                unsigned short modBitmask = getBitmaskForModifier(rewoutkey);
+                if (modBitmask != 0)
+                    modifierState.modifierDown &= ~modBitmask; //undo previous key down, e.g. clear internal 'MOD10 is down'
+                loopState.vcode = rewtapkey;
+                loopState.resultingVKeyEventSequence.push_back({ rewtapkey, true });
+                loopState.resultingVKeyEventSequence.push_back({ rewtapkey, false });
+                return;
             }
         }
     }
@@ -983,7 +977,7 @@ void initConsoleWindow()
     SetConsoleMode(Handle, mode);
 
     system("color 8E");  //byte1=background, byte2=text
-    string title = ("Capsicain v" + VERSION);
+    string title = "Capsicain v" VERSION;
     SetConsoleTitle(title.c_str());
 }
 
@@ -1045,40 +1039,38 @@ bool parseIniOptions(std::vector<std::string> assembledIni)
     return true;
 }
 
-bool parseIniRewire(std::vector<std::string> assembledIni)
+//fill the rewiremap array
+//return # of valid rewires
+void parseIniRewires(std::vector<std::string> assembledIni)
 {
     vector<string> sectLines = getTaggedLinesFromIni(INI_TAG_REWIRE, assembledIni);
-    allMaps.rewireIftappedMapping.clear();
-    if (sectLines.size() == 0)
-        return false;
+    resetRewiremap();
 
-    int keyIn, keyOut, keyIfTapped;
+    int tagCounter = 0;
+    unsigned char keyIn;
+    int keyOut, keyIfTapped;
     for (string line : sectLines)
     {
-        if (lexScancodeMapping(line, keyIn, keyOut, keyIfTapped, PRETTY_VK_LABELS))
+        keyIfTapped = -1;
+        if (lexRewireRule(line, keyIn, keyOut, keyIfTapped, PRETTY_VK_LABELS))
         {
-            bool isDuplicate = false;
-            for (RewireIftappedMapping test : allMaps.rewireIftappedMapping)
+            if (allMaps.rewiremap[keyIn][REWIRE_OUT] >= 0)
             {
-                if (test.inkey == keyIn) 
-                {
-                    if( test.outkey != keyOut || test.ifTapped != keyIfTapped)
-                        IFDEBUG cout << endl << "WARNING: ignoring redefinition of " << INI_TAG_REWIRE << " "
-                            << PRETTY_VK_LABELS[keyIn] << " " << PRETTY_VK_LABELS[keyOut] << " " << PRETTY_VK_LABELS[keyIfTapped];
-                    isDuplicate = true;
-                    break;
-                }
+                IFDEBUG cout << endl << "WARNING: ignoring redefinition of " << INI_TAG_REWIRE << " "
+                    << PRETTY_VK_LABELS[keyIn] << " " << PRETTY_VK_LABELS[keyOut] << " " << PRETTY_VK_LABELS[keyIfTapped];
             }
-            if(!isDuplicate)
-                allMaps.rewireIftappedMapping.push_back({ keyIn, keyOut, keyIfTapped });
 
-            if (!isModifier(keyOut) && keyIfTapped != SC_NOP)
-                IFDEBUG cout << endl << "WARNING: 'If-Tapped' definition is ignored for non-modifier: " << INI_TAG_REWIRE << " " << line;
+            if (!isModifier(keyOut) && keyIfTapped > 0)
+                IFDEBUG cout << endl << "WARNING: 'If-Tapped' definition does not work for non-modifier: " << INI_TAG_REWIRE << " " << line;
+
+            tagCounter++;
+            allMaps.rewiremap[keyIn][REWIRE_OUT] = keyOut;
+            allMaps.rewiremap[keyIn][REWIRE_TAP] = keyIfTapped;
         }
         else
             error("Bad Rewire / key mapping: " + line);
     }
-    return true;
+    IFDEBUG cout << endl << "Rewire Definitions: " << dec << tagCounter;
 }
 
 bool parseIniCombos(std::vector<std::string> assembledIni)
@@ -1099,7 +1091,7 @@ bool parseIniCombos(std::vector<std::string> assembledIni)
             bool isDuplicate = false;
             for (ModifierCombo testcombo : allMaps.modCombos)
             {
-                if (key == testcombo.key && mods[0] == testcombo.modAnd
+                if (key == testcombo.vkey && mods[0] == testcombo.modAnd
                     && mods[1] == testcombo.modNot && mods[2] == testcombo.modTap)
                 {
                     //warn only if the combos are different
@@ -1141,7 +1133,7 @@ bool parseIniAlphaLayout(std::vector<std::string> assembledIni)
     string tagFrom = stringToLower(INI_TAG_ALPHA_FROM);
     string tagEnd = stringToLower(INI_TAG_ALPHA_END);
 
-    resetAlphaMap();
+    resetAlphamap();
     string mapFromTo = "";
     bool inMapFromTo = false;
     for (string line : assembledIni)
@@ -1231,8 +1223,9 @@ bool parseProcessIniLayer(int layer)
     IFDEBUG cout << endl << "Assembled config for Layer " << layer << " : " << dec << assembledLayer.size() << " lines";
 
     parseIniOptions(assembledLayer);
-    parseIniRewire(assembledLayer);
-    IFDEBUG cout << endl << "Rewire Definitions: " << dec << allMaps.rewireIftappedMapping.size();
+
+    parseIniRewires(assembledLayer);
+
     parseIniCombos(assembledLayer);
     IFDEBUG cout << endl << "Combo  Definitions: " << dec << allMaps.modCombos.size();
     parseIniAlphaLayout(assembledLayer);
@@ -1277,11 +1270,19 @@ void resetCapsNumScrollLock()
         playKeyEventSequence(sequence);
 }
 
-void resetAlphaMap()
+void resetAlphamap()
 {
-    for (int i = 0; i < 256; i++)
+    for (int i = 0; i < MAX_VCODES; i++)  //initialize to "map to same char"
         allMaps.alphamap[i] = i;
 }
+
+void resetRewiremap()
+{
+    for (int r = 0; r < REWIRE_ROWS; r++)
+        for (int c = 0; c < REWIRE_COLS; c++)
+            allMaps.rewiremap[r][c] = -1;
+}
+
 
 void resetLoopState()
 {
@@ -1314,7 +1315,7 @@ void resetAllStatesToDefault()
 
 void printHelloHeader()
 {
-    string line1 = "Capsicain v" + VERSION;
+    string line1 = "Capsicain v" VERSION;
 #ifdef NDEBUG
     line1 += " (Release build)";
 #else
@@ -1334,8 +1335,8 @@ void printHelloHeader()
 void printHelloFeatures()
 {
     cout
-        << endl << "ini version: " << option.iniVersion
-        << endl << endl << "FEATURES"
+        << endl << "ini version: " << global.iniVersion
+        << endl << endl << "OPTIONS"
         << endl << (option.flipZy ? "ON:" : "OFF:") << " Z <-> Y"
         << endl << (option.altAltToAlt ? "ON:" : "OFF:") << " LAlt + RAlt -> Alt"
         << endl << (option.flipAltWinOnAppleKeyboards ? "ON:" : "OFF:") << " Alt <-> Win for Apple keyboards"
@@ -1354,7 +1355,7 @@ void printStatus()
     }
     cout << "STATUS" << endl << endl
         << "Capsicain version: " << VERSION << endl
-        << "ini version: " << option.iniVersion << endl
+        << "ini version: " << global.iniVersion << endl
         << "keyboard hardware id: " << globalState.deviceIdKeyboard << endl
         << "Apple keyboard: " << globalState.deviceIsAppleKeyboard << endl
         << "active layer: " << globalState.activeLayer << " = " << globalState.activeLayerName << endl
@@ -1519,7 +1520,7 @@ void reset()
     releaseAllSentKeys();
 
     readSanitizeIniFile(sanitizedIniContent);
-    readGlobalsOnStartup();
+    parseIniGlobals();
     switchLayer(globalState.activeLayer);
 }
 

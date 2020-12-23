@@ -300,8 +300,8 @@ bool lexAlphaFromTo(std::string alpha_to, int (&alphamap)[MAX_VCODES], std::stri
     return true;
 }
 
-// parse scancodes "A B"  or  "A B C"
-bool lexScancodeMapping(std::string line, int &keyA, int &keyB, int &keyC, std::string scLabels[])
+// parse scancodes "A B"  or  "A B C". Does not touch optional keys that are not defined in the line.
+bool lexRewireRule(std::string line, unsigned char &keyA, int &keyB, int &keyC, std::string scLabels[])
 {
     vector<string> labels = stringSplit(line, ' ');
     if (labels.size() != 2 && labels.size() != 3)
@@ -309,14 +309,24 @@ bool lexScancodeMapping(std::string line, int &keyA, int &keyB, int &keyC, std::
 
     int ikeyA = getVcode(labels[0], scLabels);
     int ikeyB = getVcode(labels[1], scLabels);
-    int ikeyC = SC_NOP;
-    if (labels.size() == 3)
+    int ikeyC;
+    bool hasTapConfig = labels.size() == 3;
+    if (hasTapConfig)
         ikeyC = getVcode(labels[2], scLabels);
-    if (ikeyA < 0 || ikeyB < 0 || ikeyC < 0)
+
+    if (ikeyA < 0 || ikeyB < 0 || (hasTapConfig && ikeyC < 0))
         return false; //invalid key label
+    if (ikeyA > 255)
+    {
+        cout << endl << "ERROR: the rewired key cannot be a virtual key: " << labels[0];
+        return false;
+    }
+
     keyA = ikeyA;
     keyB = ikeyB;
-    keyC = ikeyC;
+    if(hasTapConfig)
+        keyC = ikeyC;
+
     return true;
 }
 

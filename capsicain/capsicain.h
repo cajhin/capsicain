@@ -4,6 +4,8 @@
 #include "config.h"
 #include "traybar.h"
 
+#define IFDEBUG if(option.debug)
+
 enum KEYSTATE
 {
     KEYSTATE_DOWN = 0,
@@ -11,16 +13,6 @@ enum KEYSTATE
     KEYSTATE_EXT_DOWN = 2,
     KEYSTATE_EXT_UP = 3,
 };
-
-const std::string INI_TAG_INCLUDE = "INCLUDE";
-const std::string INI_TAG_GLOBAL = "GLOBAL";
-const std::string INI_TAG_OPTIONS = "OPTION";
-const std::string INI_TAG_REWIRE = "REWIRE";
-const std::string INI_TAG_COMBOS = "COMBO";
-const std::string INI_TAG_ALPHA_FROM = "ALPHA_FROM";
-const std::string INI_TAG_ALPHA_TO = "ALPHA_TO";
-const std::string INI_TAG_ALPHA_END = "ALPHA_END";
-
 
 void keySequenceAppendMakeKey(unsigned short scancode, std::vector<VKeyEvent> &sequence);
 void keySequenceAppendBreakKey(unsigned short scancode, std::vector<VKeyEvent> &sequence);
@@ -59,13 +51,10 @@ std::vector<std::string> assembleLayerConfig(int layer);
 bool parseIni(int layer);
 void switchLayer(int layer);
 void resetCapsNumScrollLock();
-void resetAlphaMap();
+void resetAlphamap();
+void resetRewiremap();
 
 void resetLoopState();
-
 void resetModifierState();
-
 void resetAllStatesToDefault();
-
-#define IFDEBUG if(option.debug) 
 
