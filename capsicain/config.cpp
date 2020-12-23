@@ -300,25 +300,31 @@ bool lexAlphaFromTo(std::string alpha_to, int (&alphamap)[MAX_VCODES], std::stri
     return true;
 }
 
-// parse scancodes "A B"  or  "A B C". Does not touch optional keys that are not defined in the line.
+// parse scancodes "A B"  or  "A B C D". Does not touch optional keys that are not defined in the line.
 // the // symbol stands for -1 "do nothing with this"
-bool lexRewireRule(std::string line, unsigned char &keyA, int &keyB, int &keyC, std::string scLabels[])
+bool lexRewireRule(std::string line, unsigned char &keyA, int &keyB, int &keyC, int &keyD, std::string scLabels[])
 {
     vector<string> labels = stringSplit(line, ' ');
-    if (labels.size() != 2 && labels.size() != 3)
+    if (labels.size() < 2 && labels.size() > 4)
     {
-        cout << endl << "ERROR: REWIRE must have 2 or 3 tokens: " << line;
+        cout << endl << "ERROR: REWIRE must have 2..4 tokens: " << line;
         return false;
     }
 
     int ikeyA = getVcode(labels[0], scLabels);
     int ikeyB = getVcode(labels[1], scLabels);
     int ikeyC;
+    int ikeyD;
+
     bool hasTapConfig = labels.size() >= 3 && labels[2] != "//";
     if (hasTapConfig)
         ikeyC = getVcode(labels[2], scLabels);
 
-    if (ikeyA < 0 || ikeyB < 0 || (hasTapConfig && ikeyC < 0))
+    bool hasTapHoldConfig = labels.size() >= 4 && labels[3] != "//";
+    if (hasTapHoldConfig)
+        ikeyD = getVcode(labels[3], scLabels);
+
+    if (ikeyA < 0 || ikeyB < 0 || (hasTapConfig && ikeyC < 0) || (hasTapHoldConfig && ikeyD < 0) )
         return false; //invalid key label
     if (ikeyA > 255)
     {
@@ -330,6 +336,8 @@ bool lexRewireRule(std::string line, unsigned char &keyA, int &keyB, int &keyC, 
     keyB = ikeyB;
     if(hasTapConfig)
         keyC = ikeyC;
+    if (hasTapHoldConfig)
+        keyD = ikeyD;
 
     return true;
 }

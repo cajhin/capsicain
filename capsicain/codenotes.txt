@@ -49,6 +49,9 @@ move constants to constants.h
 move rewire conf to array
 
 v67beta
-rewire // stands for "don't process this". NOP results in action.
-add 'time since last key' to debug output
-detect slow taps (those clear any tapped state)
+- rewire // stands for "don't process this". NOP results in action.
+- add 'time since last key' to debug output
+- detect slow taps (those clear any tapped state)
+
+v68beta
+Configurable TapHold. Phew. Tapdance is complicated.
