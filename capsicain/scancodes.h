@@ -168,15 +168,17 @@ enum ScanCode {
     SC_WEBBACK = 0xEA, // Web Back
     SC_MYCOMPUTER = 0xEB, // My Computer
     SC_MAIL = 0xEC, // Mail
-    SC_MEDIASELECT = 0xED, // Media Select
-
-    //special escape code for Capsicain key sequences. Do not use this in the .ini
-    SC_CPS_ESC = 0xFF
+    SC_MEDIASELECT = 0xED // Media Select
 };
 
 //defined by capsicain, non standard
 enum VirtualCode
 {
+    //special escape code for Capsicain key sequences
+    //VK_CPS_ESC = 0x100,
+    VK_CPS_TEMPRELEASEKEYS = 0x101,
+    VK_CPS_TEMPRESTOREKEYS = 0x102,
+    VK_CPS_SLEEP = 0x103,
     VK_MOD9 = 0x109,
     VK_MOD10 = 0x10A,
     VK_MOD11 = 0x10B,

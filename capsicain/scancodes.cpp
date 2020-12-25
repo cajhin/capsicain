@@ -204,9 +204,8 @@ void defineAllPrettyVKLabels(string arr[])
     checkAddLabel(SC_MYCOMPUTER, "MYCOMPUTER", arr);
     checkAddLabel(SC_MAIL, "MAIL", arr);
     checkAddLabel(SC_MEDIASELECT, "MEDIASELECT", arr);
-    checkAddLabel(SC_CPS_ESC, "CPS_ESC", arr);
 
-    //fill all undefined scancodes with "SC_0XNN" so they can be referenced
+    //fill all undefined scancodes with "SC_0XNN" so they can be referenced in ini
     char buffer[9];
     for (int i = 0; i <= 255; i++)
     {
@@ -219,6 +218,10 @@ void defineAllPrettyVKLabels(string arr[])
 
     //define all Capsicain VK Virtual Keys >= 0x100
     //Capsicain virtual modifiers:
+    //checkAddLabel(VK_CPS_ESC, "CPS_ESC", arr);  //only for logging; do not use this in ini
+    checkAddLabel(VK_CPS_TEMPRELEASEKEYS, "TEMPRELEASEKEYS", arr);
+    checkAddLabel(VK_CPS_TEMPRESTOREKEYS, "TEMPRESTOREKEYS", arr);
+    checkAddLabel(VK_CPS_SLEEP, "SLEEP", arr);
     checkAddLabel(VK_MOD9, "MOD9", arr);
     checkAddLabel(VK_MOD10, "MOD10", arr);
     checkAddLabel(VK_MOD11, "MOD11", arr);

@@ -55,3 +55,15 @@ v67beta
 
 v68beta
 Configurable TapHold. Phew. Tapdance is complicated.
+
+v69beta VS2019
+- upgrade from VS2017 to VS2019
+- retarget to latest vcruntime, msvcp (not sure if this still works on Win7)
+-> may need to distribute new DLLs //TODO
+- c++ 14 > c++ 17
+- linter complains about bit operations on unsigned char (suck)
+- cleaned up three new warnings about conversion types
+- app icon is broken for debug (suck)
+- breaking change: PAUSE:10 is now SLEEP 1000.  Now sleeps n milliseconds (was 1/10s before)
+- take care of moddedKeys / when and when not to release physical modifiers //TODO
+- now moddedKey() releases ALL physical modifiers

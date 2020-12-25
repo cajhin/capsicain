@@ -6,6 +6,7 @@
 #include <iterator>
 #include <windows.h>
 #include <tlhelp32.h>
+#include <algorithm>
 #include "utils.h"
 
 
@@ -26,7 +27,9 @@ void copyToClipBoard(std::string text)
         cout << endl << "Cannot allocate memory.";
         return;
     }
-    memcpy(GlobalLock(hMem), output, len);
+    LPTSTR lptstrCopy = (LPTSTR) GlobalLock(hMem);
+    if(lptstrCopy != 0)
+        memcpy(lptstrCopy, output, len);
     GlobalUnlock(hMem);
     OpenClipboard(0);
     EmptyClipboard();

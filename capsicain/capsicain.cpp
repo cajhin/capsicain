@@ -79,8 +79,10 @@ struct GlobalState
     VKeyEvent previousKey2EventIn = { SC_NOP, 0 };
     VKeyEvent previousKey3EventIn = { SC_NOP, 0 }; //2 keys ago
     VKeyEvent previousKey1EventIn = { SC_NOP, 0 }; //mostly useless but simplifies the handling
+
+    int keysDownSentCounter = 0;  //tracks how many keys are actually down that Windows knows about
     bool keysDownSent[256] = { false };  //Remember all forwarded to Windows. Sent keys must be 8 bit
-    int debugKeyDownCounter = 0;  //tracks how many keys are actually down that Windows knows about
+    bool keysDownTempReleased[256] = { false };  //Remember all keys that were temporarily released, e.g. to send an Alt-Numpad combo
 
     bool recordingMacro = false; //currently recordingq
     vector<VKeyEvent> recordedMacro;
@@ -91,6 +93,7 @@ struct GlobalState
     bool readingPassword = false;
 
     chrono::steady_clock::time_point timepointPreviousKeyEvent;
+
 } globalState;
 
 struct ModifierState
@@ -857,119 +860,47 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
 {
     VKeyEvent newKeyEvent;
     unsigned int delayBetweenKeyEventsMS = option.delayForKeySequenceMS;
-    bool inCpsEscape = false;  //inside an escape sequence, read next keyEvent
-    int escapeSequenceType = 0; // 1: escape sequence to temp release modifiers; 2: pause; 3... undefined
+    bool tempReleasedKeys = false;
+    bool vkSleepTriggered = false;
 
     IFDEBUG cout << "\t--> SEQUENCE (" << dec << keyEventSequence.size() << ")";
     for (VKeyEvent keyEvent : keyEventSequence)
     {
-        if (keyEvent.vcode == SC_CPS_ESC)
+        if (vkSleepTriggered)
         {
-            if (keyEvent.isDownstroke)
-            {
-                if(inCpsEscape)
-                    error("Internal error: Received double SC_CPS_ESC down.");
-                else
-                {
-                    if (modifierState.modsTempAltered.size() > 0)
-                    {
-                        error("Internal error: previous escape sequence for 'temp alter mods' was not undone.");
-                        modifierState.modsTempAltered.clear();
-                    }
-                }
-            }
-            else if (escapeSequenceType == CPS_ESC_SEQUENCE_TYPE_TEMPALTERMODIFIERS)
-            {
-                if (inCpsEscape) //play the escape sequence
-                {
-                    for (VKeyEvent strk : modifierState.modsTempAltered)
-                    {
-                        sendVKeyEvent(strk);
-                        Sleep(delayBetweenKeyEventsMS);
-                    }
-                }
-                else //undo the previous temp modifier changes, in reverse order
-                {
-                    IFDEBUG cout << endl << "undo alter modifiers" << keyEvent.vcode;
-                    VKeyEvent strk;
-                    for (size_t i = modifierState.modsTempAltered.size(); i>0; i--)
-                    {
-                        strk = modifierState.modsTempAltered[i - 1];
-                        strk.isDownstroke = !strk.isDownstroke;
-                        sendVKeyEvent(strk);
-                        Sleep(delayBetweenKeyEventsMS);
-                    }
-                    modifierState.modsTempAltered.clear();
-                    escapeSequenceType = 0;
-                }
-            }
-            else
-            {
-                error("Internal error: received a SC_CPS_ESC UP but we're not in any escape sequence.");
-                escapeSequenceType = 0;
-            }
-            inCpsEscape = keyEvent.isDownstroke;
-            continue;
+            IFDEBUG cout << endl << "vksleep: " << keyEvent.vcode;
+            Sleep(keyEvent.vcode);
+            vkSleepTriggered = false;
         }
-        if (inCpsEscape)  //first key after SC_CAP_ESC = escape function: 1=conditional break/make of modifiers, 2=Pause
+        //release and remember all keys that are physically down
+        if (keyEvent.vcode == VK_CPS_TEMPRELEASEKEYS)
         {
-            if (escapeSequenceType == 0)
+            bool tempReleasedKeys = true;
+            for (int i = 0; i <= 255; i++)
             {
-                switch (keyEvent.vcode)
+                globalState.keysDownTempReleased[i] = globalState.keysDownSent[i];
+                if (globalState.keysDownSent[i])
+                    sendVKeyEvent({ i, false });
+            }
+            if (globalState.keysDownSentCounter != 0)
+                error("BUG: keysDownSentCounter != 0");
+        }
+        //restore all keys that were down before 'VK_temprelease'
+        else if (keyEvent.vcode == VK_CPS_TEMPRESTOREKEYS)
+        {
+            bool tempReleasedKeys = false;
+            for (int i = 0; i <= 255; i++)
+            {
+                if (globalState.keysDownTempReleased[i])
                 {
-                case 1:
-                case 2:
-                    escapeSequenceType = keyEvent.vcode;
-                    IFDEBUG cout << endl << "CPS_ESC_SEQUENCE_TYPE: " << keyEvent.vcode;
-                    break;
-                default:
-                    error("internal error: escapeSequenceType not defined: " + to_string(keyEvent.vcode));
-                    return;
+                    sendVKeyEvent({ i, true });
+                    globalState.keysDownTempReleased[i] = false;
                 }
             }
-            else if (escapeSequenceType == CPS_ESC_SEQUENCE_TYPE_TEMPALTERMODIFIERS)
-            {
-                IFDEBUG cout << endl << "temp alter modifiers" << keyEvent.vcode;
-
-                //the scancode is a modifier bitmask. Press/Release keys as necessary.
-                //make modifier IF the system knows it is up
-                unsigned short tempModChange = keyEvent.vcode;       //escaped scancode carries the modifier bitmask
-                VKeyEvent newKeyEvent;
-
-                if (keyEvent.isDownstroke)  //make modifiers when they are up
-                {
-                    unsigned short exor = modifierState.modifierDown ^ tempModChange; //figure out which ones we must press
-                    tempModChange &= exor;
-                }
-                else	//break mods if down
-                    tempModChange &= modifierState.modifierDown;
-
-                newKeyEvent.isDownstroke = keyEvent.isDownstroke;
-
-                const int NUMBER_OF_MODIFIERS_ALTERED_IN_SEQUENCES = 8; //high modifiers are skipped because they are never sent anyways.
-                for (int i = 0; i < NUMBER_OF_MODIFIERS_ALTERED_IN_SEQUENCES; i++)  //push keycodes for all mods to be altered
-                {
-                    unsigned short modBitmask = tempModChange & (1 << i);
-                    if (!modBitmask)
-                        continue;
-                    unsigned short sc = getModifierForBitmask(modBitmask);
-                    newKeyEvent.vcode = sc;
-                    modifierState.modsTempAltered.push_back(newKeyEvent);
-                }
-                continue;
-            }
-            else if (escapeSequenceType == CPS_ESC_SEQUENCE_TYPE_SLEEP)   //PAUSE
-            {
-                IFDEBUG cout << endl << "sleep: " << keyEvent.vcode;
-                Sleep(keyEvent.vcode * 100);
-                inCpsEscape = false;  //type 2 does not need an "escape up" key to finish the sequence
-                escapeSequenceType = 0;
-            }
-            else
-            {
-                error("Internal error: unknown CPS_ESC_SEQUENCE_TYPE: " + to_string(escapeSequenceType));
-                return;
-            }
+        }
+        else if (keyEvent.vcode == VK_CPS_SLEEP)
+        {
+            vkSleepTriggered = true;
         }
         else //regular non-escaped keyEvent
         {
@@ -980,9 +911,13 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
                 Sleep(delayBetweenKeyEventsMS);
         }
     }
-    if (inCpsEscape)
-        error("SC_CPS escape sequence was not finished properly. Check your config.");
+
+    if(tempReleasedKeys)
+        error("VK_CPS_TEMPRELEASEKEYS without corresponding VK_CPS_TEMPRESTOREKEYS. Check your config.");
+    if (vkSleepTriggered)
+        error("BUG: VK_CPS_SLEEP is unfinished");
 }
+
 
 void getHardwareId()
 {
@@ -992,9 +927,16 @@ void getHardwareId()
         size_t length = interception_get_hardware_id(globalState.interceptionContext, globalState.interceptionDevice, hardware_id, sizeof(hardware_id));
         if (length > 0 && length < sizeof(hardware_id))
         {
-            wstring wid(hardware_id);
-            string sid(wid.begin(), wid.end());
-            id = sid;
+            //forced conversion will replace special characters > 127 with "?"
+            for (wchar_t c : hardware_id)
+            {
+                if (c > 127)
+                    id += '?';
+                else if (c == 0)
+                    break;
+                else
+                    id += (char)c;
+            }
         } 
         else
             id = "UNKNOWN_ID";
@@ -1534,9 +1476,9 @@ void sendVKeyEvent(VKeyEvent keyEvent)
 
     //consistency check
     if (globalState.keysDownSent[scancode] == 0 && keyEvent.isDownstroke)
-        globalState.debugKeyDownCounter++;
+        globalState.keysDownSentCounter++;
     else if (globalState.keysDownSent[scancode] == 1 && !keyEvent.isDownstroke)
-        globalState.debugKeyDownCounter--;
+        globalState.keysDownSentCounter--;
 
     globalState.keysDownSent[scancode] = keyEvent.isDownstroke;
 
@@ -1552,7 +1494,7 @@ void sendVKeyEvent(VKeyEvent keyEvent)
     }
     
     InterceptionKeyStroke iks = vkeyEvent2ikstroke(keyEvent);
-    IFDEBUG cout << " {" << PRETTY_VK_LABELS[keyEvent.vcode] << (keyEvent.isDownstroke ? "v" : "^") << " #" << globalState.debugKeyDownCounter << "}";
+    IFDEBUG cout << " {" << PRETTY_VK_LABELS[keyEvent.vcode] << (keyEvent.isDownstroke ? "v" : "^") << " #" << globalState.keysDownSentCounter << "}";
 
     interception_send(globalState.interceptionContext, globalState.interceptionDevice, (InterceptionStroke *)&iks, 1);
 //    interception_send(globalState.interceptionContext, globalState.interceptionDevice, (InterceptionStroke *)&loopState.originalIKstroke, 1);

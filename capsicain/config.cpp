@@ -8,6 +8,7 @@
 #include <iterator>
 #include <windows.h>
 #include <tlhelp32.h>
+#include <algorithm>
 
 #include "config.h"
 #include "capsicain.h"
@@ -25,7 +26,7 @@ void normalizeLine(string &line)
     if (string::npos != idxComment)
         line.erase(idxComment);
 
-    replace(line.begin(), line.end(), '\t', ' ');
+    std::replace(line.begin(), line.end(), '\t', ' ');
 
     line.erase(0, line.find_first_not_of(' '));
     line.erase(line.find_last_not_of(' ') + 1);
@@ -452,11 +453,8 @@ bool lexRule(std::string line, int &key, unsigned short(&mods)[3], std::vector<V
     }
     else if (funcName == "altchar")
     {
-        strokeSeq.push_back({ SC_CPS_ESC, true }); //temp release LSHIFT if it is currently down
-        strokeSeq.push_back({ CPS_ESC_SEQUENCE_TYPE_TEMPALTERMODIFIERS, true });
-        strokeSeq.push_back({ BITMASK_LSHIFT | BITMASK_RSHIFT | BITMASK_LCTRL | BITMASK_RCTRL , false });
-        strokeSeq.push_back({ BITMASK_RALT , true });
-        strokeSeq.push_back({ SC_CPS_ESC, false });
+        strokeSeq.push_back({ VK_CPS_TEMPRELEASEKEYS, true }); //temp release LSHIFT if it is currently down
+        strokeSeq.push_back({ SC_RALT , true });
         for (int i = 0; i < funcParams.length(); i++)
         {
             char c = funcParams[i];
@@ -470,60 +468,63 @@ bool lexRule(std::string line, int &key, unsigned short(&mods)[3], std::vector<V
             strokeSeq.push_back({ (unsigned char)isc, true });
             strokeSeq.push_back({ (unsigned char)isc, false });
         }
-        strokeSeq.push_back({ SC_CPS_ESC, false });
+        strokeSeq.push_back({ SC_RALT , false });
+        strokeSeq.push_back({ VK_CPS_TEMPRESTOREKEYS, false });
     }
     else if (funcName == "moddedkey")
     {
         vector<string> modKeyParams = stringSplit(funcParams, '+');
         if (modKeyParams.size() != 2)
             return false;
-        int isc = getVcode(modKeyParams[0], scLabels);
-        if (isc < 0)
+        int vkey = getVcode(modKeyParams[0], scLabels);
+        if (vkey < 0)
             return false;
 
-        unsigned short modsPress = lexModString(modKeyParams[1], '&'); //and (press if up)
-        unsigned short modsRelease = lexModString(modKeyParams[1], '^'); //not (release if down)
+        strokeSeq.push_back({ VK_CPS_TEMPRELEASEKEYS, true });
 
-        strokeSeq.push_back({ SC_CPS_ESC, true });
-        strokeSeq.push_back({ CPS_ESC_SEQUENCE_TYPE_TEMPALTERMODIFIERS, true });
-        if (modsPress > 0)
-            strokeSeq.push_back({ modsPress, true });
-        if (modsRelease > 0)
-            strokeSeq.push_back({ modsRelease, false });
-        strokeSeq.push_back({ SC_CPS_ESC, false });
-        strokeSeq.push_back({ (unsigned char)isc, true });
-        strokeSeq.push_back({ (unsigned char)isc, false });
-        strokeSeq.push_back({ SC_CPS_ESC, false }); //second UP does UNDO the temp mod changes
+        int modsPress = lexModString(modKeyParams[1], '&'); //and (press if up)
+        //now disabling the ^ character. All mods are always released
+        unsigned short testObsoleteReleaseChar = lexModString(modKeyParams[1], '^'); //not (release if down)
+        if (testObsoleteReleaseChar > 0)
+        {
+            cout << endl << "WARNING: the '^' release key is now ignored. All modifiers are released for moddedKey()";
+        }
+
+        //send all "&" modifier down 
+        for(int i =0; i<8; i++)
+        {
+            int currentMod = modsPress & (1 << i);
+            if (currentMod > 0)
+            {
+                int mod = getModifierForBitmask(currentMod);
+                strokeSeq.push_back({ mod, true });
+            }
+        }
+
+        strokeSeq.push_back({ (unsigned char)vkey, true });
+        strokeSeq.push_back({ (unsigned char)vkey, false });
+
+        //send all "&" modifier up
+        for (int i = 0; i < 8; i++)
+        {
+            int currentMod = modsPress & (1 << i);
+            if (currentMod > 0)
+            {
+                int mod = getModifierForBitmask(currentMod);
+                strokeSeq.push_back({ mod, false });
+            }
+        }
+
+        strokeSeq.push_back({ VK_CPS_TEMPRESTOREKEYS, false });
     }
     else if (funcName == "sequence")
     {
-        const string PAUSE_TAG = "pause:";
         vector<string> params = stringSplit(funcParams, '_');
         bool downkeys[256] = { 0 };
+        const string SLEEP_TAG = "sleep:";
 
         for (string param : params)
         {
-            //handle the "pause:10" items
-            if (stringStartsWith(param, PAUSE_TAG))
-            {
-                string sleeptime = param.substr(PAUSE_TAG.length());
-                int stime = stoi(sleeptime);
-                if (stime > 255)
-                {
-                    cout << endl << "Sequence() defines pause > 255. Reducing to 255 (25.5 seconds)";
-                    stime = 255;
-                }
-                if (stime == 0)
-                {
-                    cout << endl << "Sequence() defines pause:0. Ignoring the pause.";
-                    continue;
-                }
-                strokeSeq.push_back({ SC_CPS_ESC, true });
-                strokeSeq.push_back({ CPS_ESC_SEQUENCE_TYPE_SLEEP, true });
-                strokeSeq.push_back({ (unsigned short)stime, true });
-                continue;
-            }
-
             // &key is down, ^key is up, key is both.
             bool downstroke = true;
             bool upstroke = true;
@@ -534,10 +535,34 @@ bool lexRule(std::string line, int &key, unsigned short(&mods)[3], std::vector<V
             if (!downstroke || !upstroke)
                 param = param.substr(1);
 
+            if (stringStartsWith(param, "pause:"))
+            {
+                cout << endl << "WARNING: '_pause:10_' is now written as '_sleep:1000_'." << endl << "Ignoring " << param;
+                continue;
+            }
+            //handle the "sleep:10" items
+            if (stringStartsWith(param, SLEEP_TAG))
+            {
+                string sleeptime = param.substr(SLEEP_TAG.length());
+                int stime = stoi(sleeptime);
+                if (stime > 30000)
+                {
+                    cout << endl << "Sequence() defines sleep: > 30000 Reducing to 30000 (30 seconds)";
+                    stime = 30000;
+                }
+                if (stime <= 0)
+                {
+                    cout << endl << "Sequence() defines sleep: <=0. Ignoring the pause.";
+                    continue;
+                }
+                strokeSeq.push_back({ VK_CPS_SLEEP, true });
+                strokeSeq.push_back({ stime, true });
+                continue;
+            }
             int isc = getVcode(param, scLabels);
             if (isc < 0)
             {
-                cout << endl << "Unknown key label in sequence(): " << param;
+                cout << endl << "WARNING: Unknown key label in sequence(): " << param;
                 return false;
             }
 
