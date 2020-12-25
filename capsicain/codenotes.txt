@@ -1,16 +1,19 @@
 Ongoing stream of what I want to remember...
 
 TODO
-- tap+hold Alt
-- clean up the ugly previousKeyEventInStore
-- refactor the CAPS_ESC sequences; those should be easier now
 - record macros on key in (today) or on key out?
 - nicer macro 'language'
 - enable/disable (layer0) toggle switch/vkey
 - numbered trayicons
+- input sequences (CTRL+fyi+Enter -> for your information)
 - test if SC_0Xnn still works in ini
 - צהü should not ignore CapsLock ON
+- rethink double tap breaking tapped state
+- check / distribute new DLLs
+- test that "temp release all keys" has no side effects
+- Documentation.....
 
+v??
 New ini GLOBALs
 - delayOnStartupMS {number} (default 0. Useful if you need time to release keys when starting capsicain with a shortcut)
 - startMinimized (default false. Capsicain starts minimized in the taskbar)
@@ -25,8 +28,8 @@ Modified handling for showing hiding window / taskbar / traybar
 - any command with "info output" pops up the window
 - can't move to tray on minimize (console is out of the Win event loop, it only sees incoming keys)
 
-v63
-git branch vk
+v63beta
+git branch dev
 massive changes following the switch from 8bit scancode to int vcode...
 scancode is original
 vcode is copy of original; possibly changed later
@@ -36,7 +39,7 @@ now assume that keysDownSent[] really knows the state of what Windows knows
 
 v65beta
 rework the tapping stuff
-double tap no longer breaks tap //TODO rework
+double tap no longer breaks tap
 removed OPTION ShiftShiftToCapsLock (obsolete)
 COMBO can deal with modifiers like COMBO LSHF [&.] > key (CAPSON)
 new VKeys CAPSON, CAPSOFF
@@ -59,11 +62,15 @@ Configurable TapHold. Phew. Tapdance is complicated.
 v69beta VS2019
 - upgrade from VS2017 to VS2019
 - retarget to latest vcruntime, msvcp (not sure if this still works on Win7)
--> may need to distribute new DLLs //TODO
+-> may need to distribute new DLLs
 - c++ 14 > c++ 17
 - linter complains about bit operations on unsigned char (suck)
 - cleaned up three new warnings about conversion types
 - app icon is broken for debug (suck)
 - breaking change: PAUSE:10 is now SLEEP 1000.  Now sleeps n milliseconds (was 1/10s before)
-- take care of moddedKeys / when and when not to release physical modifiers //TODO
+- take care of moddedKeys / when and when not to release physical modifiers
 - now moddedKey() releases ALL physical modifiers
+
+v70beta: fix flipAppleKeys
+- some doc cleanup
+note: flipYZ does not clash with the new rewire style since it's soft and late anyway

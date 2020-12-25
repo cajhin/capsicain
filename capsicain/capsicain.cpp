@@ -283,9 +283,21 @@ int main()
 
         //copy InterceptionKeyStroke (unpleasant to use) to plain VKeyEvent
         VKeyEvent originalVKeyEvent = ikstroke2VKeyEvent(loopState.originalIKstroke);
-        loopState.scancode = originalVKeyEvent.vcode;  //scancode is write-once
+        loopState.scancode = originalVKeyEvent.vcode;  //scancode is write-once (except for the AppleWinAlt option)
         loopState.vcode = loopState.scancode;          //vcode may be altered below
         loopState.isDownstroke = originalVKeyEvent.isDownstroke;
+
+        //flip Win+Alt only for Apple keyboards. Ugly that this must rewrite the scancode
+        if (option.flipAltWinOnAppleKeyboards && globalState.deviceIsAppleKeyboard)
+        {
+            switch (loopState.scancode)
+            {
+            case SC_LALT: loopState.scancode = SC_LWIN; break;
+            case SC_LWIN: loopState.scancode = SC_LALT; break;
+            case SC_RALT: loopState.scancode = SC_RWIN; break;
+            case SC_RWIN: loopState.scancode = SC_RALT; break;
+            }
+        }
 
         //Tapdance
         DetectTapping(originalVKeyEvent);
@@ -490,7 +502,6 @@ void processModifierState()
 
     //Default tapping logic without specific rules
     //Tapped mod key sets tapped bitmask. You can combine mod-taps (like tap-Ctrl then tap-Alt).
-    //TODO Long presses, release will not register as tapped.
     if (loopState.tapped)
         modifierState.modifierTapped |= modBitmask;
 }
@@ -498,91 +509,74 @@ void processModifierState()
 //handle all REWIRE configs
 void processRewireScancodeToVirtualcode()
 {
-    //TODO this won't work with new rewire style
-    if (option.flipAltWinOnAppleKeyboards && globalState.deviceIsAppleKeyboard)
+    //Rewire to new vcode; check for Tapped rule
+    //repeating tapHold key?
+    if (loopState.scancode == globalState.tapAndHoldKey && loopState.isDownstroke)
     {
-        switch (loopState.scancode)
-        {
-        case SC_LALT: loopState.vcode = SC_LWIN; break;
-        case SC_LWIN: loopState.vcode = SC_LALT; break;
-        case SC_RALT: loopState.vcode = SC_RWIN; break;
-        case SC_RWIN: loopState.vcode = SC_RALT; break;
-        }
+        loopState.scancode = SC_NOP;
+        return;
     }
 
-    bool finalVcode = false;
-
-    //Rewire to new vcode; check for Tapped rule
-    if (!finalVcode)
+    int rewoutkey = allMaps.rewiremap[loopState.scancode][REWIRE_OUT];
+    if (rewoutkey >= 0)
     {
-        //repeating tapHold key?
-        if (loopState.scancode == globalState.tapAndHoldKey && loopState.isDownstroke)
+        //Rewire
+        loopState.vcode = rewoutkey;
+
+        //tapped?
+        int rewtapkey = allMaps.rewiremap[loopState.scancode][REWIRE_TAP];
+        if (loopState.tapped && rewtapkey >= 0)  //ifTapped definition applies
         {
-            loopState.scancode = SC_NOP;
-            return;
+            //rewired tap (like TAB to TAB) clears all previous modifier taps. Good?
+            modifierState.modifierTapped = 0;
+
+            //release the original rewired result for hardware keys (e.g. Shift may be down)
+            loopState.resultingVKeyEventSequence.push_back({ rewoutkey, false });
+            if (isModifier(loopState.vcode))
+            {
+                unsigned short modBitmask = getBitmaskForModifier(loopState.vcode);
+                if (modBitmask != 0)
+                    modifierState.modifierDown &= ~modBitmask; //undo previous key down, e.g. clear internal 'MOD10 is down'
+            }
+            //send tap key
+            loopState.vcode = rewtapkey;
+            loopState.resultingVKeyEventSequence.push_back({ rewtapkey, true });
+            loopState.resultingVKeyEventSequence.push_back({ rewtapkey, false });
         }
 
-        int rewoutkey = allMaps.rewiremap[loopState.scancode][REWIRE_OUT];
-        if (rewoutkey >= 0)
+        //tapHold Make?
+        if (loopState.tapHoldMake)
         {
-            //Rewire
-            loopState.vcode = rewoutkey;
-
-            //tapped?
-            int rewtapkey = allMaps.rewiremap[loopState.scancode][REWIRE_TAP];
-            if (loopState.tapped && rewtapkey >= 0)  //ifTapped definition applies
+            int rewtapholdkey = allMaps.rewiremap[loopState.scancode][REWIRE_TAPHOLD];
+            if (rewtapholdkey >= 0)
             {
-                //rewired tap (like TAB to TAB) clears all previous modifier taps. Good?
-                modifierState.modifierTapped = 0;
-
-                //release the original rewired result for hardware keys (e.g. Shift may be down)
-                loopState.resultingVKeyEventSequence.push_back({ rewoutkey, false });
-                if (isModifier(loopState.vcode))
+                if (globalState.tapAndHoldKey < 0)
                 {
-                    unsigned short modBitmask = getBitmaskForModifier(loopState.vcode);
-                    if (modBitmask != 0)
-                        modifierState.modifierDown &= ~modBitmask; //undo previous key down, e.g. clear internal 'MOD10 is down'
-                }
-                //send tap key
-                loopState.vcode = rewtapkey;
-                loopState.resultingVKeyEventSequence.push_back({ rewtapkey, true });
-                loopState.resultingVKeyEventSequence.push_back({ rewtapkey, false });
-            }
-
-            //tapHold Make?
-            if (loopState.tapHoldMake)
-            {
-                int rewtapholdkey = allMaps.rewiremap[loopState.scancode][REWIRE_TAPHOLD];
-                if (rewtapholdkey >= 0)
-                {
-                    if (globalState.tapAndHoldKey < 0)
-                    {
-                        globalState.tapAndHoldKey = loopState.scancode;  //remember the original scancode
-                        if(rewtapholdkey < 255) //send make only for real keys
-                            loopState.resultingVKeyEventSequence.push_back({ rewtapholdkey, true });
-                        loopState.vcode = rewtapholdkey;
-                        IFDEBUG cout << endl << "Make taphold rewired: " << hex << rewtapholdkey;
-                    }
-                    else
-                        error("Ignoring second tap-and-hold event; only one can be active.");
-                }
-            }
-            //tapHold Break?
-            if (!loopState.isDownstroke && loopState.scancode == globalState.tapAndHoldKey)
-            {
-                int rewtapholdkey = allMaps.rewiremap[loopState.scancode][REWIRE_TAPHOLD];
-                if (rewtapholdkey >= 0)
-                {
-                    globalState.tapAndHoldKey = -1;
-                    if (rewtapholdkey < 255) //send break only for real keys
-                        loopState.resultingVKeyEventSequence.push_back({ rewtapholdkey, false });
+                    globalState.tapAndHoldKey = loopState.scancode;  //remember the original scancode
+                    if(rewtapholdkey < 255) //send make only for real keys
+                        loopState.resultingVKeyEventSequence.push_back({ rewtapholdkey, true });
                     loopState.vcode = rewtapholdkey;
-                    IFDEBUG cout << endl << "Break taphold rewired: " << hex << rewtapholdkey;
+                    IFDEBUG cout << endl << "Make taphold rewired: " << hex << rewtapholdkey;
                 }
                 else
-                {
-                    error("BUG: undefined tapHold should never have been stored");
-                }
+                    error("Ignoring second tap-and-hold event; only one can be active.");
+            }
+        }
+        //tapHold Break?
+        if (!loopState.isDownstroke && loopState.scancode == globalState.tapAndHoldKey)
+        {
+            int rewtapholdkey = allMaps.rewiremap[loopState.scancode][REWIRE_TAPHOLD];
+            if (rewtapholdkey >= 0)
+            {
+                globalState.tapAndHoldKey = -1;
+                if (rewtapholdkey < 255) //send break only for real keys
+                    loopState.resultingVKeyEventSequence.push_back({ rewtapholdkey, false });
+                loopState.vcode = rewtapholdkey;
+                IFDEBUG cout << endl << "Break taphold rewired: " << hex << rewtapholdkey;
+            }
+            else
+            {
+                error("BUG: undefined tapHold should never have been stored");
             }
         }
     }
@@ -850,17 +844,13 @@ void sendResultingKeyOrSequence()
     }
 }
 
-//May contain Capsicain Escape sequences, those are a bit hacky. 
-//They are used to temporarily make/break modifiers (for example, ALT+Q -> Shift+1... but don't mess with shift state if it is actually pressed)
-//Sequence starts with SC_CPS_ESC DOWN
-//Scancodes inside are modifier bitmasks. State DOWN means "set these modifiers if they are up", UP means "clear those if they are down".
-//Sequence ends with SC_CPS_ESC UP -> the modifier sequence is played.
-//Second SC_CPS_ESC UP -> the previous changes to the modifiers are reverted.
+//Send out all keys in a sequence
+//Sequences are created for anything that requires more than one key event, like AltChar(123)
 void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
 {
     VKeyEvent newKeyEvent;
     unsigned int delayBetweenKeyEventsMS = option.delayForKeySequenceMS;
-    bool tempReleasedKeys = false;
+    bool tempReleasedKeys = false; //command to temporarily release all physical keys came in
     bool vkSleepTriggered = false;
 
     IFDEBUG cout << "\t--> SEQUENCE (" << dec << keyEventSequence.size() << ")";
