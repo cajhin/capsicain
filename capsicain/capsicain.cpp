@@ -45,6 +45,7 @@ struct Options
 struct ModifierCombo
 {
     int vkey = SC_NOP;
+    unsigned char deadkey = 0;
     unsigned short modAnd = 0;
     unsigned short modNot = 0;
     unsigned short modTap = 0;
@@ -98,10 +99,10 @@ struct GlobalState
 
 struct ModifierState
 {
+    unsigned char activeDeadkey = -1;  //it's not really a modifier though...
     unsigned short modifierDown = 0;
     unsigned short modifierTapped = 0;
     vector<VKeyEvent> modsTempAltered;
-
 } modifierState;
 
 struct LoopState
@@ -588,7 +589,7 @@ void processRewireScancodeToVirtualcode()
 
 void processCombos()
 {
-    if (!loopState.isDownstroke || (modifierState.modifierDown == 0 && modifierState.modifierTapped == 0))
+    if (!loopState.isDownstroke || (modifierState.modifierDown == 0 && modifierState.modifierTapped == 0 && modifierState.activeDeadkey == 0))
         return;
 
     for (ModifierCombo modcombo : allMaps.modCombos)
@@ -596,6 +597,7 @@ void processCombos()
         if (modcombo.vkey == loopState.vcode)
         {
             if (
+                modifierState.activeDeadkey == modcombo.deadkey &&
                 (modifierState.modifierDown & modcombo.modAnd) == modcombo.modAnd &&
                 (modifierState.modifierDown & modcombo.modNot) == 0 &&
                 ((modifierState.modifierTapped & modcombo.modTap) == modcombo.modTap)
@@ -607,6 +609,8 @@ void processCombos()
             }
         }
     }
+    if(!loopState.isModifier)
+        modifierState.activeDeadkey = 0;
 }
 
 void processMapAlphaKeys()
@@ -851,7 +855,10 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
     VKeyEvent newKeyEvent;
     unsigned int delayBetweenKeyEventsMS = option.delayForKeySequenceMS;
     bool tempReleasedKeys = false; //command to temporarily release all physical keys came in
+
+    //'next key has special meaning'
     bool vkSleepTriggered = false;
+    bool vkDeadkeyTriggered = false;
 
     IFDEBUG cout << "\t--> SEQUENCE (" << dec << keyEventSequence.size() << ")";
     for (VKeyEvent keyEvent : keyEventSequence)
@@ -862,8 +869,14 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
             Sleep(keyEvent.vcode);
             vkSleepTriggered = false;
         }
+        else if (vkDeadkeyTriggered)
+        {
+            IFDEBUG cout << endl << "vkdeadkey: " << (unsigned char) keyEvent.vcode;
+            modifierState.activeDeadkey = keyEvent.vcode;
+            vkDeadkeyTriggered = false;
+        }
         //release and remember all keys that are physically down
-        if (keyEvent.vcode == VK_CPS_TEMPRELEASEKEYS)
+        else if (keyEvent.vcode == VK_CPS_TEMPRELEASEKEYS)
         {
             bool tempReleasedKeys = true;
             for (int i = 0; i <= 255; i++)
@@ -892,6 +905,10 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
         {
             vkSleepTriggered = true;
         }
+        else if (keyEvent.vcode == VK_CPS_DEADKEY)
+        {
+            vkDeadkeyTriggered = true;
+        }
         else //regular non-escaped keyEvent
         {
             sendVKeyEvent(keyEvent);
@@ -906,6 +923,8 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
         error("VK_CPS_TEMPRELEASEKEYS without corresponding VK_CPS_TEMPRESTOREKEYS. Check your config.");
     if (vkSleepTriggered)
         error("BUG: VK_CPS_SLEEP is unfinished");
+    if (vkDeadkeyTriggered)
+        error("BUG: VK_CPS_DEADKEY is unfinished");
 }
 
 
@@ -942,16 +961,22 @@ void getHardwareId()
 void initConsoleWindow()
 {
     //disable quick edit; blocking the console window means the keyboard is dead
-    HANDLE Handle = GetStdHandle(STD_INPUT_HANDLE);
+    HANDLE handle = GetStdHandle(STD_INPUT_HANDLE);
     DWORD mode;
-    GetConsoleMode(Handle, &mode);
+    GetConsoleMode(handle, &mode);
     mode &= ~ENABLE_QUICK_EDIT_MODE;
     mode &= ~ENABLE_MOUSE_INPUT;
-    SetConsoleMode(Handle, mode);
+    SetConsoleMode(handle, mode);
 
     system("color 8E");  //byte1=background, byte2=text
     string title = "Capsicain v" VERSION;
     SetConsoleTitle(title.c_str());
+    
+    //resize to 800x600
+    HWND console = GetConsoleWindow();
+    RECT initialRect;
+    GetWindowRect(console, &initialRect);
+    MoveWindow(console, initialRect.left, initialRect.top, 800, 600, TRUE);
 }
 
 // Parses the OPTIONS in the given section.
@@ -1057,19 +1082,19 @@ bool parseIniCombos(std::vector<std::string> assembledIni)
     if (sectLines.size() == 0)
         return false;
 
-    unsigned short mods[3] = { 0 }; //and, not, tap (nop, for)
+    unsigned short mods[4] = { 0 }; //deadkey, and, not, tap
     vector<VKeyEvent> keyEventSequence;
 
     for (string line : sectLines)
     {
         int key;
-        if (lexRule(line, key, mods, keyEventSequence, PRETTY_VK_LABELS))
+        if (lexComboRule(line, key, mods, keyEventSequence, PRETTY_VK_LABELS))
         {
             bool isDuplicate = false;
             for (ModifierCombo testcombo : allMaps.modCombos)
             {
-                if (key == testcombo.vkey && mods[0] == testcombo.modAnd
-                    && mods[1] == testcombo.modNot && mods[2] == testcombo.modTap)
+                if (key == testcombo.vkey && mods[0] == testcombo.deadkey && mods[1] == testcombo.modAnd
+                    && mods[2] == testcombo.modNot && mods[3] == testcombo.modTap)
                 {
                     //warn only if the combos are different
                     bool redefined = false;
@@ -1089,18 +1114,17 @@ bool parseIniCombos(std::vector<std::string> assembledIni)
                         redefined = true;
 
                     if(redefined)
-                        IFDEBUG cout << endl << "WARNING: Ignoring redefinition of Combo: " <<
-                        PRETTY_VK_LABELS[key] << " [ " << hex << mods[0] << ", " << mods[1] << ", " << mods[2] << "] > ...";
+                        cout << endl << "WARNING: Ignoring redefinition of Combo: " << line;
 
                     isDuplicate = true;
                     break;
                 }
             }
             if(!isDuplicate)
-                allMaps.modCombos.push_back({ key, mods[0], mods[1], mods[2], keyEventSequence });
+                allMaps.modCombos.push_back({ key, (unsigned char) mods[0], mods[1], mods[2], mods[3], keyEventSequence });
         }
         else
-            error("Cannot parse combo: " + line);
+            error("Cannot parse combo rule: " + line);
     }
     return true;
 }
@@ -1260,7 +1284,6 @@ void resetRewiremap()
             allMaps.rewiremap[r][c] = -1;
 }
 
-
 void resetLoopState()
 {
     loopState.isDownstroke = false;
@@ -1274,6 +1297,7 @@ void resetLoopState()
 
 void resetModifierState()
 {
+    modifierState.activeDeadkey = -1;
     modifierState.modifierDown = 0;
     modifierState.modifierTapped = 0;
     modifierState.modsTempAltered.clear();

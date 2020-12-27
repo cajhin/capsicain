@@ -246,6 +246,8 @@ bool getIntValueForKey(std::string key, int &value, vector<std::string> sectionL
 
 std::string stringGetFirstToken(std::string line)
 {
+    while (line[0] == ' ')
+        line = line.substr(1);
     size_t idx = line.find_first_of(" ");
     if (idx == string::npos)
         idx = line.length();
@@ -374,14 +376,30 @@ bool lexFunctionCombo(std::string &funcParams, std::string * scLabels, std::vect
     return true;
 }
 
-//parse keyLabel  [!!!& .--. ....] > function(param)
+//parse {DEADKEY-X} keyLabel  [!!!& .--. ....] > function(param)
 //returns false if the rule is not valid.
-bool lexRule(std::string line, int &key, unsigned short(&mods)[3], std::vector<VKeyEvent> &strokeSequence, std::string scLabels[])
+bool lexComboRule(std::string line, int &key, unsigned short(&mods)[4], std::vector<VKeyEvent> &strokeSequence, std::string scLabels[])
 {
     string strkey = stringGetFirstToken(line);
     if (strkey.length() < 1)
         return false;
-    line = line.substr(strkey.length());
+    line = line.substr(strkey.length()); //
+
+    int deadKey = 0;
+    if (stringStartsWith(strkey, "deadkey-"))  //parse optional COMBO DEADKEY-XY  A [...] > func()
+    {
+        strkey = strkey.substr(8);
+        if (strkey.length() < 1)
+            return false;
+        deadKey = getVcode(strkey, scLabels);
+        if (deadKey < 0 || deadKey > 255)
+            return false;
+
+        strkey = stringGetFirstToken(line);
+        if (strkey.length() < 1)
+            return false;
+        line = line.substr(strkey.length()); 
+    }
 
     int itmpKey = getVcode(strkey, scLabels);
     if (itmpKey < 0)
@@ -396,9 +414,10 @@ bool lexRule(std::string line, int &key, unsigned short(&mods)[3], std::vector<V
         return false;
     string mod = line.substr(modIdx1, modIdx2 - modIdx1);
 
-    mods[0] = lexModString(mod, '&'); //and 
-    mods[1] = lexModString(mod, '^'); //not 
-    mods[2] = lexModString(mod, 't'); //tap
+    mods[0] = (unsigned char) deadKey;
+    mods[1] = lexModString(mod, '&'); //and 
+    mods[2] = lexModString(mod, '^'); //not 
+    mods[3] = lexModString(mod, 't'); //tap
 
     //extract function name + param
     size_t funcIdx1 = line.find_first_of('>') + 1;
@@ -423,7 +442,7 @@ bool lexRule(std::string line, int &key, unsigned short(&mods)[3], std::vector<V
     funcIdx2++;
     string funcParams = line.substr(funcIdx2, funcIdx3 - funcIdx2);
 
-    //translate 'function' into a char sequence
+    //translate 'function' into a key sequence
     vector<VKeyEvent> strokeSeq;
     if (funcName == "key")
     {
@@ -586,6 +605,14 @@ bool lexRule(std::string line, int &key, unsigned short(&mods)[3], std::vector<V
                 return false;
             }
         }
+    }
+    else if (funcName == "deadkey")
+    {
+        int isc = getVcode(funcParams, scLabels);
+        if (isc < 0 || isc > 255)
+            return false;
+        strokeSeq.push_back({ VK_CPS_DEADKEY, true });
+        strokeSeq.push_back({ isc, true });
     }
     else
         return false;
