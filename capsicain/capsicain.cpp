@@ -47,6 +47,7 @@ struct ModifierCombo
     int vkey = SC_NOP;
     unsigned char deadkey = 0;
     unsigned short modAnd = 0;
+    unsigned short modOr = 0;
     unsigned short modNot = 0;
     unsigned short modTap = 0;
     vector<VKeyEvent> keyEventSequence;
@@ -99,7 +100,7 @@ struct GlobalState
 
 struct ModifierState
 {
-    unsigned char activeDeadkey = -1;  //it's not really a modifier though...
+    unsigned char activeDeadkey = 0;  //it's not really a modifier though...
     unsigned short modifierDown = 0;
     unsigned short modifierTapped = 0;
     vector<VKeyEvent> modsTempAltered;
@@ -451,6 +452,7 @@ int main()
     
         IFDEBUG cout << " [M:" << hex << modifierState.modifierDown;
         IFDEBUG if (modifierState.modifierTapped)  cout << " TAP:" << hex << modifierState.modifierTapped;
+        IFDEBUG if (modifierState.activeDeadkey)  cout << " DEAD:" << hex << getPrettyVKLabelPadded(modifierState.activeDeadkey,0);
         IFDEBUG cout << "] ";
 
         //evaluate modified keys
@@ -599,6 +601,7 @@ void processCombos()
             if (
                 modifierState.activeDeadkey == modcombo.deadkey &&
                 (modifierState.modifierDown & modcombo.modAnd) == modcombo.modAnd &&
+                (modcombo.modOr == 0 || (modifierState.modifierDown & modcombo.modOr) > 0) &&
                 (modifierState.modifierDown & modcombo.modNot) == 0 &&
                 ((modifierState.modifierTapped & modcombo.modTap) == modcombo.modTap)
                 )
@@ -857,23 +860,23 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
     bool tempReleasedKeys = false; //command to temporarily release all physical keys came in
 
     //'next key has special meaning'
-    bool vkSleepTriggered = false;
-    bool vkDeadkeyTriggered = false;
+    bool expectNextSleepValue = false;
+    bool expectNextDeadkey = false;
 
     IFDEBUG cout << "\t--> SEQUENCE (" << dec << keyEventSequence.size() << ")";
     for (VKeyEvent keyEvent : keyEventSequence)
     {
-        if (vkSleepTriggered)
+        if (expectNextSleepValue)
         {
             IFDEBUG cout << endl << "vksleep: " << keyEvent.vcode;
             Sleep(keyEvent.vcode);
-            vkSleepTriggered = false;
+            expectNextSleepValue = false;
         }
-        else if (vkDeadkeyTriggered)
+        else if (expectNextDeadkey)
         {
-            IFDEBUG cout << endl << "vkdeadkey: " << (unsigned char) keyEvent.vcode;
+            IFDEBUG cout << endl << "vkdeadkey: " << getPrettyVKLabelPadded(keyEvent.vcode,0);
             modifierState.activeDeadkey = keyEvent.vcode;
-            vkDeadkeyTriggered = false;
+            expectNextDeadkey = false;
         }
         //release and remember all keys that are physically down
         else if (keyEvent.vcode == VK_CPS_TEMPRELEASEKEYS)
@@ -903,11 +906,11 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
         }
         else if (keyEvent.vcode == VK_CPS_SLEEP)
         {
-            vkSleepTriggered = true;
+            expectNextSleepValue = true;
         }
         else if (keyEvent.vcode == VK_CPS_DEADKEY)
         {
-            vkDeadkeyTriggered = true;
+            expectNextDeadkey = true;
         }
         else //regular non-escaped keyEvent
         {
@@ -921,9 +924,9 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
 
     if(tempReleasedKeys)
         error("VK_CPS_TEMPRELEASEKEYS without corresponding VK_CPS_TEMPRESTOREKEYS. Check your config.");
-    if (vkSleepTriggered)
+    if (expectNextSleepValue)
         error("BUG: VK_CPS_SLEEP is unfinished");
-    if (vkDeadkeyTriggered)
+    if (expectNextDeadkey)
         error("BUG: VK_CPS_DEADKEY is unfinished");
 }
 
@@ -1082,7 +1085,7 @@ bool parseIniCombos(std::vector<std::string> assembledIni)
     if (sectLines.size() == 0)
         return false;
 
-    unsigned short mods[4] = { 0 }; //deadkey, and, not, tap
+    unsigned short mods[5] = { 0 }; //deadkey, and, or, not, tap
     vector<VKeyEvent> keyEventSequence;
 
     for (string line : sectLines)
@@ -1094,7 +1097,7 @@ bool parseIniCombos(std::vector<std::string> assembledIni)
             for (ModifierCombo testcombo : allMaps.modCombos)
             {
                 if (key == testcombo.vkey && mods[0] == testcombo.deadkey && mods[1] == testcombo.modAnd
-                    && mods[2] == testcombo.modNot && mods[3] == testcombo.modTap)
+                    && mods[2] == testcombo.modOr && mods[3] == testcombo.modNot && mods[4] == testcombo.modTap)
                 {
                     //warn only if the combos are different
                     bool redefined = false;
@@ -1121,7 +1124,7 @@ bool parseIniCombos(std::vector<std::string> assembledIni)
                 }
             }
             if(!isDuplicate)
-                allMaps.modCombos.push_back({ key, (unsigned char) mods[0], mods[1], mods[2], mods[3], keyEventSequence });
+                allMaps.modCombos.push_back({ key, (unsigned char) mods[0], mods[1], mods[2], mods[3], mods[4], keyEventSequence });
         }
         else
             error("Cannot parse combo rule: " + line);
@@ -1297,7 +1300,7 @@ void resetLoopState()
 
 void resetModifierState()
 {
-    modifierState.activeDeadkey = -1;
+    modifierState.activeDeadkey = 0;
     modifierState.modifierDown = 0;
     modifierState.modifierTapped = 0;
     modifierState.modsTempAltered.clear();

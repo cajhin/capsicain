@@ -22,6 +22,6 @@ bool getStringValueForTaggedKey(std::string tag, std::string key, std::string & 
 bool getStringValueForKey(std::string key, std::string & value, std::vector<std::string> sectionLines);
 bool getIntValueForTaggedKey(std::string tag, std::string key, int & value, std::vector<std::string> sectionLines);
 bool getIntValueForKey(std::string key, int & value, std::vector<std::string> sectionLines);
-bool lexComboRule(std::string line, int &key, unsigned short(&mods)[4], std::vector<VKeyEvent> &strokeSequence, std::string scLabels[]);
+bool lexComboRule(std::string line, int &key, unsigned short(&mods)[5], std::vector<VKeyEvent> &strokeSequence, std::string scLabels[]);
 bool lexAlphaFromTo(std::string mapFromTo, int(&alphamap)[MAX_VCODES], std::string scLabels[]);
 bool lexRewireRule(std::string line, unsigned char & keyA, int & keyB, int & keyC, int & keyD, std::string scLabels[]);

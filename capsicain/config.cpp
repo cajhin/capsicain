@@ -376,9 +376,9 @@ bool lexFunctionCombo(std::string &funcParams, std::string * scLabels, std::vect
     return true;
 }
 
-//parse {DEADKEY-X} keyLabel  [!!!& .--. ....] > function(param)
+//parse {deadkey-x} keyLabel  [&|^t ....] > function(param)
 //returns false if the rule is not valid.
-bool lexComboRule(std::string line, int &key, unsigned short(&mods)[4], std::vector<VKeyEvent> &strokeSequence, std::string scLabels[])
+bool lexComboRule(std::string line, int &key, unsigned short(&mods)[5], std::vector<VKeyEvent> &strokeSequence, std::string scLabels[])
 {
     string strkey = stringGetFirstToken(line);
     if (strkey.length() < 1)
@@ -416,8 +416,9 @@ bool lexComboRule(std::string line, int &key, unsigned short(&mods)[4], std::vec
 
     mods[0] = (unsigned char) deadKey;
     mods[1] = lexModString(mod, '&'); //and 
-    mods[2] = lexModString(mod, '^'); //not 
-    mods[3] = lexModString(mod, 't'); //tap
+    mods[2] = lexModString(mod, '|'); //or
+    mods[3] = lexModString(mod, '^'); //not 
+    mods[4] = lexModString(mod, 't'); //tap
 
     //extract function name + param
     size_t funcIdx1 = line.find_first_of('>') + 1;

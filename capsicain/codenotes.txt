@@ -80,3 +80,8 @@ v71beta: dead keys
 - create diacritics with 
   COMBO U [..T.] > deadkey(U)  //tapped-RCtrl, U activates deadkey SC_U
   COMBO DEADKEY-U  A [& ....] > altChar(0196)  //RSHF+A with dk-U active = 'Ä'
+
+v72beta: OR
+- [...| ...|] matches if LShift OR RShift is down
+- deadkey fixes
+- deadkey ini
