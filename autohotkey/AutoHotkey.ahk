@@ -12,6 +12,7 @@
 ;           Support CapsLock
 ; 20181207: Sleep first when receiving F14/15 commands
 ; 20181210: Alt+Win+H Exit AHK. Cleanup. Back to single script.
+; 20181210: Cleanup, Z<>Y
 
 ;*********init**********
 SendMode Input  ; Recommended for new scripts due to its superior speed and reliability.
@@ -20,11 +21,12 @@ return  ; End of auto-execute section.
 ;*************************END AUTORUN**************
 
 
-*Launch_Mail::  ; ~ on logitech does right click. Remapped ~ to SC_MAIL with capsicain
-SendEvent {Blind}{MButton down}
-KeyWait Launch_Mail  ; Prevents keyboard auto-repeat from repeating the mouse click.
-SendEvent {Blind}{MButton up}
-return
+;;;;middle mouse with a key - disabled for now
+;*Launch_Mail::  ; ~ on logitech does right click. Remapped ~ to SC_MAIL with capsicain
+;SendEvent {Blind}{MButton down}
+;keyWait Launch_Mail  ; Prevents keyboard auto-repeat from repeating the mouse click.
+;SendEvent {Blind}{MButton up}
+;return
 
 
 ;****************************************************
@@ -79,26 +81,6 @@ jPasteFromClipboard(clipNumber)
 	ClipTmp=
 }
 
-;ÄÏÖÜäïöüß€°©
-F14 & a up::SendSleep("ä")
-F14 & o up::SendSleep("ö")
-F14 & u up::SendSleep("ü")
-F14 & s up::SendSleep("ß")
-F14 & e up::SendSleep("€")
-F14 & d up::SendSleep("°")
-F14 & c up::SendSleep("©")
-
-F15 & A up::SendSleep("Ä")
-F15 & O up::SendSleep("Ö")
-F15 & U up::SendSleep("Ü")
-
-;wait for key up first so we don't miss it during action
-SendSleep(char)
-{
-   Sleep 20
-   Send %char%
-   return
-}
 
 ;*******************************************************************************
 ; LEFT WIN KEY I: special functions (the right win key remains windows standard)
@@ -130,7 +112,7 @@ SendSleep(char)
 	return
 }
 
-<#y::   ;minimize active win
+<#z::   ;minimize active win
 {
 	WinGet, last_minimized_id, ID, A
 	IfWinActive PSPad                   ;PSPad doesn't minimize correctly with WinMinimize
@@ -151,7 +133,7 @@ SendSleep(char)
 <#.::RunApp("ahk_exe capsicain.exe","capsicain.exe")
 <#,::RunApp("ahk_exe capsicain.exe","C:\wsl\home\git\capsicain\x64\Debug\capsicain.exe")
 <#f::RunApp("ahk_exe LibBrowser.exe","..\mine\libbrowser\libbrowser.exe")
-<#u::RunApp("ahk_exe ubuntu.exe","ubuntu.exe")
+<#u::RunApp("ahk_exe ubuntu1804.exe","wsl.exe")
 <#d::RunApp("ahk_exe cmd.exe","cmd.exe /k cd..")
 <#c::RunApp("ahk_exe calc.exe","calc.exe")
 <#t::RunApp("ahk_exe cherrytree.exe","..\cherrytree\bin\cherrytree.exe")

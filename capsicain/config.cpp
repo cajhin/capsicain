@@ -348,7 +348,7 @@ bool lexRewireRule(std::string line, unsigned char &keyA, int &keyB, int &keyC, 
 //convert ("xyz_&.", '&') to 000010
 unsigned short lexModString(string modString, char filter)
 {
-    string binString = "";
+    string binString = "0";
     for (int i = 0; i < modString.length(); i++)
     {
         if (modString[i] == filter)

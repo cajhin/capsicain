@@ -1,19 +1,21 @@
 Ongoing stream of what I want to remember...
 
 TODO
+- test if static linking works for both ms*.dll
+- timeout for tappings, deadkeys?
 - record macros on key in (today) or on key out?
 - nicer macro 'language'
 - enable/disable (layer0) toggle switch/vkey
 - numbered trayicons
-- input sequences (CTRL+fyi+Enter -> for your information)
 - test if SC_0Xnn still works in ini
-- צהü should not ignore CapsLock ON
+- accented altChars should not ignore CapsLock ON
 - rethink double tap breaking tapped state
 - check / distribute new DLLs
 - test that "temp release all keys" has no side effects
+- nicer syntax for input sequences (COMPOSE f y i [.T] > print("For your information")
 - Documentation.....
 
-v??
+v(old)
 New ini GLOBALs
 - delayOnStartupMS {number} (default 0. Useful if you need time to release keys when starting capsicain with a shortcut)
 - startMinimized (default false. Capsicain starts minimized in the taskbar)
@@ -82,6 +84,11 @@ v71beta: dead keys
   COMBO DEADKEY-U  A [& ....] > altChar(0196)  //RSHF+A with dk-U active = 'ִ'
 
 v72beta: OR
-- [...| ...|] matches if LShift OR RShift is down
+- [...| ...|] matches, if LShift OR RShift is down
 - deadkey fixes
-- deadkey ini
+- added a ton of accented characters to the ini
+
+v73beta: no more VS DLLs, fix
+- static linking, ms* DLLs no longer required (Properties > codegen > RTlib=MT)
+- fix: works now: empty mod string like COMBO A [] > key(B)
+- some .ini and .ahk cleanup
