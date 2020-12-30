@@ -51,12 +51,17 @@ bool ShowInTaskbar()
     return true;
 }
 
-bool ShowInTraybar()
+bool ShowInTraybar(bool enabled, int activeLayer)
 {
     LPCTSTR lpszTip = "Capsicain"; // tooltip.c_str();
 
     HMODULE handleToMyself = ::GetModuleHandleA(NULL);
-    HICON hIcon = LoadIcon(handleToMyself, MAKEINTRESOURCE(IDI_ICON1));
+    HICON hIcon;
+    if(enabled)
+        hIcon = LoadIcon(handleToMyself, MAKEINTRESOURCE(IDI_ICON_ON));
+    else
+        hIcon = LoadIcon(handleToMyself, MAKEINTRESOURCE(IDI_ICON_OFF));
+
     if (!hIcon || !lpszTip)
     {
         std::cout << "Internal error: cannot load traybar icons :(" << std::endl;

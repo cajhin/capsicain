@@ -70,7 +70,10 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <Image Include="capslock.ico">
+    <Image Include="capslock_off.ico">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="capslock_on.ico">
       <Filter>Resource Files</Filter>
     </Image>
   </ItemGroup>

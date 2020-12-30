@@ -1,6 +1,7 @@
 Ongoing stream of what I want to remember...
-
+ 
 TODO
+- user/pass, different keys for record playback
 - test if static linking works for both ms*.dll
 - timeout for tappings, deadkeys?
 - record macros on key in (today) or on key out?
@@ -8,10 +9,10 @@ TODO
 - enable/disable (layer0) toggle switch/vkey
 - numbered trayicons
 - test if SC_0Xnn still works in ini
+- test apple boards
 - accented altChars should not ignore CapsLock ON
 - rethink double tap breaking tapped state
 - check / distribute new DLLs
-- test that "temp release all keys" has no side effects
 - nicer syntax for input sequences (COMPOSE f y i [.T] > print("For your information")
 - Documentation.....
 
@@ -92,3 +93,17 @@ v73beta: no more VS DLLs, fix
 - static linking, ms* DLLs no longer required (Properties > codegen > RTlib=MT)
 - fix: works now: empty mod string like COMBO A [] > key(B)
 - some .ini and .ahk cleanup
+
+v74beta
+- ESC will stop macro and user/password recording
+- fix REWIRE A NOP something
+- debug off by default
+- only start one instance (release and debug can run in parallel)
+- remove GLOBAL delayOnStartup. Not needed, keys are auto released
+- layer change resets all states
+- fix: reset all options to default on layer change
+- clean up: debug string
+- unfinished: icon for disabled
+- Reset with ESC-BSP
+- clean up: reload, layer change, all ESC commands work everywhere
+- remove sticky mods feature. Too hacky to get it right..

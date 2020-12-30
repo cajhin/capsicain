@@ -200,7 +200,8 @@ $(ProjectDir)copy_release.bat</Command>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <Image Include="capslock.ico" />
+    <Image Include="capslock_on.ico" />
+    <Image Include="capslock_off.ico" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="documentation.txt" />

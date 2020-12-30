@@ -9,14 +9,13 @@
 
 //constants
 #define LAYER_DISABLED  0 // layer 0 does nothing
-#define LAYER_DISABLED_LAYER_NAME "Capsicain disabled. No processing, forward everything. Only ESC-X and ESC-0..9 work."
+#define LAYER_DISABLED_LAYER_NAME "Capsicain disabled. \r\nNo processing, forward everything. \r\nOnly ESC-X and ESC-0..9 work."
 #define AHK_HOTKEY1 SC_F14  //this key triggers supporting AHK script
 #define AHK_HOTKEY2 SC_F15
 
 //defaults
 #define DEFAULT_ACTIVE_LAYER 1
 #define DEFAULT_ACTIVE_LAYER_NAME "Layer not initialized. Forwarding all keys."
-#define DEFAULT_DELAY_ON_STARTUP_MS 0 //time to release all keys (e.g. if capsicain is started via shortcut)
 #define DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS 5  //System may drop keys when they are sent too fast. Local host needs 0-1ms, Linux VM 5+ms for 100% reliable keystroke detection
 
 #define DEFAULT_START_AHK_ON_STARTUP true

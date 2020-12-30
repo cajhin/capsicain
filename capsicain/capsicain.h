@@ -4,7 +4,7 @@
 #include "config.h"
 #include "traybar.h"
 
-#define IFDEBUG if(option.debug)
+#define IFDEBUG if(options.debug)
 
 enum KEYSTATE
 {
@@ -28,7 +28,7 @@ void playKeyEventSequence(std::vector<VKeyEvent> keyEventSequence);
 void processModifierState();
 void processRewireScancodeToVirtualcode();
 
-void printHelloFeatures();
+void printOptions();
 
 void sendVKeyEvent(VKeyEvent keyEvent);
 
@@ -40,22 +40,22 @@ void normalizeIKStroke(InterceptionKeyStroke &ikstroke);
 InterceptionKeyStroke vkeyEvent2ikstroke(VKeyEvent keyEvent);
 void getHardwareId();
 
-void initConsoleWindow();
+bool initConsoleWindow();
 
 void printHelloHeader();
 void printStatus();
 void printKeylabels();
 void printHelp();
+void printLoopState1Incoming();
+void printLoopState2Modifier();
+void printLoopState3Timing();
+void printLoopState4TapState();
+
+
 void reset();
+void reload();
 void releaseAllSentKeys();
 std::vector<std::string> assembleLayerConfig(int layer);
-bool parseIni(int layer);
 void switchLayer(int layer);
 void resetCapsNumScrollLock();
-void resetAlphamap();
-void resetRewiremap();
-
-void resetLoopState();
-void resetModifierState();
-void resetAllStatesToDefault();
 

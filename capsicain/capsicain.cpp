@@ -26,21 +26,22 @@ struct Globals
 {
     string iniVersion = "unnamed version - add 'iniVersion xyz123' to capsicain.ini";
     int activeLayerOnStartup = DEFAULT_ACTIVE_LAYER;
-    int delayOnStartupMS = DEFAULT_DELAY_ON_STARTUP_MS;
     bool startMinimized = false;
     bool startInTraybar = false;
     bool startAHK = false;
-} global;
+} globals;
+static const struct Globals defaultGlobals;
 
 struct Options
 {
-    bool debug = true;
+    bool debug = false;
     int delayForKeySequenceMS = DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;
     bool flipZy = false;
     bool flipAltWinOnAppleKeyboards = false;
     bool LControlLWinBlocksAlphaMapping = false;
     bool processOnlyFirstKeyboard = false;
-} option;
+} options;
+static const struct Options defaultOptions;
 
 struct ModifierCombo
 {
@@ -55,22 +56,27 @@ struct ModifierCombo
 
 struct AllMaps
 {
-    int alphamap[MAX_VCODES] = { SC_NOP };
+    int alphamap[MAX_VCODES] = { }; //MUST initialize this manually to 1 1, 2 2, 3 3, ...
     vector<ModifierCombo> modCombos;// = new vector<ModifierCombo>();
-    
+
     //inkey outkey (tapped)
     //-1 = undefined key
-    int rewiremap[REWIRE_ROWS][REWIRE_COLS] = { SC_NOP };
+    int rewiremap[REWIRE_ROWS][REWIRE_COLS] = { }; //MUST initialize this manually to -1 !!
 } allMaps;
+
+struct InterceptionState
+{
+    InterceptionContext interceptionContext = NULL;
+    InterceptionDevice interceptionDevice = NULL;
+    InterceptionDevice previousInterceptionDevice = NULL;
+    InterceptionKeyStroke lastIKstroke = { SC_NOP, 0 };
+
+} interceptionState;
 
 struct GlobalState
 {
     int  activeLayer = 0;
     string activeLayerName = DEFAULT_ACTIVE_LAYER_NAME;
-
-    InterceptionContext interceptionContext = NULL;
-    InterceptionDevice interceptionDevice = NULL;
-    InterceptionDevice previousInterceptionDevice = NULL;
 
     bool realEscapeIsDown = false;
 
@@ -91,12 +97,13 @@ struct GlobalState
 
     vector<VKeyEvent> username;
     vector<VKeyEvent> password;
-    bool readingUsername = false;
-    bool readingPassword = false;
+    bool recordingUsername = false;
+    bool recordingPassword = false;
 
     chrono::steady_clock::time_point timepointPreviousKeyEvent;
 
 } globalState;
+static const struct GlobalState defaultGlobalState;
 
 struct ModifierState
 {
@@ -105,6 +112,7 @@ struct ModifierState
     unsigned short modifierTapped = 0;
     vector<VKeyEvent> modsTempAltered;
 } modifierState;
+static const struct ModifierState defaultModifierState;
 
 struct LoopState
 {
@@ -116,14 +124,13 @@ struct LoopState
     bool tappedSlow = false;  //autorepeat set in before key release
     bool tapHoldMake = false;  //tap-and-hold action (like LAlt > mod12 // LAlt)
 
-    InterceptionKeyStroke originalIKstroke = { SC_NOP, 0 };
-
     vector<VKeyEvent> resultingVKeyEventSequence;
 
     chrono::steady_clock::time_point timepointLoopStart;
     chrono::steady_clock::time_point timepointStopwatch;
     long timeSinceLastKeyEventMS = 0;
 } loopState;
+static const struct LoopState defaultLoopState;
 
 string errorLog = "";
 void error(string txt)
@@ -148,25 +155,23 @@ void parseIniGlobals()
     {
         string token = stringGetFirstToken(line);
         if (token == "debugonstartup")
-            option.debug = true;
+            options.debug = true;
         else if (token == "iniversion")
-            global.iniVersion = stringGetRestBehindFirstToken(line);
-        else if (token == "delayonstartupmS")
-            getIntValueForTaggedKey(INI_TAG_GLOBAL, "delayOnStartupMS", global.delayOnStartupMS, sanitizedIniContent);
+            globals.iniVersion = stringGetRestBehindFirstToken(line);
         else if (token == "startminimized")
-            global.startMinimized = true;
+            globals.startMinimized = true;
         else if (token == "startintraybar")
-            global.startInTraybar = true;
+            globals.startInTraybar = true;
         else if (token == "startahk")
-            global.startAHK = true;
+            globals.startAHK = true;
         else if (token == "activelayeronstartup")
             cout << endl;
         else
             cout << endl << "WARNING: unknown GLOBAL " << token;
     }
 
-    if (!getIntValueForTaggedKey(INI_TAG_GLOBAL, "ActiveLayerOnStartup", global.activeLayerOnStartup, sanitizedIniContent))
-        cout << endl << "No ini setting for 'GLOBAL activeLayerOnStartup'. Setting default layer " << global.activeLayerOnStartup;
+    if (!getIntValueForTaggedKey(INI_TAG_GLOBAL, "ActiveLayerOnStartup", globals.activeLayerOnStartup, sanitizedIniContent))
+        cout << endl << "No ini setting for 'GLOBAL activeLayerOnStartup'. Setting default layer " << globals.activeLayerOnStartup;
 }
 
 void DetectTapping(const VKeyEvent &originalVKeyEvent)
@@ -195,7 +200,6 @@ void DetectTapping(const VKeyEvent &originalVKeyEvent)
             )
         {
             loopState.tapHoldMake = true;
-            IFDEBUG cout << endl << "detected tapHold: " << hex << originalVKeyEvent.vcode;
         }
     }
     
@@ -209,32 +213,31 @@ void DetectTapping(const VKeyEvent &originalVKeyEvent)
 
 int main()
 {
-    initConsoleWindow();
+    if (!initConsoleWindow())
+    {
+        std::cout << endl << "Capsicain already running - exiting..." << endl;
+        Sleep(5000);
+        return 0;
+    }
     printHelloHeader();
 
     defineAllPrettyVKLabels(PRETTY_VK_LABELS);
-    resetAllStatesToDefault();
     loopState.timepointLoopStart = timeSetTimepointNow();
 
     if (!readSanitizeIniFile(sanitizedIniContent))
     {
-        cout << endl << "No capsicain.ini - exiting..." << endl;
+        std::cout << endl << "No capsicain.ini - exiting..." << endl;
         Sleep(5000);
         return 0;
     }
 
     parseIniGlobals();
-    switchLayer(global.activeLayerOnStartup);
+    switchLayer(globals.activeLayerOnStartup);
 
-    cout << endl << "Release all keys now... (waiting DelayOnStartupMS = " << global.delayOnStartupMS << " ms)" << endl;
-    Sleep(global.delayOnStartupMS); //time to release shortcut keys that started capsicain
+    interceptionState.interceptionContext = interception_create_context();
+    interception_set_filter(interceptionState.interceptionContext, interception_is_keyboard, INTERCEPTION_FILTER_KEY_ALL);
 
-    globalState.interceptionContext = interception_create_context();
-    interception_set_filter(globalState.interceptionContext, interception_is_keyboard, INTERCEPTION_FILTER_KEY_ALL);
-
-    printHelloFeatures();
-
-    if (global.startAHK)
+    if (globals.startAHK)
     {
         string msg = startProgramSameFolder(PROGRAM_NAME_AHK);
         cout << endl << endl << "starting AHK... ";
@@ -243,54 +246,94 @@ int main()
     cout << endl << endl << "[ESC] + [X] to stop." << endl << "[ESC] + [H] for Help";
     cout << endl << endl << "capsicain running.... ";
 
-    if (global.startMinimized)
+    if (globals.startInTraybar)
+        ShowInTraybar(globalState.activeLayer != 0, globalState.activeLayer);
+    else if (globals.startMinimized)
         ShowInTaskbarMinimized();
-    if (global.startInTraybar)
-        ShowInTraybar();
 
     raise_process_priority(); //careful: if we spam key events, other processes get no timeslots to process them. Sleep a bit...
 
     //CORE LOOP
     //wait for the next key from Interception
-    while (interception_receive( globalState.interceptionContext,
-                                 globalState.interceptionDevice = interception_wait(globalState.interceptionContext),
-                                 (InterceptionStroke *)&loopState.originalIKstroke, 1)   > 0)
+    while (interception_receive(interceptionState.interceptionContext,
+        interceptionState.interceptionDevice = interception_wait(interceptionState.interceptionContext),
+                                 (InterceptionStroke *)&interceptionState.lastIKstroke, 1)   > 0)
     {
          IFDEBUG cout << ". ";
         //ignore secondary keyboard?
-        if (option.processOnlyFirstKeyboard 
-            && (globalState.previousInterceptionDevice != NULL)
-            && (globalState.previousInterceptionDevice != globalState.interceptionDevice))
+        if (options.processOnlyFirstKeyboard 
+            && (interceptionState.previousInterceptionDevice != NULL)
+            && (interceptionState.previousInterceptionDevice != interceptionState.interceptionDevice))
         {
-            IFDEBUG cout << endl << "Ignore 2nd board (" << globalState.interceptionDevice << ") scancode: " << loopState.originalIKstroke.code;
-            interception_send(globalState.interceptionContext, globalState.interceptionDevice, (InterceptionStroke *)&loopState.originalIKstroke, 1);
+            IFDEBUG cout << endl << "Ignore 2nd board (" << interceptionState.interceptionDevice << ") scancode: " << interceptionState.lastIKstroke.code;
+            interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke *)&interceptionState.lastIKstroke, 1);
             continue;
         }
 
         //check for Apple Keyboard / device ID
-        if (globalState.previousInterceptionDevice == NULL    //startup
-            || globalState.previousInterceptionDevice != globalState.interceptionDevice)  //keyboard changed
+        if (interceptionState.previousInterceptionDevice == NULL    //startup
+            || interceptionState.previousInterceptionDevice != interceptionState.interceptionDevice)  //keyboard changed
         {
             getHardwareId();
             cout << endl << "new keyboard: " << (globalState.deviceIsAppleKeyboard ? "Apple keyboard" : "IBM keyboard");
             resetCapsNumScrollLock();
-            globalState.previousInterceptionDevice = globalState.interceptionDevice;
+            interceptionState.previousInterceptionDevice = interceptionState.interceptionDevice;
         }
 
+        //clear loop state
+        loopState = defaultLoopState;
+
         //Timing. Timer is not precise, sleep() even less; just a rough outline. Expect occasional 30ms sleeps from thread scheduling.
-        globalState.timepointPreviousKeyEvent = loopState.timepointLoopStart;
         loopState.timepointLoopStart = timeSetTimepointNow();
-        resetLoopState();
         loopState.timeSinceLastKeyEventMS = timeBetweenTimepointsMS(globalState.timepointPreviousKeyEvent, loopState.timepointLoopStart);
+        globalState.timepointPreviousKeyEvent = loopState.timepointLoopStart;
 
         //copy InterceptionKeyStroke (unpleasant to use) to plain VKeyEvent
-        VKeyEvent originalVKeyEvent = ikstroke2VKeyEvent(loopState.originalIKstroke);
+        VKeyEvent originalVKeyEvent = ikstroke2VKeyEvent(interceptionState.lastIKstroke);
         loopState.scancode = originalVKeyEvent.vcode;  //scancode is write-once (except for the AppleWinAlt option)
         loopState.vcode = loopState.scancode;          //vcode may be altered below
         loopState.isDownstroke = originalVKeyEvent.isDownstroke;
 
+        //sanity check
+        if (interceptionState.lastIKstroke.code >= 0x80)
+        {
+            error("Received unexpected extended Interception Key Stroke code > 0x79: " + to_string(interceptionState.lastIKstroke.code));
+            continue;
+        }
+        if (interceptionState.lastIKstroke.code == 0)
+        {
+            error("Received unexpected SC_NOP Key Stroke code 0. Ignoring this.");
+            continue;
+        }
+
+        //ESC Commands
+        if (loopState.scancode == SC_ESCAPE)
+        {
+            IFDEBUG cout << endl << "(Hard ESC" << (loopState.isDownstroke ? "v " : "^ ") << ")";
+            globalState.realEscapeIsDown = loopState.isDownstroke;
+        }
+        else if (globalState.realEscapeIsDown && loopState.isDownstroke)
+        {
+            if (processCommand())
+                continue;
+            else
+            {
+                ShowInTaskbar();
+                break;
+            }
+            
+        }
+
+        //Layer 0: standard keyboard, no further processing, just forward everything
+        if (globalState.activeLayer == LAYER_DISABLED)
+        {
+            interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke *)&interceptionState.lastIKstroke, 1);
+            continue;
+        }
+
         //flip Win+Alt only for Apple keyboards. Ugly that this must rewrite the scancode
-        if (option.flipAltWinOnAppleKeyboards && globalState.deviceIsAppleKeyboard)
+        //note: this does not change anything on layer0
+        if (options.flipAltWinOnAppleKeyboards && globalState.deviceIsAppleKeyboard)
         {
             switch (loopState.scancode)
             {
@@ -307,121 +350,21 @@ int main()
         if (loopState.tappedSlow)
             modifierState.modifierTapped = 0;
 
-        //sanity check
-        if (loopState.originalIKstroke.code >= 0x80)
-        {
-            error("Received unexpected extended Interception Key Stroke code > 0x79: " + to_string(loopState.originalIKstroke.code));
-            continue;
-        }
-        if (loopState.originalIKstroke.code == 0)
-        {
-            error("Received unexpected SC_NOP Key Stroke code 0. Ignoring this.");
-            continue;
-        }
-
-        //Early check for core ESC commands, in case layer 0 continues without further checks
-        //remember the hardware ESC key state
-        //do not send v until ^ comes in
-        //ESC+X exits, unconditionally
-        //ESC+[0]..[9]  layer switch
-        if (loopState.scancode == SC_ESCAPE)
-        {
-            globalState.realEscapeIsDown = loopState.isDownstroke;
-        }
-        else if (globalState.realEscapeIsDown && loopState.isDownstroke)
-        {
-            if (loopState.scancode == SC_X) //extra check to make sure Exit is bug free
-            {
-                ShowInTaskbar();
-                break;
-            }
-            else if (loopState.scancode == SC_0)
-            {
-                cout << endl << "LAYER CHANGE: " << LAYER_DISABLED;
-                switchLayer(LAYER_DISABLED);
-                resetLoopState();
-                resetModifierState();
-                releaseAllSentKeys();
-                resetAlphamap();
-                continue;
-            }
-            else if (loopState.scancode >= SC_1 && loopState.scancode <= SC_9)
-            {
-                int layer = loopState.scancode - 1;
-                cout << endl << "LAYER CHANGE: " << layer;
-                switchLayer(layer);
-                continue;
-            }
-        }
-
-        //Layer 0: standard keyboard, no further processing, just forward everything
-        if (globalState.activeLayer == LAYER_DISABLED)
-        {
-            interception_send(globalState.interceptionContext, globalState.interceptionDevice, (InterceptionStroke *)&loopState.originalIKstroke, 1);
-            continue;
-        }
-
         //hard rewire all REWIREd keys
         loopState.vcode = loopState.scancode;
-        processRewireScancodeToVirtualcode();
+         processRewireScancodeToVirtualcode();
         if (loopState.vcode == SC_NOP)   //rewired to NOP to disable keys
         {
-            IFDEBUG cout << " (NOP)";
+            IFDEBUG cout << " (REW2NOP)";
             continue;
-        }
-
-        //Hardware ESC is lazy key; if it is rewired, that key must not trigger on ESC+command
-        if (loopState.scancode == SC_ESCAPE)
-        {
-            IFDEBUG cout << endl << "(Hard ESC" << (loopState.isDownstroke ? "v " : "^ ") << ")";
-            if (loopState.isDownstroke)
-                continue;
-            //hardware ESC tapped -> reset state incl. sticky modifiers
-            if(loopState.tapped)
-            {
-                //handle rewired ESC^ (send ESC or whatever it is rewired to)
-                IFDEBUG cout << endl << "(Send " << PRETTY_VK_LABELS[loopState.vcode] << "v^ )";
-                sendVKeyEvent({ loopState.vcode, true });
-                sendVKeyEvent({ loopState.vcode, false });
-                //reset state on hardware ESC
-                releaseAllSentKeys();
-                resetModifierState();
-                resetLoopState();
-            }
-            continue;
-        }
-
-        // All other ESC + key commands
-        // NOTE: some major key shadowing here...
-        // - cherry is good
-        // - apple keyboard cannot do RCTRL+CAPS+ESC and ESC+Caps shadows the entire row a-s-d-f-g-....
-        // - Dell cant do ctrl-caps-x
-        // - Cypher has no RControl... :(
-        // - HP shadows the 2-w-s-x and 3-e-d-c lines
-        if (globalState.realEscapeIsDown)
-        {
-            if (loopState.isDownstroke)
-            {
-                if (processCommand())
-                    continue;
-                else
-                {
-                    ShowInTaskbar();
-                    break;
-                }
-            }
-            else if(isModifier(loopState.vcode)) //sticky mods with ESC+mod
-            {
-                continue;
-            }
         }
 
         //Username
-        if (globalState.readingUsername)
+        if (globalState.recordingUsername)
         {
             if (loopState.vcode == SC_RETURN)
             {
-                globalState.readingUsername = false;
+                globalState.recordingUsername = false;
                 cout << " done";
             }
             else if (loopState.isDownstroke || globalState.username.size() > 0)  //filter upstroke from the command key
@@ -429,11 +372,11 @@ int main()
             continue;
         }
         //Password
-        if (globalState.readingPassword)
+        if (globalState.recordingPassword)
         {
             if (loopState.scancode == SC_RETURN)
             {
-                globalState.readingPassword = false;
+                globalState.recordingPassword = false;
                 cout << " done";
             }
             else if (loopState.isDownstroke || globalState.password.size() > 0)  //filter upstroke from the command key
@@ -441,19 +384,12 @@ int main()
             continue;
         }
 
-
-        IFDEBUG cout << endl << "(" << setw(5) << dec << loopState.timeSinceLastKeyEventMS <<" ms) [" << hex << \
-            (loopState.vcode == loopState.scancode ? "" : PRETTY_VK_LABELS[loopState.scancode] + " => ") \
-            << getPrettyVKLabelPadded(loopState.vcode,8) << getSymbolForIKStrokeState(loopState.originalIKstroke.state)
-            << " =" << hex << loopState.originalIKstroke.code << " " << loopState.originalIKstroke.state << "]";
+         IFDEBUG printLoopState1Incoming();
 
         //evaluate modifiers
         processModifierState();
     
-        IFDEBUG cout << " [M:" << hex << modifierState.modifierDown;
-        IFDEBUG if (modifierState.modifierTapped)  cout << " TAP:" << hex << modifierState.modifierTapped;
-        IFDEBUG if (modifierState.activeDeadkey)  cout << " DEAD:" << hex << getPrettyVKLabelPadded(modifierState.activeDeadkey,0);
-        IFDEBUG cout << "] ";
+        IFDEBUG printLoopState2Modifier();
 
         //evaluate modified keys
         processCombos();
@@ -465,27 +401,13 @@ int main()
         if (!isModifier(loopState.vcode))
             modifierState.modifierTapped = 0;
 
-        IFDEBUG 
-        {
-            cout << "\t (" << dec << timeMillisecondsSinceTimepoint(loopState.timepointLoopStart) << dec << " ms)";
-            loopState.timepointStopwatch = timeSetTimepointNow();
-        }
+        IFDEBUG printLoopState3Timing();
 
         sendResultingKeyOrSequence();
 
-        IFDEBUG
-        {
-            long sendtime = timeMillisecondsSinceTimepoint(loopState.timepointStopwatch);
-            if(sendtime > 2)
-                cout << "\t (slow to send: " << dec << sendtime << " ms)";
-            cout << (loopState.tappedSlow ? " (slow tap)" : "");
-            cout << (loopState.tapped ? " (tap)" : "");
-            if (globalState.tapAndHoldKey >= 0)
-                cout <<" (tapHold:"<<hex<<globalState.tapAndHoldKey<<")";
-                ;
-        }
+        IFDEBUG printLoopState4TapState();
     }
-    interception_destroy_context(globalState.interceptionContext);
+    interception_destroy_context(interceptionState.interceptionContext);
 
     cout << endl << "bye" << endl;
     return 0;
@@ -513,10 +435,10 @@ void processModifierState()
 void processRewireScancodeToVirtualcode()
 {
     //Rewire to new vcode; check for Tapped rule
-    //repeating tapHold key?
+    //ignore auto-repeating tapHold key
     if (loopState.scancode == globalState.tapAndHoldKey && loopState.isDownstroke)
     {
-        loopState.scancode = SC_NOP;
+        loopState.vcode = SC_NOP;
         return;
     }
 
@@ -619,14 +541,14 @@ void processCombos()
 void processMapAlphaKeys()
 {
     if (loopState.isModifier ||
-        (option.LControlLWinBlocksAlphaMapping && (IS_LCTRL_DOWN || IS_LWIN_DOWN)))
+        (options.LControlLWinBlocksAlphaMapping && (IS_LCTRL_DOWN || IS_LWIN_DOWN)))
     {
         return;
     }
 
     loopState.vcode = allMaps.alphamap[loopState.vcode];
 
-    if (option.flipZy)
+    if (options.flipZy)
     {
         switch (loopState.vcode)
         {
@@ -647,6 +569,39 @@ bool processCommand()
     
     switch (loopState.scancode)
     {
+
+    case SC_X:
+    {
+        cout << endl << endl << "ESC+X :: EXIT";
+        return false;
+    }
+    case SC_0:
+    {
+        cout << endl << "LAYER CHANGE: " << LAYER_DISABLED;
+        switchLayer(LAYER_DISABLED);
+        break;
+    }
+    case SC_1:
+    case SC_2:
+    case SC_3:
+    case SC_4:
+    case SC_5:
+    case SC_6:
+    case SC_7:
+    case SC_8:
+    case SC_9:
+    {
+        int layer = loopState.scancode - 1;
+        cout << endl << "LAYER CHANGE: " << layer;
+        switchLayer(layer);
+        break;
+    }
+    case SC_BACK:
+    {
+        cout << endl << endl << "::RESET STATE";
+        reset();
+        break;
+    }
     case SC_T:
     {
         if (IsCapsicainInTray())
@@ -657,7 +612,7 @@ bool processCommand()
         else
         {
             cout << "Show traybar";
-            ShowInTraybar();
+            ShowInTraybar(globalState.activeLayer != 0 , globalState.activeLayer);
         }
         break;
     }
@@ -672,16 +627,16 @@ bool processCommand()
 #endif
         break;
     case SC_W:
-        option.flipAltWinOnAppleKeyboards = !option.flipAltWinOnAppleKeyboards;
-        cout << "Flip ALT<>WIN for Apple boards: " << (option.flipAltWinOnAppleKeyboards ? "ON" : "OFF") << endl;
+        options.flipAltWinOnAppleKeyboards = !options.flipAltWinOnAppleKeyboards;
+        cout << "Flip ALT<>WIN for Apple boards: " << (options.flipAltWinOnAppleKeyboards ? "ON" : "OFF") << endl;
         break;
     case SC_E:
         cout << "ERROR LOG: " << endl << errorLog << endl;
         popupConsole = true;
         break;
     case SC_R:
-        cout << "RESET";
-        reset();
+        cout << "RELOAD INI";
+        reload();
         getHardwareId();
         cout << endl << (globalState.deviceIsAppleKeyboard ? "APPLE keyboard (flipping Win<>Alt)" : "PC keyboard");
         break;
@@ -694,7 +649,7 @@ bool processCommand()
         if (globalState.username.size() == 0)
         {
             cout << "Type Username (Enter)";
-            globalState.readingUsername = true;
+            globalState.recordingUsername = true;
         }
         else
         {
@@ -716,7 +671,7 @@ bool processCommand()
         if (globalState.password.size() == 0)
         {
             cout << "Type Password (Enter)";
-            globalState.readingPassword = true;
+            globalState.recordingPassword = true;
         }
         else
         {
@@ -738,9 +693,9 @@ bool processCommand()
         popupConsole = true;
         break;
     case SC_D:
-        option.debug = !option.debug;
-        cout << "DEBUG mode: " << (option.debug ? "ON" : "OFF");
-        popupConsole = true;
+        options.debug = !options.debug;
+        cout << "DEBUG mode: " << (options.debug ? "ON" : "OFF");
+        popupConsole = options.debug;
         break;
     case SC_H:
         printHelp();
@@ -780,8 +735,8 @@ bool processCommand()
         break;
     }
     case SC_Z:
-        option.flipZy = !option.flipZy;
-        cout << "Flip Z<>Y mode: " << (option.flipZy ? "ON" : "OFF");
+        options.flipZy = !options.flipZy;
+        cout << "Flip Z<>Y mode: " << (options.flipZy ? "ON" : "OFF");
         break;
     case SC_C:
         cout << "List of all Key Labels for scancodes" << endl
@@ -790,31 +745,18 @@ bool processCommand()
         popupConsole = true;
         break;
     case SC_COMMA:
-        if (option.delayForKeySequenceMS >= 1)
-            option.delayForKeySequenceMS -= 1;
-        cout << "delay between characters in key sequences (ms): " << dec << option.delayForKeySequenceMS;
+        if (options.delayForKeySequenceMS >= 1)
+            options.delayForKeySequenceMS -= 1;
+        cout << "delay between characters in key sequences (ms): " << dec << options.delayForKeySequenceMS;
         break;
     case SC_DOT:
-        if (option.delayForKeySequenceMS <= 100)
-            option.delayForKeySequenceMS += 1;
-        cout << "delay between characters in key sequences (ms): " << dec << option.delayForKeySequenceMS;
+        if (options.delayForKeySequenceMS <= 100)
+            options.delayForKeySequenceMS += 1;
+        cout << "delay between characters in key sequences (ms): " << dec << options.delayForKeySequenceMS;
         break;
     default: 
     {
-        //Sticky modifiers with soft (potentially rewired) ESC+modifier. Tap hard ESC to release.
-        if (isModifier(loopState.vcode))
-        {
-            if (loopState.isDownstroke)
-            {
-                modifierState.modifierDown |= getBitmaskForModifier(loopState.vcode);
-                modifierState.modifierTapped = 0;
-                if (isRealModifier(loopState.vcode))
-                    sendResultingKeyOrSequence();
-                IFDEBUG cout << endl << "Locking modifier: " << PRETTY_VK_LABELS[loopState.vcode];
-            }
-        }
-        else
-            cout << "Unknown command";
+        cout << "Unknown command";
         break;
     }
     }
@@ -840,7 +782,7 @@ void sendResultingKeyOrSequence()
             if (loopState.vcode > 254)  //real key but not 255 CAPS_ESC
                 cout << "\t--> BLOCKED ";
             else if (loopState.scancode != loopState.vcode)
-                cout << "\t--> " << PRETTY_VK_LABELS[loopState.vcode] << " " << getSymbolForIKStrokeState(loopState.originalIKstroke.state);
+                cout << "\t--> " << PRETTY_VK_LABELS[loopState.vcode] << " " << getSymbolForIKStrokeState(interceptionState.lastIKstroke.state);
             else
                 cout << "\t--";
         }
@@ -856,7 +798,7 @@ void sendResultingKeyOrSequence()
 void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
 {
     VKeyEvent newKeyEvent;
-    unsigned int delayBetweenKeyEventsMS = option.delayForKeySequenceMS;
+    unsigned int delayBetweenKeyEventsMS = options.delayForKeySequenceMS;
     bool tempReleasedKeys = false; //command to temporarily release all physical keys came in
 
     //'next key has special meaning'
@@ -936,7 +878,7 @@ void getHardwareId()
     {
         wchar_t  hardware_id[500] = { 0 };
         string id;
-        size_t length = interception_get_hardware_id(globalState.interceptionContext, globalState.interceptionDevice, hardware_id, sizeof(hardware_id));
+        size_t length = interception_get_hardware_id(interceptionState.interceptionContext, interceptionState.interceptionDevice, hardware_id, sizeof(hardware_id));
         if (length > 0 && length < sizeof(hardware_id))
         {
             //forced conversion will replace special characters > 127 with "?"
@@ -961,8 +903,18 @@ void getHardwareId()
 }
 
 
-void initConsoleWindow()
+bool initConsoleWindow()
 {
+    //check if already running
+    //allow release and debug build at the same time
+#ifdef NDEBUG
+    CreateMutexA(0, FALSE, "capsicain_release"); // try to create a named mutex
+#else
+    CreateMutexA(0, FALSE, "capsicain_debug"); // try to create a named mutex
+#endif
+    if (GetLastError() == ERROR_ALREADY_EXISTS) // did the mutex already exist?
+        return false; // quit; mutex is released automatically
+
     //disable quick edit; blocking the console window means the keyboard is dead
     HANDLE handle = GetStdHandle(STD_INPUT_HANDLE);
     DWORD mode;
@@ -980,6 +932,8 @@ void initConsoleWindow()
     RECT initialRect;
     GetWindowRect(console, &initialRect);
     MoveWindow(console, initialRect.left, initialRect.top, 800, 600, TRUE);
+
+    return true;
 }
 
 // Parses the OPTIONS in the given section.
@@ -998,11 +952,11 @@ bool parseIniOptions(std::vector<std::string> assembledIni)
         }
         else if (token == "debug")
         {
-            option.debug = true;
+            options.debug = true;
         }
         else if (token == "flipzy")
         {
-            option.flipZy = true;
+            options.flipZy = true;
         }
         else if (token == "altalttoalt")
         {
@@ -1010,19 +964,19 @@ bool parseIniOptions(std::vector<std::string> assembledIni)
         }
         else if (token == "flipaltwinonapplekeyboards")
         {
-            option.flipAltWinOnAppleKeyboards = true;
+            options.flipAltWinOnAppleKeyboards = true;
         }
         else if (token == "lcontrollwinblocksalphamapping")
         {
-            option.LControlLWinBlocksAlphaMapping = true;
+            options.LControlLWinBlocksAlphaMapping = true;
         }
         else if (token == "processonlyfirstkeyboard")
         {
-            option.processOnlyFirstKeyboard = true;
+            options.processOnlyFirstKeyboard = true;
         }
         else if (token == "delayforkeysequencems")
         {
-            getIntValueForKey("delayForKeySequenceMS", option.delayForKeySequenceMS, sectLines);
+            getIntValueForKey("delayForKeySequenceMS", options.delayForKeySequenceMS, sectLines);
         }
         else if (token == "shiftshifttoshiftlock")
         {
@@ -1045,7 +999,6 @@ bool parseIniOptions(std::vector<std::string> assembledIni)
 void parseIniRewires(std::vector<std::string> assembledIni)
 {
     vector<string> sectLines = getTaggedLinesFromIni(INI_TAG_REWIRE, assembledIni);
-    resetRewiremap();
 
     int tagCounter = 0;
     unsigned char keyIn;
@@ -1137,7 +1090,6 @@ bool parseIniAlphaLayout(std::vector<std::string> assembledIni)
     string tagFrom = stringToLower(INI_TAG_ALPHA_FROM);
     string tagEnd = stringToLower(INI_TAG_ALPHA_END);
 
-    resetAlphamap();
     string mapFromTo = "";
     bool inMapFromTo = false;
     for (string line : assembledIni)
@@ -1204,26 +1156,43 @@ std::vector<std::string> assembleLayerConfig(int layer)
     return assembledIni;
 }
 
+void initializeAllMaps()
+{
+    allMaps.modCombos.clear();
+
+    //resetAlphamap()
+    {
+        for (int i = 0; i < MAX_VCODES; i++)  //initialize to "map to same char"
+            allMaps.alphamap[i] = i;
+    }
+
+    //resetRewiremap()
+    {
+        for (int r = 0; r < REWIRE_ROWS; r++)
+            for (int c = 0; c < REWIRE_COLS; c++)
+                allMaps.rewiremap[r][c] = -1;
+    }
+}
+
+
+//processes the sanitized ini that was read on startup or reload
 bool parseProcessIniLayer(int layer)
 {
+    initializeAllMaps();
+
     if (sanitizedIniContent.size() == 0)
     {
         cout << endl << "Capsicain.ini is missing or empty.";
         return false;
     }
 
-    option.debug = false;
     vector<string> assembledLayer = assembleLayerConfig(layer);
     if (assembledLayer.size() == 0)
     {
         cout << endl << "No valid configuration for Layer " << layer;
         return false;
     }
-    if (configHasTaggedKey(INI_TAG_OPTIONS, "debug", assembledLayer))
-    {
-        option.debug = true;
-        assembledLayer = assembleLayerConfig(layer);  //repeat just for the debug output
-    }
+
     IFDEBUG cout << endl << "Assembled config for Layer " << layer << " : " << dec << assembledLayer.size() << " lines";
 
     parseIniOptions(assembledLayer);
@@ -1232,6 +1201,7 @@ bool parseProcessIniLayer(int layer)
 
     parseIniCombos(assembledLayer);
     IFDEBUG cout << endl << "Combo  Definitions: " << dec << allMaps.modCombos.size();
+
     parseIniAlphaLayout(assembledLayer);
     IFDEBUG
     {
@@ -1247,6 +1217,10 @@ bool parseProcessIniLayer(int layer)
 
 void switchLayer(int layer)
 {
+    int oldLayer = globalState.activeLayer;
+
+    reset();
+
     if (layer == LAYER_DISABLED)
     {
         globalState.activeLayer = LAYER_DISABLED;
@@ -1255,13 +1229,24 @@ void switchLayer(int layer)
     else if (parseProcessIniLayer(layer))
     {
         globalState.activeLayer = layer;
+        printOptions();
+    }
+    else if (parseProcessIniLayer(layer))
+    {
+        cout << endl << endl << "Staying on current layer";
+    }
+    else
+    {
+        cout << endl << endl << "ERROR: CANNOT RELOAD CURRENT LAYER? Switching to layer 0";
+        globalState.activeLayer = LAYER_DISABLED;
+        globalState.activeLayerName = LAYER_DISABLED_LAYER_NAME;
     }
 
     cout << endl << endl << "ACTIVE LAYER: " << globalState.activeLayer << " = " << globalState.activeLayerName;
 }
 
 void resetCapsNumScrollLock()
-{
+{ 
     //set NumLock, release CapsLock+Scrolllock
     vector<VKeyEvent> sequence;
     if (!(GetKeyState(VK_NUMLOCK) & 0x0001))
@@ -1274,49 +1259,48 @@ void resetCapsNumScrollLock()
         playKeyEventSequence(sequence);
 }
 
-void resetAlphamap()
+void reset()
 {
-    for (int i = 0; i < MAX_VCODES; i++)  //initialize to "map to same char"
-        allMaps.alphamap[i] = i;
-}
-
-void resetRewiremap()
-{
-    for (int r = 0; r < REWIRE_ROWS; r++)
-        for (int c = 0; c < REWIRE_COLS; c++)
-            allMaps.rewiremap[r][c] = -1;
-}
-
-void resetLoopState()
-{
-    loopState.isDownstroke = false;
-    loopState.scancode = 0;
-    loopState.isModifier = false;
-    loopState.tapped = false;
-    loopState.tappedSlow = false;
-    loopState.tapHoldMake = false;
-    loopState.resultingVKeyEventSequence.clear();
-}
-
-void resetModifierState()
-{
-    modifierState.activeDeadkey = 0;
-    modifierState.modifierDown = 0;
-    modifierState.modifierTapped = 0;
-    modifierState.modsTempAltered.clear();
-
     resetCapsNumScrollLock();
-}
-void resetAllStatesToDefault()
-{
-    //	globalState.interceptionDevice = NULL;
-    globalState.deviceIdKeyboard = "";
-    globalState.deviceIsAppleKeyboard = false;
-    option.delayForKeySequenceMS = DEFAULT_DELAY_FOR_KEY_SEQUENCE_MS;
+    releaseAllSentKeys();
 
-    resetModifierState();
-    resetLoopState();
+    loopState = defaultLoopState;
+    modifierState = defaultModifierState;
+
+    GlobalState tmp = globalState; //some settings shall survive the reset
+    globalState = defaultGlobalState;
+    globalState.activeLayer = tmp.activeLayer;
+    globalState.activeLayerName = tmp.activeLayerName;
+    globalState.username = tmp.username;
+    globalState.password = tmp.password;
 }
+
+//Reset and reload the ini from scratch
+void reload()
+{
+    initializeAllMaps();
+    globals = defaultGlobals;
+    options = defaultOptions;
+
+    readSanitizeIniFile(sanitizedIniContent);
+
+    parseIniGlobals();
+    switchLayer(globalState.activeLayer);
+}
+
+//Release all keys to 'up' that have been sent out as 'down'
+void releaseAllSentKeys()
+{
+    IFDEBUG cout << endl << "Resetting all sent DOWN keys to UP: " << endl;
+    for (int i = 0; i < 255; i++)
+    {
+        if (globalState.keysDownSent[i])
+        {
+            sendVKeyEvent({ i, false });
+        }
+    }
+}
+
 
 void printHelloHeader()
 {
@@ -1337,15 +1321,16 @@ void printHelloHeader()
     cout << endl;
 }
 
-void printHelloFeatures()
+void printOptions()
 {
     cout
-        << endl << "ini version: " << global.iniVersion
-        << endl << endl << "OPTIONS"
-        << endl << (option.flipZy ? "ON:" : "OFF:") << " Z <-> Y"
-        << endl << (option.flipAltWinOnAppleKeyboards ? "ON:" : "OFF:") << " Alt <-> Win for Apple keyboards"
-        << endl << (option.LControlLWinBlocksAlphaMapping ? "ON:" : "OFF:") << " Left Control and Win block alpha key mapping ('Ctrl + C is never changed')"
-        << endl << (option.processOnlyFirstKeyboard ? "ON:" : "OFF:") << " Process only the keyboard that sent the first key"
+        << endl << endl << "OPTIONs"
+        << endl << (options.debug ? "ON*:" : "off:    ") << " debug output for each key event"
+        << endl << (options.flipZy ? "ON*:" : "off:    ") << " Z <-> Y"
+        << endl << (options.flipAltWinOnAppleKeyboards ? "ON*:" : "off:    ") << " Alt <-> Win for Apple keyboards"
+        << endl << (options.LControlLWinBlocksAlphaMapping ? "ON*:" : "off:    ") << " Left Control and Win block alpha key mapping ('Ctrl + C is never changed')"
+        << endl << (options.processOnlyFirstKeyboard ? "ON*:" : "off:    ") << " Process only the keyboard that sent the first key"
+        << endl
         ;
 }
 
@@ -1359,14 +1344,52 @@ void printStatus()
     }
     cout << "STATUS" << endl << endl
         << "Capsicain version: " << VERSION << endl
-        << "ini version: " << global.iniVersion << endl
+        << "ini version: " << globals.iniVersion << endl
+        << "active layer: " << globalState.activeLayer << " = " << globalState.activeLayerName << endl
         << "keyboard hardware id: " << globalState.deviceIdKeyboard << endl
         << "Apple keyboard: " << globalState.deviceIsAppleKeyboard << endl
-        << "active layer: " << globalState.activeLayer << " = " << globalState.activeLayerName << endl
-        << "delay between keys in sequences (ms): " << option.delayForKeySequenceMS << endl
+        << "delay between keys in sequences (ms): " << options.delayForKeySequenceMS << endl
         << "number of keys-down sent: " << dec <<   numMakeSent << endl
-        << (errorLog.length() > 1 ? "ERROR LOG contains entries" : "clean error log") << " (" << dec << errorLog.length() << " chars)" << endl
+        << (errorLog.length() > 1 ? "ERROR LOG contains entries" : "clean error log") << " (" << dec << errorLog.length() << " chars)"
         ;
+
+    printOptions();
+}
+
+void printLoopState1Incoming()
+{
+    cout << endl << "(" << setw(5) << dec << loopState.timeSinceLastKeyEventMS << " ms) [" << hex << \
+        (loopState.vcode == loopState.scancode ? "" : PRETTY_VK_LABELS[loopState.scancode] + " => ") \
+        << getPrettyVKLabelPadded(loopState.vcode, 8) << getSymbolForIKStrokeState(interceptionState.lastIKstroke.state)
+        << " =" << hex << interceptionState.lastIKstroke.code << " " << interceptionState.lastIKstroke.state << "]";
+}
+
+void printLoopState2Modifier()
+{
+    cout << " [M:" << hex << modifierState.modifierDown;
+    if (modifierState.modifierTapped)  cout << " TAP:" << hex << modifierState.modifierTapped;
+    if (modifierState.activeDeadkey)  cout << " DEAD:" << hex << getPrettyVKLabelPadded(modifierState.activeDeadkey, 0);
+    cout << "] ";
+}
+
+void printLoopState3Timing()
+{
+    cout << "\t (" << dec << timeMillisecondsSinceTimepoint(loopState.timepointLoopStart) << dec << " ms)";
+    loopState.timepointStopwatch = timeSetTimepointNow();
+}
+
+void printLoopState4TapState()
+{
+    cout << (loopState.tappedSlow ? " (slow tap)" : "");
+    cout << (loopState.tapped ? " (tap)" : "");
+    if (loopState.tapHoldMake)
+        cout << " (TH_in:" << hex << interceptionState.lastIKstroke.code << ")";
+    if (globalState.tapAndHoldKey >= 0)
+        cout << " (TH_out:" << hex << globalState.tapAndHoldKey << ")";
+
+    long sendtime = timeMillisecondsSinceTimepoint(loopState.timepointStopwatch);
+    if (sendtime > 2)
+        cout << "\t (slow to send: " << dec << sendtime << " ms)";
 }
 
 void printKeylabels()
@@ -1388,7 +1411,7 @@ void printHelp()
         << "[D] Debug mode output" << endl
         << "[E] Error log" << endl
         << "[C] Print list of key labels for all scancodes" << endl
-        << "[R] Reset and reload the .ini" << endl
+        << "[R] Reset and reload the .ini file" << endl
         << "[T] Move Taskbar icon to Tray and back" << endl
         << "[U] Username Enter/Playback" << endl
         << "[P] Password Enter/Playback. DO NOT USE if strangers can access your local machine." << endl
@@ -1397,12 +1420,10 @@ void printHelp()
         << "[Y] autohotkeY stop" << endl
         << "[J][K][L][;] Macro Recording: Start,Stop,Playback,Copy macro definition to clipboard." << endl
         << "[,] and [.]: delay between keys in sequences -/+ 1ms " << endl
-        << "[any modifier]: 'sticky modifier' : keeps it pressed until you hit ESC"
         << "[Q] (dev feature) Stop the debug build if both release and debug are running" << endl
         << endl << "These commands work anywhere, Capsicain does not have to be the active window."
         ;
 }
-
 
 void normalizeIKStroke(InterceptionKeyStroke &ikstroke) {
     if (ikstroke.code > 0x7F) {
@@ -1513,32 +1534,8 @@ void sendVKeyEvent(VKeyEvent keyEvent)
     InterceptionKeyStroke iks = vkeyEvent2ikstroke(keyEvent);
     IFDEBUG cout << " {" << PRETTY_VK_LABELS[keyEvent.vcode] << (keyEvent.isDownstroke ? "v" : "^") << " #" << globalState.keysDownSentCounter << "}";
 
-    interception_send(globalState.interceptionContext, globalState.interceptionDevice, (InterceptionStroke *)&iks, 1);
+    interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke *)&iks, 1);
 //    interception_send(globalState.interceptionContext, globalState.interceptionDevice, (InterceptionStroke *)&loopState.originalIKstroke, 1);
-}
-
-void reset()
-{
-    resetAllStatesToDefault();
-
-    releaseAllSentKeys();
-
-    readSanitizeIniFile(sanitizedIniContent);
-    parseIniGlobals();
-    switchLayer(globalState.activeLayer);
-}
-
-//Release all keys to 'up' that have been sent out as 'down'
-void releaseAllSentKeys()
-{
-    IFDEBUG cout << endl << "Resetting all sent DOWN keys to UP: " << endl;
-    for (int i = 0; i < 255; i++)
-    {
-        if (globalState.keysDownSent[i])
-        {
-            sendVKeyEvent({ i, false });
-        }
-    }
 }
 
 
