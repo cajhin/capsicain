@@ -51,16 +51,19 @@ bool ShowInTaskbar()
     return true;
 }
 
+
 bool ShowInTraybar(bool enabled, int activeLayer)
 {
-    LPCTSTR lpszTip = "Capsicain"; // tooltip.c_str();
+    LPCTSTR lpszTip = "Capsicain "; // tooltip.c_str();
 
     HMODULE handleToMyself = ::GetModuleHandleA(NULL);
     HICON hIcon;
-    if(enabled)
-        hIcon = LoadIcon(handleToMyself, MAKEINTRESOURCE(IDI_ICON_ON));
-    else
+    if(activeLayer == 0)
         hIcon = LoadIcon(handleToMyself, MAKEINTRESOURCE(IDI_ICON_OFF));
+    else if(activeLayer >= 2 && activeLayer <= 9 )
+        hIcon = LoadIcon(handleToMyself, MAKEINTRESOURCE(102+activeLayer));
+    else
+        hIcon = LoadIcon(handleToMyself, MAKEINTRESOURCE(IDI_ICON_ON));
 
     if (!hIcon || !lpszTip)
     {
@@ -79,6 +82,16 @@ bool ShowInTraybar(bool enabled, int activeLayer)
 
     ::ShowWindow(::GetConsoleWindow(), SW_HIDE);
 
-    return (::Shell_NotifyIcon(NIM_ADD, &tnid) ? true : false);
+    bool res = (::Shell_NotifyIcon(NIM_ADD, &tnid) ? true : false);
+    if(!res)
+       res = (::Shell_NotifyIcon(NIM_MODIFY, &tnid) ? true : false);
+    return res;
 }
 
+void updateTrayIcon(bool enabled, int activeLayer)
+{
+    if (!IsCapsicainInTray())
+        return;  //cannot change the taskbar icon
+
+    ShowInTraybar(enabled, activeLayer);
+}

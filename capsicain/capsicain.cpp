@@ -558,6 +558,15 @@ void processMapAlphaKeys()
     }
 }
 
+void testBeta()
+{
+    //flip icon
+    options.debug = !options.debug;
+    bool res = ShowInTraybar(options.debug, globalState.activeLayer);
+    if (!res)
+        cout << endl << "not flipped";
+}
+
 // [ESC]+x combos
 // returns false if exit was requested
 // uses the unwired keys for regular keys, and wired modifiers
@@ -753,6 +762,9 @@ bool processCommand()
         if (options.delayForKeySequenceMS <= 100)
             options.delayForKeySequenceMS += 1;
         cout << "delay between characters in key sequences (ms): " << dec << options.delayForKeySequenceMS;
+        break;
+    case SC_B:
+        testBeta();
         break;
     default: 
     {
@@ -1242,6 +1254,7 @@ void switchLayer(int layer)
         globalState.activeLayerName = LAYER_DISABLED_LAYER_NAME;
     }
 
+    updateTrayIcon(true, globalState.activeLayer);
     cout << endl << endl << "ACTIVE LAYER: " << globalState.activeLayer << " = " << globalState.activeLayerName;
 }
 

@@ -202,6 +202,15 @@ $(ProjectDir)copy_release.bat</Command>
   <ItemGroup>
     <Image Include="capslock_on.ico" />
     <Image Include="capslock_off.ico" />
+    <Image Include="icons\capslock_l1.ico" />
+    <Image Include="icons\capslock_l2.ico" />
+    <Image Include="icons\capslock_l3.ico" />
+    <Image Include="icons\capslock_l4.ico" />
+    <Image Include="icons\capslock_l5.ico" />
+    <Image Include="icons\capslock_l6.ico" />
+    <Image Include="icons\capslock_l7.ico" />
+    <Image Include="icons\capslock_l8.ico" />
+    <Image Include="icons\capslock_l9.ico" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="documentation.txt" />

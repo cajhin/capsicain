@@ -1,5 +1,5 @@
 Ongoing stream of what I want to remember...
- 
+
 TODO
 - user/pass, different keys for record playback
 - test if static linking works for both ms*.dll
@@ -7,7 +7,6 @@ TODO
 - record macros on key in (today) or on key out?
 - nicer macro 'language'
 - enable/disable (layer0) toggle switch/vkey
-- numbered trayicons
 - test if SC_0Xnn still works in ini
 - test apple boards
 - accented altChars should not ignore CapsLock ON
@@ -106,4 +105,7 @@ v74beta
 - unfinished: icon for disabled
 - Reset with ESC-BSP
 - clean up: reload, layer change, all ESC commands work everywhere
-- remove sticky mods feature. Too hacky to get it right..
+- remove sticky mods feature. Too hacky to get it right
+
+v75beta: tray icon indicates active layer
+

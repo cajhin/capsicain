@@ -76,6 +76,33 @@
     <Image Include="capslock_on.ico">
       <Filter>Resource Files</Filter>
     </Image>
+    <Image Include="icons\capslock_l2.ico">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="icons\capslock_l3.ico">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="icons\capslock_l1.ico">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="icons\capslock_l4.ico">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="icons\capslock_l5.ico">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="icons\capslock_l6.ico">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="icons\capslock_l7.ico">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="icons\capslock_l8.ico">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="icons\capslock_l9.ico">
+      <Filter>Resource Files</Filter>
+    </Image>
   </ItemGroup>
   <ItemGroup>
     <Text Include="layoutTest.txt" />
