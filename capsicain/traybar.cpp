@@ -58,10 +58,13 @@ bool ShowInTraybar(bool enabled, int activeLayer)
 
     HMODULE handleToMyself = ::GetModuleHandleA(NULL);
     HICON hIcon;
-    if(activeLayer == 0)
+    if( !enabled || activeLayer == 0)
         hIcon = LoadIcon(handleToMyself, MAKEINTRESOURCE(IDI_ICON_OFF));
-    else if(activeLayer >= 2 && activeLayer <= 9 )
-        hIcon = LoadIcon(handleToMyself, MAKEINTRESOURCE(102+activeLayer));
+    else if (activeLayer >= 2 && activeLayer <= 9)
+    {
+        int dummy = (int)(102 + activeLayer); //MAKEINT macro ignores (int)
+        hIcon = LoadIcon(handleToMyself, MAKEINTRESOURCE(dummy));
+    }
     else
         hIcon = LoadIcon(handleToMyself, MAKEINTRESOURCE(IDI_ICON_ON));
 

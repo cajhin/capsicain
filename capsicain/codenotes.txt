@@ -6,12 +6,8 @@ TODO
 - timeout for tappings, deadkeys?
 - record macros on key in (today) or on key out?
 - nicer macro 'language'
-- enable/disable (layer0) toggle switch/vkey
-- test if SC_0Xnn still works in ini
-- test apple boards
 - accented altChars should not ignore CapsLock ON
 - rethink double tap breaking tapped state
-- check / distribute new DLLs
 - nicer syntax for input sequences (COMPOSE f y i [.T] > print("For your information")
 - Documentation.....
 
@@ -109,3 +105,4 @@ v74beta
 
 v75beta: tray icon indicates active layer
 
+v76beta: GLOBAL capsicainEnableDisableKey

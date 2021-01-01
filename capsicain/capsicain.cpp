@@ -22,6 +22,7 @@ string PRETTY_VK_LABELS[MAX_VCODES]; // contains e.g. [01]="ESC" instead of SC_E
 
 vector<string> sanitizedIniContent;  //loaded on startup and reset
 
+//only written on ini load
 struct Globals
 {
     string iniVersion = "unnamed version - add 'iniVersion xyz123' to capsicain.ini";
@@ -29,9 +30,11 @@ struct Globals
     bool startMinimized = false;
     bool startInTraybar = false;
     bool startAHK = false;
+    int capsicainEnableDisableKey = -1;
 } globals;
 static const struct Globals defaultGlobals;
 
+//can be toggled with ESC commands
 struct Options
 {
     bool debug = false;
@@ -75,6 +78,8 @@ struct InterceptionState
 
 struct GlobalState
 {
+    bool capsicainEnabled = true;
+
     int  activeLayer = 0;
     string activeLayerName = DEFAULT_ACTIVE_LAYER_NAME;
 
@@ -146,6 +151,10 @@ string getPrettyVKLabelPadded(int vcode, int resultLength)
         label.insert(0, resultLength - label.size(), ' ');
     return label;
 }
+string getPrettyVKLabel(int vcode)
+{
+    return PRETTY_VK_LABELS[vcode];
+}
 
 void parseIniGlobals()
 {
@@ -156,6 +165,17 @@ void parseIniGlobals()
         string token = stringGetFirstToken(line);
         if (token == "debugonstartup")
             options.debug = true;
+        else if (token == "capsicainenabledisablekey")
+        {
+            string s = stringGetRestBehindFirstToken(line);
+            int key = getVcode(s, PRETTY_VK_LABELS);
+            if (key < 0)
+                cout << "ERROR: unknown key label: " << line << endl;
+            else if (key > 255)
+                cout << "ERROR: virtual key makes no sense: " << line << endl;
+            else 
+                globals.capsicainEnableDisableKey = key;
+        }
         else if (token == "iniversion")
             globals.iniVersion = stringGetRestBehindFirstToken(line);
         else if (token == "startminimized")
@@ -174,16 +194,16 @@ void parseIniGlobals()
         cout << endl << "No ini setting for 'GLOBAL activeLayerOnStartup'. Setting default layer " << globals.activeLayerOnStartup;
 }
 
-void DetectTapping(const VKeyEvent &originalVKeyEvent)
+void DetectTapping()
 {
     //Tapped key?
     loopState.tapped = !loopState.isDownstroke
-        && (loopState.scancode == globalState.previousKey1EventIn.vcode)
+        && (loopState.vcode == globalState.previousKey1EventIn.vcode)
         && (globalState.previousKey1EventIn.isDownstroke);
 
     //Slow tap?
     loopState.tappedSlow = loopState.tapped
-        && (globalState.previousKey2EventIn.vcode == loopState.scancode)
+        && (globalState.previousKey2EventIn.vcode == loopState.vcode)
         && (globalState.previousKey2EventIn.isDownstroke);
 
     if (loopState.tappedSlow)
@@ -193,8 +213,8 @@ void DetectTapping(const VKeyEvent &originalVKeyEvent)
     if (loopState.isDownstroke)
     {
         if (
-            originalVKeyEvent.vcode == globalState.previousKey1EventIn.vcode
-            && originalVKeyEvent.vcode == globalState.previousKey2EventIn.vcode
+            loopState.vcode == globalState.previousKey1EventIn.vcode
+            && loopState.vcode == globalState.previousKey2EventIn.vcode
             && !globalState.previousKey1EventIn.isDownstroke
             && globalState.previousKey2EventIn.isDownstroke
             )
@@ -208,7 +228,7 @@ void DetectTapping(const VKeyEvent &originalVKeyEvent)
     //remember last three keys
     globalState.previousKey3EventIn = globalState.previousKey2EventIn;
     globalState.previousKey2EventIn = globalState.previousKey1EventIn;
-    globalState.previousKey1EventIn = originalVKeyEvent;
+    globalState.previousKey1EventIn = { loopState.vcode, loopState.isDownstroke };
 }
 
 int main()
@@ -251,6 +271,8 @@ int main()
     else if (globals.startMinimized)
         ShowInTaskbarMinimized();
 
+    resetCapsNumScrollLock();
+
     raise_process_priority(); //careful: if we spam key events, other processes get no timeslots to process them. Sleep a bit...
 
     //CORE LOOP
@@ -259,7 +281,41 @@ int main()
         interceptionState.interceptionDevice = interception_wait(interceptionState.interceptionContext),
                                  (InterceptionStroke *)&interceptionState.lastIKstroke, 1)   > 0)
     {
-         IFDEBUG cout << ". ";
+        //clear loop state
+        loopState = defaultLoopState;
+
+        //copy InterceptionKeyStroke (unpleasant to use) to plain VKeyEvent
+        VKeyEvent originalVKeyEvent = ikstroke2VKeyEvent(interceptionState.lastIKstroke);
+        loopState.scancode = originalVKeyEvent.vcode;  //scancode is write-once (except for the AppleWinAlt option)
+        loopState.vcode = loopState.scancode;          //vcode may be altered below
+        loopState.isDownstroke = originalVKeyEvent.isDownstroke;
+
+        //if GLOBAL capsicainEnableDisable is configured, it toggles the state and still forwards the (scrLock?) key
+        if (loopState.scancode == globals.capsicainEnableDisableKey)
+        {
+            if (loopState.isDownstroke)
+            {
+                globalState.capsicainEnabled = !globalState.capsicainEnabled;
+                updateTrayIcon(globalState.capsicainEnabled, globalState.activeLayer);
+                if (globalState.capsicainEnabled)
+                {
+                    reset();
+                    cout << endl << endl << "[" << getPrettyVKLabel(globals.capsicainEnableDisableKey) << "] -> Capsicain ENABLED";
+                }
+                else
+                    cout << endl << endl << "[" << getPrettyVKLabel(globals.capsicainEnableDisableKey) << "] -> Capsicain DISABLED";
+            }
+            interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke*)&interceptionState.lastIKstroke, 1);
+            continue;
+        }
+        //if disabled, just forward
+        if (!globalState.capsicainEnabled)
+        {
+            interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke*)&interceptionState.lastIKstroke, 1);
+            continue;
+        }
+
+        IFDEBUG cout << ". ";
         //ignore secondary keyboard?
         if (options.processOnlyFirstKeyboard 
             && (interceptionState.previousInterceptionDevice != NULL)
@@ -280,19 +336,10 @@ int main()
             interceptionState.previousInterceptionDevice = interceptionState.interceptionDevice;
         }
 
-        //clear loop state
-        loopState = defaultLoopState;
-
         //Timing. Timer is not precise, sleep() even less; just a rough outline. Expect occasional 30ms sleeps from thread scheduling.
         loopState.timepointLoopStart = timeSetTimepointNow();
         loopState.timeSinceLastKeyEventMS = timeBetweenTimepointsMS(globalState.timepointPreviousKeyEvent, loopState.timepointLoopStart);
         globalState.timepointPreviousKeyEvent = loopState.timepointLoopStart;
-
-        //copy InterceptionKeyStroke (unpleasant to use) to plain VKeyEvent
-        VKeyEvent originalVKeyEvent = ikstroke2VKeyEvent(interceptionState.lastIKstroke);
-        loopState.scancode = originalVKeyEvent.vcode;  //scancode is write-once (except for the AppleWinAlt option)
-        loopState.vcode = loopState.scancode;          //vcode may be altered below
-        loopState.isDownstroke = originalVKeyEvent.isDownstroke;
 
         //sanity check
         if (interceptionState.lastIKstroke.code >= 0x80)
@@ -325,33 +372,33 @@ int main()
         }
 
         //Layer 0: standard keyboard, no further processing, just forward everything
-        if (globalState.activeLayer == LAYER_DISABLED)
+        if (globalState.activeLayer == LAYER_ZERO)
         {
             interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke *)&interceptionState.lastIKstroke, 1);
             continue;
         }
 
-        //flip Win+Alt only for Apple keyboards. Ugly that this must rewrite the scancode
-        //note: this does not change anything on layer0
+        //flip Win+Alt only for Apple keyboards.
         if (options.flipAltWinOnAppleKeyboards && globalState.deviceIsAppleKeyboard)
         {
-            switch (loopState.scancode)
+            switch (loopState.vcode)
             {
-            case SC_LALT: loopState.scancode = SC_LWIN; break;
-            case SC_LWIN: loopState.scancode = SC_LALT; break;
-            case SC_RALT: loopState.scancode = SC_RWIN; break;
-            case SC_RWIN: loopState.scancode = SC_RALT; break;
+            case SC_LALT: loopState.vcode = SC_LWIN; break;
+            case SC_LWIN: loopState.vcode = SC_LALT; break;
+            case SC_RALT: loopState.vcode = SC_RWIN; break;
+            case SC_RWIN: loopState.vcode = SC_RALT; break;
             }
+
+            loopState.scancode = loopState.vcode;       //only time where scancode is rewritten. Simplifies tapping and rewiring
         }
 
         //Tapdance
-        DetectTapping(originalVKeyEvent);
+        DetectTapping();
         //slow tap breaks tapping
         if (loopState.tappedSlow)
             modifierState.modifierTapped = 0;
 
         //hard rewire all REWIREd keys
-        loopState.vcode = loopState.scancode;
          processRewireScancodeToVirtualcode();
         if (loopState.vcode == SC_NOP)   //rewired to NOP to disable keys
         {
@@ -586,8 +633,8 @@ bool processCommand()
     }
     case SC_0:
     {
-        cout << endl << "LAYER CHANGE: " << LAYER_DISABLED;
-        switchLayer(LAYER_DISABLED);
+        cout << endl << "LAYER CHANGE: " << LAYER_ZERO;
+        switchLayer(LAYER_ZERO);
         break;
     }
     case SC_1:
@@ -1233,9 +1280,9 @@ void switchLayer(int layer)
 
     reset();
 
-    if (layer == LAYER_DISABLED)
+    if (layer == LAYER_ZERO)
     {
-        globalState.activeLayer = LAYER_DISABLED;
+        globalState.activeLayer = LAYER_ZERO;
         globalState.activeLayerName = LAYER_DISABLED_LAYER_NAME;
     }
     else if (parseProcessIniLayer(layer))
@@ -1250,7 +1297,7 @@ void switchLayer(int layer)
     else
     {
         cout << endl << endl << "ERROR: CANNOT RELOAD CURRENT LAYER? Switching to layer 0";
-        globalState.activeLayer = LAYER_DISABLED;
+        globalState.activeLayer = LAYER_ZERO;
         globalState.activeLayerName = LAYER_DISABLED_LAYER_NAME;
     }
 
@@ -1266,7 +1313,7 @@ void resetCapsNumScrollLock()
         keySequenceAppendMakeBreakKey(SC_NUMLOCK, sequence);
     if (GetKeyState(VK_CAPITAL) & 0x0001)
         keySequenceAppendMakeBreakKey(SC_CAPS, sequence);
-    if (GetKeyState(VK_SCROLL) & 0x0001)
+    if (GetKeyState(VK_SCROLL) & 0x0001 && globals.capsicainEnableDisableKey< 0)  //don't mess with ScrLock when it is the enable/disable key
         keySequenceAppendMakeBreakKey(SC_SCRLOCK, sequence);
     if (sequence.size() != 0)
         playKeyEventSequence(sequence);
@@ -1359,6 +1406,7 @@ void printStatus()
         << "Capsicain version: " << VERSION << endl
         << "ini version: " << globals.iniVersion << endl
         << "active layer: " << globalState.activeLayer << " = " << globalState.activeLayerName << endl
+        << "enable/disable key: [" << (globals.capsicainEnableDisableKey >= 0 ? getPrettyVKLabel(globals.capsicainEnableDisableKey) : "(not defined)") << "]" << endl
         << "keyboard hardware id: " << globalState.deviceIdKeyboard << endl
         << "Apple keyboard: " << globalState.deviceIsAppleKeyboard << endl
         << "delay between keys in sequences (ms): " << options.delayForKeySequenceMS << endl
