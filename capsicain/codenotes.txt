@@ -106,3 +106,8 @@ v74beta
 v75beta: tray icon indicates active layer
 
 v76beta: GLOBAL capsicainEnableDisableKey
+If defined, this toggles the disabled state.
+The key will also be forwarded to Windows.
+Nice: ScrLock indicates state with LED and is otherwise a useless key.
+
+v77beta: change name to capsicainOnOffKey

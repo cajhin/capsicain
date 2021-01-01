@@ -1,6 +1,6 @@
 #pragma once
 
-#define VERSION "76beta"
+#define VERSION "77beta"
 
 
 //arbitray limits
@@ -8,7 +8,7 @@
 #define MAX_MACRO_LENGTH 200  //stop recording at some point if it was forgotten.
 
 //constants
-#define LAYER_ZERO  0 // layer 0 does nothing
+#define LAYER_DISABLED  0 // layer 0 does nothing
 #define LAYER_DISABLED_LAYER_NAME "Capsicain disabled. \r\nNo processing, forward everything. \r\nOnly ESC-X and ESC-0..9 work."
 #define AHK_HOTKEY1 SC_F14  //this key triggers supporting AHK script
 #define AHK_HOTKEY2 SC_F15

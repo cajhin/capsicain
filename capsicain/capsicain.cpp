@@ -30,7 +30,7 @@ struct Globals
     bool startMinimized = false;
     bool startInTraybar = false;
     bool startAHK = false;
-    int capsicainEnableDisableKey = -1;
+    int capsicainOnOffKey = -1;
 } globals;
 static const struct Globals defaultGlobals;
 
@@ -78,7 +78,7 @@ struct InterceptionState
 
 struct GlobalState
 {
-    bool capsicainEnabled = true;
+    bool capsicainOn = true;
 
     int  activeLayer = 0;
     string activeLayerName = DEFAULT_ACTIVE_LAYER_NAME;
@@ -165,7 +165,7 @@ void parseIniGlobals()
         string token = stringGetFirstToken(line);
         if (token == "debugonstartup")
             options.debug = true;
-        else if (token == "capsicainenabledisablekey")
+        else if (token == "capsicainonoffkey")
         {
             string s = stringGetRestBehindFirstToken(line);
             int key = getVcode(s, PRETTY_VK_LABELS);
@@ -174,7 +174,7 @@ void parseIniGlobals()
             else if (key > 255)
                 cout << "ERROR: virtual key makes no sense: " << line << endl;
             else 
-                globals.capsicainEnableDisableKey = key;
+                globals.capsicainOnOffKey = key;
         }
         else if (token == "iniversion")
             globals.iniVersion = stringGetRestBehindFirstToken(line);
@@ -291,25 +291,26 @@ int main()
         loopState.isDownstroke = originalVKeyEvent.isDownstroke;
 
         //if GLOBAL capsicainEnableDisable is configured, it toggles the state and still forwards the (scrLock?) key
-        if (loopState.scancode == globals.capsicainEnableDisableKey)
+        if (loopState.scancode == globals.capsicainOnOffKey)
         {
             if (loopState.isDownstroke)
             {
-                globalState.capsicainEnabled = !globalState.capsicainEnabled;
-                updateTrayIcon(globalState.capsicainEnabled, globalState.activeLayer);
-                if (globalState.capsicainEnabled)
+                globalState.capsicainOn = !globalState.capsicainOn;
+                updateTrayIcon(globalState.capsicainOn, globalState.activeLayer);
+                if (globalState.capsicainOn)
                 {
                     reset();
-                    cout << endl << endl << "[" << getPrettyVKLabel(globals.capsicainEnableDisableKey) << "] -> Capsicain ENABLED";
+                    cout << endl << endl << "[" << getPrettyVKLabel(globals.capsicainOnOffKey) << "] -> Capsicain ON";
+                    cout << endl << "active layer: " << globalState.activeLayer << " = " << globalState.activeLayerName;
                 }
                 else
-                    cout << endl << endl << "[" << getPrettyVKLabel(globals.capsicainEnableDisableKey) << "] -> Capsicain DISABLED";
+                    cout << endl << endl << "[" << getPrettyVKLabel(globals.capsicainOnOffKey) << "] -> Capsicain OFF";
             }
             interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke*)&interceptionState.lastIKstroke, 1);
             continue;
         }
         //if disabled, just forward
-        if (!globalState.capsicainEnabled)
+        if (!globalState.capsicainOn)
         {
             interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke*)&interceptionState.lastIKstroke, 1);
             continue;
@@ -372,7 +373,7 @@ int main()
         }
 
         //Layer 0: standard keyboard, no further processing, just forward everything
-        if (globalState.activeLayer == LAYER_ZERO)
+        if (globalState.activeLayer == LAYER_DISABLED)
         {
             interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke *)&interceptionState.lastIKstroke, 1);
             continue;
@@ -633,8 +634,8 @@ bool processCommand()
     }
     case SC_0:
     {
-        cout << endl << "LAYER CHANGE: " << LAYER_ZERO;
-        switchLayer(LAYER_ZERO);
+        cout << endl << "LAYER CHANGE: " << LAYER_DISABLED;
+        switchLayer(LAYER_DISABLED);
         break;
     }
     case SC_1:
@@ -1280,9 +1281,9 @@ void switchLayer(int layer)
 
     reset();
 
-    if (layer == LAYER_ZERO)
+    if (layer == LAYER_DISABLED)
     {
-        globalState.activeLayer = LAYER_ZERO;
+        globalState.activeLayer = LAYER_DISABLED;
         globalState.activeLayerName = LAYER_DISABLED_LAYER_NAME;
     }
     else if (parseProcessIniLayer(layer))
@@ -1297,7 +1298,7 @@ void switchLayer(int layer)
     else
     {
         cout << endl << endl << "ERROR: CANNOT RELOAD CURRENT LAYER? Switching to layer 0";
-        globalState.activeLayer = LAYER_ZERO;
+        globalState.activeLayer = LAYER_DISABLED;
         globalState.activeLayerName = LAYER_DISABLED_LAYER_NAME;
     }
 
@@ -1313,7 +1314,7 @@ void resetCapsNumScrollLock()
         keySequenceAppendMakeBreakKey(SC_NUMLOCK, sequence);
     if (GetKeyState(VK_CAPITAL) & 0x0001)
         keySequenceAppendMakeBreakKey(SC_CAPS, sequence);
-    if (GetKeyState(VK_SCROLL) & 0x0001 && globals.capsicainEnableDisableKey< 0)  //don't mess with ScrLock when it is the enable/disable key
+    if (GetKeyState(VK_SCROLL) & 0x0001 && globals.capsicainOnOffKey != SC_SCRLOCK)  //don't mess with ScrLock when it is the enable/disable key
         keySequenceAppendMakeBreakKey(SC_SCRLOCK, sequence);
     if (sequence.size() != 0)
         playKeyEventSequence(sequence);
@@ -1406,7 +1407,7 @@ void printStatus()
         << "Capsicain version: " << VERSION << endl
         << "ini version: " << globals.iniVersion << endl
         << "active layer: " << globalState.activeLayer << " = " << globalState.activeLayerName << endl
-        << "enable/disable key: [" << (globals.capsicainEnableDisableKey >= 0 ? getPrettyVKLabel(globals.capsicainEnableDisableKey) : "(not defined)") << "]" << endl
+        << "Capsicain on/off key: [" << (globals.capsicainOnOffKey >= 0 ? getPrettyVKLabel(globals.capsicainOnOffKey) : "(not defined)") << "]" << endl
         << "keyboard hardware id: " << globalState.deviceIdKeyboard << endl
         << "Apple keyboard: " << globalState.deviceIsAppleKeyboard << endl
         << "delay between keys in sequences (ms): " << options.delayForKeySequenceMS << endl
