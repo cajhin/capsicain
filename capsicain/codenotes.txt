@@ -111,3 +111,8 @@ The key will also be forwarded to Windows.
 Nice: ScrLock indicates state with LED and is otherwise a useless key.
 
 v77beta: change name to capsicainOnOffKey
+
+v78beta: configurable layer change
+- new internal vkeys LAYERSWITCH, LAYERPREVIOUS
+- new functions > layerSwitch(0..9), > layerPrevious()
+- disable Ctrl-C

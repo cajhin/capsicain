@@ -211,37 +211,21 @@ bool getStringValueForKey(std::string key, std::string &value, vector<string> se
 
 bool getIntValueForTaggedKey(string tag, string key, int &value, vector<string> sectionLines)
 {
-    string val;
-    if (!getStringValueForTaggedKey(tag, key, val, sectionLines))
+    string strval;
+    if (!getStringValueForTaggedKey(tag, key, strval, sectionLines))
         return false;
-    try
-    {
-        value = stoi(val);
-    }
-    catch (...)
-    {
-        cout << endl << "Error: not a number: " << val;
-        return false;
-    }
-    return true;
+
+    return stringToInt(strval, value);
 }
 
 bool getIntValueForKey(std::string key, int &value, vector<std::string> sectionLines)
 {
     key = stringToLower(key);
-    string val;
-    if (!getStringValueForKey(key, val, sectionLines))
+    string strval;
+    if (!getStringValueForKey(key, strval, sectionLines))
         return false;
-    try
-    {
-        value = stoi(val);
-    }
-    catch (...)
-    {
-        cout << endl << "Error: not a number: " << val;
-        return false;
-    }
-    return true;
+
+    return stringToInt(strval, value);
 }
 
 std::string stringGetFirstToken(std::string line)
@@ -424,19 +408,19 @@ bool lexComboRule(std::string line, int &key, unsigned short(&mods)[5], std::vec
     size_t funcIdx1 = line.find_first_of('>') + 1;
     if (funcIdx1 == string::npos || funcIdx1 < 2)
     {
-        cout << endl << "Error in ini: missing '>'";
+        cout << endl << "ERROR in ini: missing '>' in: " << line;
         return false;
     }
     size_t funcIdx2 = line.find_first_of('(');
     if (funcIdx2 == string::npos || funcIdx2 < funcIdx1 + 2)
     {
-        cout << endl << "Error in ini: missing '('";
+        cout << endl << "ERROR in ini: missing '(' in: " << line;
         return false;
     }
     size_t funcIdx3 = line.find_first_of(')');
-    if (funcIdx3 == string::npos || funcIdx3 < funcIdx2 + 2)
+    if (funcIdx3 == string::npos || funcIdx3 < funcIdx2 + 1)
     {
-        cout << endl << "Error in ini: missing ')'";
+        cout << endl << "ERROR in ini: missing ')' in: " << line;
         return false;
     }
     string funcName = line.substr(funcIdx1, funcIdx2 - funcIdx1);
@@ -614,6 +598,22 @@ bool lexComboRule(std::string line, int &key, unsigned short(&mods)[5], std::vec
             return false;
         strokeSeq.push_back({ VK_CPS_DEADKEY, true });
         strokeSeq.push_back({ isc, true });
+    }
+    else if (funcName == "layerswitch")
+    {
+        int isc;
+        bool valid = stringToInt(funcParams, isc);
+        if (!valid || isc < 0 || isc > 10)
+        {
+            cout << "Invalid layer switch to: " << funcParams;
+            return false;
+        }
+        strokeSeq.push_back({ VK_CPS_LAYERSWITCH, true });
+        strokeSeq.push_back({ isc, true });
+    }
+    else if (funcName == "layerprevious")
+    {
+        strokeSeq.push_back({ VK_CPS_LAYERPREVIOUS, true });
     }
     else
         return false;

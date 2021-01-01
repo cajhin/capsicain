@@ -82,6 +82,7 @@ struct GlobalState
 
     int  activeLayer = 0;
     string activeLayerName = DEFAULT_ACTIVE_LAYER_NAME;
+    int previousLayer = 1; // switch to this on func(LAYERPREVIOUS)
 
     bool realEscapeIsDown = false;
 
@@ -239,6 +240,7 @@ int main()
         Sleep(5000);
         return 0;
     }
+
     printHelloHeader();
 
     defineAllPrettyVKLabels(PRETTY_VK_LABELS);
@@ -829,109 +831,6 @@ bool processCommand()
 }
 
 
-void sendResultingKeyOrSequence()
-{
-    if (loopState.resultingVKeyEventSequence.size() > 0)
-    {
-        playKeyEventSequence(loopState.resultingVKeyEventSequence);
-    }
-    else
-    {
-        IFDEBUG
-        {
-            if (loopState.vcode > 254)  //real key but not 255 CAPS_ESC
-                cout << "\t--> BLOCKED ";
-            else if (loopState.scancode != loopState.vcode)
-                cout << "\t--> " << PRETTY_VK_LABELS[loopState.vcode] << " " << getSymbolForIKStrokeState(interceptionState.lastIKstroke.state);
-            else
-                cout << "\t--";
-        }
-        if (loopState.vcode < 255 && loopState.vcode != SC_NOP)
-        {
-            sendVKeyEvent({ loopState.vcode, loopState.isDownstroke });
-        }
-    }
-}
-
-//Send out all keys in a sequence
-//Sequences are created for anything that requires more than one key event, like AltChar(123)
-void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
-{
-    VKeyEvent newKeyEvent;
-    unsigned int delayBetweenKeyEventsMS = options.delayForKeySequenceMS;
-    bool tempReleasedKeys = false; //command to temporarily release all physical keys came in
-
-    //'next key has special meaning'
-    bool expectNextSleepValue = false;
-    bool expectNextDeadkey = false;
-
-    IFDEBUG cout << "\t--> SEQUENCE (" << dec << keyEventSequence.size() << ")";
-    for (VKeyEvent keyEvent : keyEventSequence)
-    {
-        if (expectNextSleepValue)
-        {
-            IFDEBUG cout << endl << "vksleep: " << keyEvent.vcode;
-            Sleep(keyEvent.vcode);
-            expectNextSleepValue = false;
-        }
-        else if (expectNextDeadkey)
-        {
-            IFDEBUG cout << endl << "vkdeadkey: " << getPrettyVKLabelPadded(keyEvent.vcode,0);
-            modifierState.activeDeadkey = keyEvent.vcode;
-            expectNextDeadkey = false;
-        }
-        //release and remember all keys that are physically down
-        else if (keyEvent.vcode == VK_CPS_TEMPRELEASEKEYS)
-        {
-            bool tempReleasedKeys = true;
-            for (int i = 0; i <= 255; i++)
-            {
-                globalState.keysDownTempReleased[i] = globalState.keysDownSent[i];
-                if (globalState.keysDownSent[i])
-                    sendVKeyEvent({ i, false });
-            }
-            if (globalState.keysDownSentCounter != 0)
-                error("BUG: keysDownSentCounter != 0");
-        }
-        //restore all keys that were down before 'VK_temprelease'
-        else if (keyEvent.vcode == VK_CPS_TEMPRESTOREKEYS)
-        {
-            bool tempReleasedKeys = false;
-            for (int i = 0; i <= 255; i++)
-            {
-                if (globalState.keysDownTempReleased[i])
-                {
-                    sendVKeyEvent({ i, true });
-                    globalState.keysDownTempReleased[i] = false;
-                }
-            }
-        }
-        else if (keyEvent.vcode == VK_CPS_SLEEP)
-        {
-            expectNextSleepValue = true;
-        }
-        else if (keyEvent.vcode == VK_CPS_DEADKEY)
-        {
-            expectNextDeadkey = true;
-        }
-        else //regular non-escaped keyEvent
-        {
-            sendVKeyEvent(keyEvent);
-            if (keyEvent.vcode == AHK_HOTKEY1 || keyEvent.vcode == AHK_HOTKEY2)
-                delayBetweenKeyEventsMS = DEFAULT_DELAY_FOR_AHK_MS;
-            else
-                Sleep(delayBetweenKeyEventsMS);
-        }
-    }
-
-    if(tempReleasedKeys)
-        error("VK_CPS_TEMPRELEASEKEYS without corresponding VK_CPS_TEMPRESTOREKEYS. Check your config.");
-    if (expectNextSleepValue)
-        error("BUG: VK_CPS_SLEEP is unfinished");
-    if (expectNextDeadkey)
-        error("BUG: VK_CPS_DEADKEY is unfinished");
-}
-
 
 void getHardwareId()
 {
@@ -975,6 +874,10 @@ bool initConsoleWindow()
     if (GetLastError() == ERROR_ALREADY_EXISTS) // did the mutex already exist?
         return false; // quit; mutex is released automatically
 
+
+    //disable CTRL-C
+    SetConsoleCtrlHandler(NULL, TRUE);
+
     //disable quick edit; blocking the console window means the keyboard is dead
     HANDLE handle = GetStdHandle(STD_INPUT_HANDLE);
     DWORD mode;
@@ -983,6 +886,7 @@ bool initConsoleWindow()
     mode &= ~ENABLE_MOUSE_INPUT;
     SetConsoleMode(handle, mode);
 
+    //colors
     system("color 8E");  //byte1=background, byte2=text
     string title = "Capsicain v" VERSION;
     SetConsoleTitle(title.c_str());
@@ -1277,8 +1181,10 @@ bool parseProcessIniLayer(int layer)
 
 void switchLayer(int layer)
 {
-    int oldLayer = globalState.activeLayer;
+    if (layer == globalState.activeLayer)
+        return;
 
+    int oldLayer = globalState.activeLayer;
     reset();
 
     if (layer == LAYER_DISABLED)
@@ -1289,9 +1195,10 @@ void switchLayer(int layer)
     else if (parseProcessIniLayer(layer))
     {
         globalState.activeLayer = layer;
+        globalState.previousLayer = oldLayer;
         printOptions();
     }
-    else if (parseProcessIniLayer(layer))
+    else if (parseProcessIniLayer(oldLayer))
     {
         cout << endl << endl << "Staying on current layer";
     }
@@ -1332,6 +1239,7 @@ void reset()
     globalState = defaultGlobalState;
     globalState.activeLayer = tmp.activeLayer;
     globalState.activeLayerName = tmp.activeLayerName;
+    globalState.previousLayer = tmp.previousLayer;
     globalState.username = tmp.username;
     globalState.password = tmp.password;
 }
@@ -1525,7 +1433,7 @@ VKeyEvent ikstroke2VKeyEvent(InterceptionKeyStroke ikStroke)
     return strk;
 }
 
-//handle all special Capsicain VCodes. Trigger events on downstroke only
+//handle all special Capsicain VCodes that have no "second key param". Trigger events on downstroke only
 void sendCapsicainCodeHandler(VKeyEvent keyEvent)
 {
     if (!keyEvent.isDownstroke)
@@ -1551,10 +1459,132 @@ void sendCapsicainCodeHandler(VKeyEvent keyEvent)
         }
         break;
     }
+    case VK_CPS_LAYERPREVIOUS:
+    {
+        switchLayer(globalState.previousLayer);
+    }
     }
 
     IFDEBUG cout << endl << "(CapsicainCode: " << getPrettyVKLabelPadded(keyEvent.vcode,0) << ")";
 }
+
+void sendResultingKeyOrSequence()
+{
+    if (loopState.resultingVKeyEventSequence.size() > 0)
+    {
+        playKeyEventSequence(loopState.resultingVKeyEventSequence);
+    }
+    else
+    {
+        IFDEBUG
+        {
+            if (loopState.vcode > 254)  //real key but not 255 CAPS_ESC
+                cout << "\t--> BLOCKED ";
+            else if (loopState.scancode != loopState.vcode)
+                cout << "\t--> " << PRETTY_VK_LABELS[loopState.vcode] << " " << getSymbolForIKStrokeState(interceptionState.lastIKstroke.state);
+            else
+                cout << "\t--";
+        }
+            if (loopState.vcode < 255 && loopState.vcode != SC_NOP)
+            {
+                sendVKeyEvent({ loopState.vcode, loopState.isDownstroke });
+            }
+    }
+}
+
+//Send out all keys in a sequence
+//Sequences are created for anything that requires more than one key event, like AltChar(123)
+//Catch and process CPS virtual keys
+void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
+{
+    VKeyEvent newKeyEvent;
+    unsigned int delayBetweenKeyEventsMS = options.delayForKeySequenceMS;
+    bool tempReleasedKeys = false; //command to temporarily release all physical keys came in
+
+    //'next key has special meaning'
+    bool expectNextSleepValue = false;
+    bool expectNextDeadkey = false;
+    bool expectNextLayerSwitch = false;
+
+    IFDEBUG cout << "\t--> SEQUENCE (" << dec << keyEventSequence.size() << ")";
+    for (VKeyEvent keyEvent : keyEventSequence)
+    {
+        if (expectNextSleepValue)
+        {
+            IFDEBUG cout << endl << "vksleep: " << keyEvent.vcode;
+            Sleep(keyEvent.vcode);
+            expectNextSleepValue = false;
+        }
+        else if (expectNextDeadkey)
+        {
+            IFDEBUG cout << endl << "vkdeadkey: " << getPrettyVKLabelPadded(keyEvent.vcode, 0);
+            modifierState.activeDeadkey = keyEvent.vcode;
+            expectNextDeadkey = false;
+        }
+        else if (expectNextLayerSwitch)
+        {
+            IFDEBUG cout << endl << "vklayerswitch: " << getPrettyVKLabelPadded(keyEvent.vcode, 0);
+            switchLayer(keyEvent.vcode);
+            expectNextLayerSwitch = false;
+        }
+        //release and remember all keys that are physically down
+        else if (keyEvent.vcode == VK_CPS_TEMPRELEASEKEYS)
+        {
+            bool tempReleasedKeys = true;
+            for (int i = 0; i <= 255; i++)
+            {
+                globalState.keysDownTempReleased[i] = globalState.keysDownSent[i];
+                if (globalState.keysDownSent[i])
+                    sendVKeyEvent({ i, false });
+            }
+            if (globalState.keysDownSentCounter != 0)
+                error("BUG: keysDownSentCounter != 0");
+        }
+        //restore all keys that were down before 'VK_temprelease'
+        else if (keyEvent.vcode == VK_CPS_TEMPRESTOREKEYS)
+        {
+            bool tempReleasedKeys = false;
+            for (int i = 0; i <= 255; i++)
+            {
+                if (globalState.keysDownTempReleased[i])
+                {
+                    sendVKeyEvent({ i, true });
+                    globalState.keysDownTempReleased[i] = false;
+                }
+            }
+        }
+        else if (keyEvent.vcode == VK_CPS_SLEEP)
+        {
+            expectNextSleepValue = true;
+        }
+        else if (keyEvent.vcode == VK_CPS_DEADKEY)
+        {
+            expectNextDeadkey = true;
+        }
+        else if (keyEvent.vcode == VK_CPS_LAYERSWITCH)
+        {
+            expectNextLayerSwitch = true;
+        }
+        else //regular non-escaped keyEvent
+        {
+            sendVKeyEvent(keyEvent);
+            if (keyEvent.vcode == AHK_HOTKEY1 || keyEvent.vcode == AHK_HOTKEY2)
+                delayBetweenKeyEventsMS = DEFAULT_DELAY_FOR_AHK_MS;
+            else
+                Sleep(delayBetweenKeyEventsMS);
+        }
+    }
+
+    if (tempReleasedKeys)
+        error("VK_CPS_TEMPRELEASEKEYS without corresponding VK_CPS_TEMPRESTOREKEYS. Check your config.");
+    if (expectNextSleepValue)
+        error("BUG: VK_CPS_SLEEP is unfinished");
+    if (expectNextDeadkey)
+        error("BUG: VK_CPS_DEADKEY is unfinished");
+    if (expectNextLayerSwitch)
+        error("BUG: VK_CPS_LAYERSWITCH is unfinished");
+}
+
 
 void sendVKeyEvent(VKeyEvent keyEvent)
 {

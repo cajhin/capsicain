@@ -20,3 +20,4 @@ std::string stringGetFirstToken(std::string line);
 std::string stringToLower(std::string str);
 std::string stringToUpper(std::string str);
 std::vector<std::string> stringSplit(const std::string &line, char delimiter);
+bool stringToInt(std::string strval, int& result);

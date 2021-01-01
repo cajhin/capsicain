@@ -191,3 +191,18 @@ std::vector<string> stringSplit(const std::string &line, char delimiter)
 
     return res;
 }
+
+bool stringToInt(string strval, int &result)
+{
+    try
+    {
+        result = stoi(strval);
+    }
+    catch (...)
+    {
+        cout << endl << "error: stringToInt: not a number: " << strval;
+        return false;
+    }
+
+    return true;
+}

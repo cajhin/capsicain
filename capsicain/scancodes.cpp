@@ -223,6 +223,8 @@ void defineAllPrettyVKLabels(string arr[])
     checkAddLabel(VK_CPS_TEMPRESTOREKEYS, "TEMPRESTOREKEYS", arr);
     checkAddLabel(VK_CPS_SLEEP, "SLEEP", arr);
     checkAddLabel(VK_CPS_DEADKEY, "DEADKEY", arr);
+    checkAddLabel(VK_CPS_LAYERSWITCH, "LAYERSWITCH", arr);
+    checkAddLabel(VK_CPS_LAYERPREVIOUS, "LAYERPREVIOUS", arr);
     checkAddLabel(VK_MOD9, "MOD9", arr);
     checkAddLabel(VK_MOD10, "MOD10", arr);
     checkAddLabel(VK_MOD11, "MOD11", arr);
