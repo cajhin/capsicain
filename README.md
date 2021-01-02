@@ -14,7 +14,7 @@ Uses the Interception driver https://github.com/oblitum/Interception to receive 
 ## Why?
 
 I touch type. I code. I need a keyboard setup where I can keep my fingers on the home row most of the time.  
-Also, I don't want RSI back, and I'm a seriously fast coder/editor on any keyboard.
+Also, my layout cured my RSI, and I'm a seriously fast coder/editor on any keyboard (because I don't need the random extra keys on the side).
 
 Earlier versions were very focused on my own configuration. Latest versions are quite general, you can configure a lot.
 
