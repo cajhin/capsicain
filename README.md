@@ -6,7 +6,7 @@
 
 Keyboard configuration tool that re-maps keys and modifier-key-combos at a very low level.
 
-Created for productivity, but also works for gaming.  
+Created for productivity and fast keyboard layout prototyping, but also works for gaming.  
 (Might be useful to work around handicaps, but I have no experience. Open an issue if you need a special feature).
 
 Uses the Interception driver https://github.com/oblitum/Interception to receive keys before almost everyone else.  
