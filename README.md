@@ -1,20 +1,25 @@
+## News: Jan-2021 major new v79. Get it under 'Releases' on the right side.
+
+## The Wiki now contains a manual
+
 # capsicain
 
-Keyboard configuration tool that re-maps keys and modifier-key-combos at a very low level.  
+Keyboard configuration tool that re-maps keys and modifier-key-combos at a very low level.
+
+Created for productivity, but also works for gaming.  
+(Might be useful to work around handicaps, but I have no experience. Open an issue if you need a special feature).
+
 Uses the Interception driver https://github.com/oblitum/Interception to receive keys before almost everyone else.  
 
 ## Why?
 
 I touch type. I code. I need a keyboard setup where I can keep my fingers on the home row most of the time.  
+Also, I don't want RSI back, and I'm a seriously fast coder/editor on any keyboard.
 
-The position of Left/Right, Home/End, Insert/Delete and so on is bad. On laptops, it's awful.  
-Also, I need to type Ümläuts quite often, which is a pain on US standard layout - the only sane layout for writing C-style code.  
-My right pinky complains a lot, because C-style code requires a lot of special characters that are done with a stretched right pinky. Then I see the ALT keys, which are in a great position but rather useless.  
-
-And while I'm at it, I like to have a ton of extra features.   
+Earlier versions were very focused on my own configuration. Latest versions are quite general, you can configure a lot.
 
 ## Why I don't use tool X instead
-**AutoHotKey** is nice, did it for 10 years, but it runs in userspace and fails whenever the target gets key input from low level (VMs, RDP fullscreen, security boxes, games). It is limited when comes to multi-modifier combos. I still use it as a deputy for capsicain, doing Windowsy userspace tasks.  
+**AutoHotkey** is nice, did it for 10 years, but it runs in userspace and fails whenever the target gets key input from low level (VMs, RDP fullscreen, security boxes, games). It is limited when comes to multi-modifier combos. I still use it as a deputy for capsicain, doing Windowsy userspace tasks.  
 
 **Windows Keyboard Layout Creator** works more reliable, but it supports only very basic key remapping, and requires a reboot for every change.  
 
@@ -40,12 +45,14 @@ And while I'm at it, I like to have a ton of extra features.
     
 - Powerful modfier combos  
   Can do keycombos with all 15 modifiers with a single one-liner rule.  
-  Combine Modifier-Down, Modifier-NOT-down and Modifier-tapped in one combo.  
+  Combine Modifier-Down, Modifier-NOT-down, Modifier-A-OR-B-down, Modifier-tapped, Modifier-tapAndHold in one combo.  
   
 - Simple, fast and pretty alpha key mapping, to define Workman, Colemak, Dvorak, or play with your own layout.  
   Changing a key position is one character in the .ini file, [ESC]+[R] to reload and you're live.  
 
-- Unlimited sequences (key macros) with configurable delay between keys.  
+- Dead key system to define your own äççéñtèd characters, and how to create them.
+
+- Sequences (key macros) with configurable delay between keys.  
   On the fly recording and playback of macros.  
   Two dedicated macros for username / password, stored in memory only.  
 
@@ -74,12 +81,12 @@ This is the config I use myself. I call it the King Configuration, because, like
   
 - Tap ALT, key -> Special character layer  
     € © ° ¹²³ ...  
-    
-- Tap Caps, Tap ALT, key -> Greek character layer  
-    ε
-    
-- Tap Caps, Tap ALT, Shift + key -> Uppercase greek character layer  
-    Σ
+
+- Tap ALT, deadkey -> Special deadkey sequences  
+    ~,n -> ñ / ~,a -> ã
+
+- Tap Caps, Tap ALT, Shift + key -> Uppercase greek characters  
+    Σ   (just because I can)
     
 - TAB (NumPad) + Ctrl + Number -> "Table characters"  
 ```
@@ -103,7 +110,7 @@ An AHK script must run that catches F14 / F15 key combos.
     
  - Start many apps with centrally configured hotkeys  
  
- - Windows control shortcuts (maximize minimize close)
+ - Windows control shortcuts (maximize minimize restore close)
   
 ### Core commands
 These talk directly to Capsicain, trigger them with [ESC] + {key}  
@@ -112,10 +119,9 @@ These talk directly to Capsicain, trigger them with [ESC] + {key}
 There are various options, like "flip Z/Y", "flip WIN/ALT on Apple keyboards", timing for macros, status, more.
 
 ### What it doesn't do (today)
-- No modifier-only combos (Shift+Alt -> X). I don't like these, they cause accidents.
+- Limited modifier-only combos (Shift+Alt+Ctrl -> X). I don't like these, they cause accidents.
 - No combos-to-modifier (Ctrl+X -> Alt). Useless?
-- No dead keys / composing (Alt+U, then O -> Ö). Could be done but what for?
-- ALT-Numpad combos for special characters ╠═ö€Σε═╣ don't work in Linux VMs.  
+- Windows ALT-Numpad combos for special characters ╠═ö€Σε═╣ don't work in Linux VMs.  
   If you need this, you have to create your own config for Linux special chars.  
 
 ## About Interception  
@@ -133,23 +139,20 @@ v1..12 was created in capsicain_interception repo. This was an experimental non-
 Why the name? Beer made me do it. I like chilis. This tool defines a lot of CapsLock Hot keys. 'Capsaicin' is the chemical stuff that makes chilis hot, Capsicain just has a better flow to it (and is a unique name)
 
 # Installation
-1. download the latest capsicain.zip here: https://github.com/cajhin/capsicain/releases 
-2. extract to any folder you like. You can move it anytime; there are no registry entries for Capsicain.  
-3. if it is not in the .zip file, get the Interception installer from here:  
-    https://github.com/oblitum/Interception
-4. open an Administrator dosbox (Start menu > type 'cmd' > right-click on Command prompt > select 'Run as administrator'  
-5. navigate to the Interception installer folder  
-6. run `install-interception /install`
-7. reboot
-8. start capsicain.exe
+See the manual: <https://github.com/cajhin/capsicain/wiki/Installation>
 
 ## Your first config
-Out of the box, capsicain.ini is a copy of capsicain.cajhin.ini, the complete config that I use myself.  
-If you want to play around with something simpler, copy capsicain.example.ini to capsicain.ini.  
-[ESC]+[R] to reload the config.  
+See the manual <https://github.com/cajhin/capsicain/wiki>
 
 REMEMBER:  
 [ESC]+[X] Exits, always, in case your config makes the keyboard unusable. Capsicain doesn't have to be in the foreground to see ESC command combos.   
 [ESC]+[0] Switch to Layer 0 is the softer 'disable' method; it tells Capsicain to not do anything - except listen for [ESC] combos, so you can switch back to your layer 1 later.  
 
+# Contact
+
 Feel free to open an issue to ask questions.  
+
+I'm willing to help, and interested in ideas.
+
+You're also welcome to start a Discussion
+
