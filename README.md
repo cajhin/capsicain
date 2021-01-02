@@ -119,10 +119,11 @@ These talk directly to Capsicain, trigger them with [ESC] + {key}
 There are various options, like "flip Z/Y", "flip WIN/ALT on Apple keyboards", timing for macros, status, more.
 
 ### What it doesn't do (today)
-- Limited modifier-only combos (Shift+Alt+Ctrl -> X). I don't like these, they cause accidents.
+- Configurable double-taps
 - No combos-to-modifier (Ctrl+X -> Alt). Useless?
 - Windows ALT-Numpad combos for special characters ╠═ö€Σε═╣ don't work in Linux VMs.  
   If you need this, you have to create your own config for Linux special chars.  
+- cannot be triggered by other software. Capsicain listens to the keyboard hardware and nothing else.
 
 ## About Interception  
 This is a signed driver ("keyboard driver upper filter"), another project on github. It must be installed for capsicain to work. It provides a DLL to interface with the driver.  
