@@ -137,7 +137,7 @@ But but rootkit keylogger exposing all my sekrits? True that. I didn't see the s
 ## Notes
 v1..12 was created in capsicain_interception repo. This was an experimental non-VS project, now obsolete, except for the history.
 
-Why the name? Beer made me do it. I like chilis. This tool defines a lot of CapsLock Hot keys. 'Capsaicin' is the chemical stuff that makes chilis hot, Capsicain just has a better flow to it (and is a unique name)
+Why the name? Beer made me do it. I like chilis. This tool defines a lot of CapsLock Hot keys. 'Capsaicin' is the chemical stuff that makes chilis hot, Capsicain just has a better flow to it (and is a unique name. Although that was a mistake - google search still says You Fool! You Spelled capsaicin wrong!)
 
 # Installation
 See the manual: <https://github.com/cajhin/capsicain/wiki/Installation>
