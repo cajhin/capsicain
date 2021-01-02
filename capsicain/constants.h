@@ -1,6 +1,6 @@
 #pragma once
 
-#define VERSION "78beta"
+#define VERSION "79beta"
 
 
 //arbitray limits
