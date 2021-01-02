@@ -116,3 +116,5 @@ v78beta: configurable layer change
 - new functions > layerSwitch(0..9), > layerPrevious()
 - disable Ctrl-C
 - (new internal vkeys LAYERSWITCH, LAYERPREVIOUS)
+
+v79: fix reload, final non-beta

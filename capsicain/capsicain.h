@@ -56,6 +56,6 @@ void reset();
 void reload();
 void releaseAllSentKeys();
 std::vector<std::string> assembleLayerConfig(int layer);
-void switchLayer(int layer);
+void switchLayer(int layer, bool forceReloadSameLayer);
 void resetCapsNumScrollLock();
 

@@ -254,7 +254,7 @@ int main()
     }
 
     parseIniGlobals();
-    switchLayer(globals.activeLayerOnStartup);
+    switchLayer(globals.activeLayerOnStartup, true);
 
     interceptionState.interceptionContext = interception_create_context();
     interception_set_filter(interceptionState.interceptionContext, interception_is_keyboard, INTERCEPTION_FILTER_KEY_ALL);
@@ -637,7 +637,7 @@ bool processCommand()
     case SC_0:
     {
         cout << endl << "LAYER CHANGE: " << LAYER_DISABLED;
-        switchLayer(LAYER_DISABLED);
+        switchLayer(LAYER_DISABLED, 0);
         break;
     }
     case SC_1:
@@ -652,7 +652,7 @@ bool processCommand()
     {
         int layer = loopState.scancode - 1;
         cout << endl << "LAYER CHANGE: " << layer;
-        switchLayer(layer);
+        switchLayer(layer, false);
         break;
     }
     case SC_BACK:
@@ -1179,9 +1179,9 @@ bool parseProcessIniLayer(int layer)
     return true;
 }
 
-void switchLayer(int layer)
+void switchLayer(int layer, bool forceReloadSameLayer)
 {
-    if (layer == globalState.activeLayer)
+    if (!forceReloadSameLayer && layer == globalState.activeLayer)
         return;
 
     int oldLayer = globalState.activeLayer;
@@ -1254,7 +1254,7 @@ void reload()
     readSanitizeIniFile(sanitizedIniContent);
 
     parseIniGlobals();
-    switchLayer(globalState.activeLayer);
+    switchLayer(globalState.activeLayer, true);
 }
 
 //Release all keys to 'up' that have been sent out as 'down'
@@ -1461,7 +1461,7 @@ void sendCapsicainCodeHandler(VKeyEvent keyEvent)
     }
     case VK_CPS_LAYERPREVIOUS:
     {
-        switchLayer(globalState.previousLayer);
+        switchLayer(globalState.previousLayer, false);
     }
     }
 
@@ -1524,7 +1524,7 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
         else if (expectNextLayerSwitch)
         {
             IFDEBUG cout << endl << "vklayerswitch: " << getPrettyVKLabelPadded(keyEvent.vcode, 0);
-            switchLayer(keyEvent.vcode);
+            switchLayer(keyEvent.vcode, false);
             expectNextLayerSwitch = false;
         }
         //release and remember all keys that are physically down
