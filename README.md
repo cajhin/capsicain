@@ -36,7 +36,7 @@ Earlier versions were very focused on my own configuration. Latest versions are 
 - Can remap EVERY key that is sent out by the keyboard.  
 
 - Almost everything is configurable via config file.   
-  Nine separate layers, switch with [ESC]+NumberKey.   
+  Nine separate configs, switch with [ESC]+NumberKey.   
   Modular config with 'INCLUDE moduleXY'.  
 
 - Modifier remapping   
@@ -58,7 +58,7 @@ Earlier versions were very focused on my own configuration. Latest versions are 
 
 - Fast. Low-fat C/C++ code. 1 exe 1 dll 1 ini. Never writes, only reads inside its folder.
     
-### Features of the default config 
+### Features of the default capsicain.ini 
 This is the config I use myself. I call it the King Configuration, because, like the King in Chess, fingers must never move more than one key from their base position into any direction to write and edit any text. (Exceptions: Escape, Enter, app-specific combos that I have not considered).  
 
 - Hold CapsLock + right hand keys -> Cursor control layer. I LOVE this!!  
@@ -142,12 +142,12 @@ Why the name? Beer made me do it. I like chilis. This tool defines a lot of Caps
 # Installation
 See the manual: <https://github.com/cajhin/capsicain/wiki/Installation>
 
-## Your first config
+## Your first capsicain.ini
 See the manual <https://github.com/cajhin/capsicain/wiki>
 
 REMEMBER:  
 [ESC]+[X] Exits, always, in case your config makes the keyboard unusable. Capsicain doesn't have to be in the foreground to see ESC command combos.   
-[ESC]+[0] Switch to Layer 0 is the softer 'disable' method; it tells Capsicain to not do anything - except listen for [ESC] combos, so you can switch back to your layer 1 later.  
+[ESC]+[0] Switch to Config 0 is the softer 'disable' method; it tells Capsicain to not do anything - except listen for [ESC] combos, so you can switch back to your Config 1 later.  
 
 # Contact
 
