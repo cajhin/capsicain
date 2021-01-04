@@ -36,7 +36,7 @@ Earlier versions were very focused on my own configuration. Latest versions are 
 - Can remap EVERY key that is sent out by the keyboard.  
 
 - Almost everything is configurable via config file.   
-  Nine separate layers, switch with [ESC]+NumberKey.   
+  Nine separate configs, switch with [ESC]+NumberKey.   
   Modular config with 'INCLUDE moduleXY'.  
 
 - Modifier remapping   
@@ -147,7 +147,7 @@ See the manual <https://github.com/cajhin/capsicain/wiki>
 
 REMEMBER:  
 [ESC]+[X] Exits, always, in case your config makes the keyboard unusable. Capsicain doesn't have to be in the foreground to see ESC command combos.   
-[ESC]+[0] Switch to Layer 0 is the softer 'disable' method; it tells Capsicain to not do anything - except listen for [ESC] combos, so you can switch back to your layer 1 later.  
+[ESC]+[0] Switch to Config 0 is the softer 'disable' method; it tells Capsicain to not do anything - except listen for [ESC] combos, so you can switch back to your Config 1 later.  
 
 # Contact
 
