@@ -218,7 +218,7 @@ $(ProjectDir)copy_release.bat</Command>
     <Text Include="codenotes.txt" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="capsicain.cajhin.ini" />
+    <None Include="capsicain.kingcon.ini" />
     <None Include="capsicain.example.ini" />
     <None Include="capsicain.ini" />
   </ItemGroup>
