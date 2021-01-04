@@ -58,7 +58,7 @@ Earlier versions were very focused on my own configuration. Latest versions are 
 
 - Fast. Low-fat C/C++ code. 1 exe 1 dll 1 ini. Never writes, only reads inside its folder.
     
-### Features of the default config 
+### Features of the default capsicain.ini 
 This is the config I use myself. I call it the King Configuration, because, like the King in Chess, fingers must never move more than one key from their base position into any direction to write and edit any text. (Exceptions: Escape, Enter, app-specific combos that I have not considered).  
 
 - Hold CapsLock + right hand keys -> Cursor control layer. I LOVE this!!  
@@ -142,7 +142,7 @@ Why the name? Beer made me do it. I like chilis. This tool defines a lot of Caps
 # Installation
 See the manual: <https://github.com/cajhin/capsicain/wiki/Installation>
 
-## Your first config
+## Your first capsicain.ini
 See the manual <https://github.com/cajhin/capsicain/wiki>
 
 REMEMBER:  
