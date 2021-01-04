@@ -180,8 +180,8 @@ enum VirtualCode
     VK_CPS_TEMPRESTOREKEYS = 0x102,
     VK_CPS_SLEEP = 0x103,
     VK_CPS_DEADKEY = 0x104,
-    VK_CPS_LAYERSWITCH = 0x105,
-    VK_CPS_LAYERPREVIOUS = 0x106,
+    VK_CPS_CONFIGSWITCH = 0x105,
+    VK_CPS_CONFIGPREVIOUS = 0x106,
     VK_MOD9 = 0x109,
     VK_MOD10 = 0x10A,
     VK_MOD11 = 0x10B,
@@ -189,6 +189,6 @@ enum VirtualCode
     VK_MOD13 = 0x10D,
     VK_MOD14 = 0x10E,
     VK_MOD15 = 0x10F,
-    VK_CAPSON = 0x110, //turns CapsLock on, regardless of current state
-    VK_CAPSOFF = 0x111
+    VK_CPS_CAPSON = 0x110, //turns CapsLock on, regardless of current state
+    VK_CPS_CAPSOFF = 0x111
 };

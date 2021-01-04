@@ -10,7 +10,7 @@
 #include <tlhelp32.h>
 #include <algorithm>
 
-#include "config.h"
+#include "configUtils.h"
 #include "capsicain.h"
 #include "constants.h"
 #include "utils.h"
@@ -132,7 +132,7 @@ std::vector<std::string> getSectionFromIni(std::string sectionName, std::vector<
         }
     }
     if (inSection && sectionContent.size() == 0)
-        sectionContent.push_back("option layername empty_layer_do_nothing");
+        sectionContent.push_back("option configname empty_layer_do_nothing");
     return sectionContent;
 }
 //Returns all lines starting with tag, with the tag removed, or empty vector if none
@@ -251,8 +251,8 @@ std::string stringGetRestBehindFirstToken(std::string line)
     return line;
 }
 
-// lex "a b c ALPHA_TO x y z"
-bool lexAlphaFromTo(std::string alpha_to, int (&alphamap)[MAX_VCODES], std::string scLabels[])
+// parse "a b c ALPHA_TO x y z"
+bool parseKeywordsAlpha_FromTo(std::string alpha_to, int (&alphamap)[MAX_VCODES], std::string scLabels[])
 {
     size_t idx1 = alpha_to.find(stringToLower(INI_TAG_ALPHA_TO));
     if (idx1 == string::npos)
@@ -287,9 +287,9 @@ bool lexAlphaFromTo(std::string alpha_to, int (&alphamap)[MAX_VCODES], std::stri
     return true;
 }
 
-// parse scancodes "A B"  or  "A B C D". Does not touch optional keys that are not defined in the line.
+// parse "REWIRE A B"  or  "REWIRE A B C D". Does not touch optional keys that are not defined in the line.
 // the // symbol stands for -1 "do nothing with this"
-bool lexRewireRule(std::string line, unsigned char &keyA, int &keyB, int &keyC, int &keyD, std::string scLabels[])
+bool parseKeywordRewire(std::string line, unsigned char &keyA, int &keyB, int &keyC, int &keyD, std::string scLabels[])
 {
     vector<string> labels = stringSplit(line, ' ');
     if (labels.size() < 2 && labels.size() > 4)
@@ -330,7 +330,7 @@ bool lexRewireRule(std::string line, unsigned char &keyA, int &keyB, int &keyC, 
 }
 
 //convert ("xyz_&.", '&') to 000010
-unsigned short lexModString(string modString, char filter)
+unsigned short parseModString(string modString, char filter)
 {
     string binString = "0";
     for (int i = 0; i < modString.length(); i++)
@@ -343,7 +343,7 @@ unsigned short lexModString(string modString, char filter)
     return std::stoi(binString, nullptr, 2);
 }
 
-bool lexFunctionCombo(std::string &funcParams, std::string * scLabels, std::vector<VKeyEvent> &strokeSeq)
+bool parseFunctionCombo(std::string &funcParams, std::string * scLabels, std::vector<VKeyEvent> &strokeSeq)
 {
     vector<string> labels = stringSplit(funcParams, '+');
     int isc;
@@ -362,7 +362,7 @@ bool lexFunctionCombo(std::string &funcParams, std::string * scLabels, std::vect
 
 //parse {deadkey-x} keyLabel  [&|^t ....] > function(param)
 //returns false if the rule is not valid.
-bool lexComboRule(std::string line, int &key, unsigned short(&mods)[5], std::vector<VKeyEvent> &strokeSequence, std::string scLabels[])
+bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[5], std::vector<VKeyEvent> &strokeSequence, std::string scLabels[])
 {
     string strkey = stringGetFirstToken(line);
     if (strkey.length() < 1)
@@ -399,10 +399,10 @@ bool lexComboRule(std::string line, int &key, unsigned short(&mods)[5], std::vec
     string mod = line.substr(modIdx1, modIdx2 - modIdx1);
 
     mods[0] = (unsigned char) deadKey;
-    mods[1] = lexModString(mod, '&'); //and 
-    mods[2] = lexModString(mod, '|'); //or
-    mods[3] = lexModString(mod, '^'); //not 
-    mods[4] = lexModString(mod, 't'); //tap
+    mods[1] = parseModString(mod, '&'); //and 
+    mods[2] = parseModString(mod, '|'); //or
+    mods[3] = parseModString(mod, '^'); //not 
+    mods[4] = parseModString(mod, 't'); //tap
 
     //extract function name + param
     size_t funcIdx1 = line.find_first_of('>') + 1;
@@ -439,7 +439,7 @@ bool lexComboRule(std::string line, int &key, unsigned short(&mods)[5], std::vec
     }
     else if (funcName == "combo")
     {
-        if (!lexFunctionCombo(funcParams, scLabels, strokeSeq))
+        if (!parseFunctionCombo(funcParams, scLabels, strokeSeq))
             return false;
     }
     else if (funcName == "combontimes")
@@ -447,7 +447,7 @@ bool lexComboRule(std::string line, int &key, unsigned short(&mods)[5], std::vec
         vector<string> comboTimes = stringSplit(funcParams, ',');
         if (comboTimes.size() != 2)
             return false;
-        if (!lexFunctionCombo(comboTimes.at(0), scLabels, strokeSeq))
+        if (!parseFunctionCombo(comboTimes.at(0), scLabels, strokeSeq))
             return false;
         int times = stoi(comboTimes.at(1));
         auto len = strokeSeq.size();
@@ -486,9 +486,9 @@ bool lexComboRule(std::string line, int &key, unsigned short(&mods)[5], std::vec
 
         strokeSeq.push_back({ VK_CPS_TEMPRELEASEKEYS, true });
 
-        int modsPress = lexModString(modKeyParams[1], '&'); //and (press if up)
+        int modsPress = parseModString(modKeyParams[1], '&'); //and (press if up)
         //now disabling the ^ character. All mods are always released
-        unsigned short testObsoleteReleaseChar = lexModString(modKeyParams[1], '^'); //not (release if down)
+        unsigned short testObsoleteReleaseChar = parseModString(modKeyParams[1], '^'); //not (release if down)
         if (testObsoleteReleaseChar > 0)
         {
             cout << endl << "WARNING: the '^' release key is now ignored. All modifiers are released for moddedKey()";
@@ -599,21 +599,21 @@ bool lexComboRule(std::string line, int &key, unsigned short(&mods)[5], std::vec
         strokeSeq.push_back({ VK_CPS_DEADKEY, true });
         strokeSeq.push_back({ isc, true });
     }
-    else if (funcName == "layerswitch")
+    else if ( ((funcName == "configswitch")) || (funcName == "layerswitch"))
     {
         int isc;
         bool valid = stringToInt(funcParams, isc);
         if (!valid || isc < 0 || isc > 10)
         {
-            cout << "Invalid layer switch to: " << funcParams;
+            cout << "Invalid config switch to: " << funcParams;
             return false;
         }
-        strokeSeq.push_back({ VK_CPS_LAYERSWITCH, true });
+        strokeSeq.push_back({ VK_CPS_CONFIGSWITCH, true });
         strokeSeq.push_back({ isc, true });
     }
-    else if (funcName == "layerprevious")
+    else if ((funcName == "configprevious") || (funcName == "layerprevious"))
     {
-        strokeSeq.push_back({ VK_CPS_LAYERPREVIOUS, true });
+        strokeSeq.push_back({ VK_CPS_CONFIGPREVIOUS, true });
     }
     else
         return false;

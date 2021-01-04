@@ -1,7 +1,7 @@
 #define PROGRAM_NAME_AHK "autohotkey.exe"
 #include "interception.h"
 #include "utils.h"
-#include "config.h"
+#include "configUtils.h"
 #include "traybar.h"
 
 #define IFDEBUG if(options.debug)
@@ -55,7 +55,7 @@ void printLoopState4TapState();
 void reset();
 void reload();
 void releaseAllSentKeys();
-std::vector<std::string> assembleLayerConfig(int layer);
-void switchLayer(int layer, bool forceReloadSameLayer);
+std::vector<std::string> assembleConfig(int config);
+void switchConfig(int config, bool forceReloadSameLayer);
 void resetCapsNumScrollLock();
 

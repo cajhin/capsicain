@@ -26,7 +26,7 @@ vector<string> sanitizedIniContent;  //loaded on startup and reset
 struct Globals
 {
     string iniVersion = "unnamed version - add 'iniVersion xyz123' to capsicain.ini";
-    int activeLayerOnStartup = DEFAULT_ACTIVE_LAYER;
+    int activeConfigOnStartup = DEFAULT_ACTIVE_CONFIG;
     bool startMinimized = false;
     bool startInTraybar = false;
     bool startAHK = false;
@@ -80,9 +80,9 @@ struct GlobalState
 {
     bool capsicainOn = true;
 
-    int  activeLayer = 0;
-    string activeLayerName = DEFAULT_ACTIVE_LAYER_NAME;
-    int previousLayer = 1; // switch to this on func(LAYERPREVIOUS)
+    int  activeConfig = 0;
+    string activeConfigName = DEFAULT_ACTIVE_CONFIG_NAME;
+    int previousConfig = 1; // switch to this on func(CONFIGPREVIOUS)
 
     bool realEscapeIsDown = false;
 
@@ -185,14 +185,24 @@ void parseIniGlobals()
             globals.startInTraybar = true;
         else if (token == "startahk")
             globals.startAHK = true;
-        else if (token == "activelayeronstartup")
+        else if ((token == "activeconfigonstartup") || (token == "activelayeronstartup"))
             cout << endl;
         else
             cout << endl << "WARNING: unknown GLOBAL " << token;
     }
 
-    if (!getIntValueForTaggedKey(INI_TAG_GLOBAL, "ActiveLayerOnStartup", globals.activeLayerOnStartup, sanitizedIniContent))
-        cout << endl << "No ini setting for 'GLOBAL activeLayerOnStartup'. Setting default layer " << globals.activeLayerOnStartup;
+    if (!getIntValueForTaggedKey(INI_TAG_GLOBAL, "ActiveConfigOnStartup", globals.activeConfigOnStartup, sanitizedIniContent))
+    {
+        //backward compat for "layer"
+        if (getIntValueForTaggedKey(INI_TAG_GLOBAL, "ActiveLayerOnStartup", globals.activeConfigOnStartup, sanitizedIniContent))
+        {
+            cout << endl << "INFO: Use 'GLOBAL activeConfigOnStartup' instead of 'GLOBAL activeLayerOnStartup'";
+        }
+        else
+        {
+            cout << endl << "No ini setting for 'GLOBAL activeConfigOnStartup'. Setting default config " << globals.activeConfigOnStartup;
+        }
+    }
 }
 
 void DetectTapping()
@@ -254,7 +264,7 @@ int main()
     }
 
     parseIniGlobals();
-    switchLayer(globals.activeLayerOnStartup, true);
+    switchConfig(globals.activeConfigOnStartup, true);
 
     interceptionState.interceptionContext = interception_create_context();
     interception_set_filter(interceptionState.interceptionContext, interception_is_keyboard, INTERCEPTION_FILTER_KEY_ALL);
@@ -269,7 +279,7 @@ int main()
     cout << endl << endl << "capsicain running.... ";
 
     if (globals.startInTraybar)
-        ShowInTraybar(globalState.activeLayer != 0, globalState.activeLayer);
+        ShowInTraybar(globalState.activeConfig != 0, globalState.activeConfig);
     else if (globals.startMinimized)
         ShowInTaskbarMinimized();
 
@@ -298,12 +308,12 @@ int main()
             if (loopState.isDownstroke)
             {
                 globalState.capsicainOn = !globalState.capsicainOn;
-                updateTrayIcon(globalState.capsicainOn, globalState.activeLayer);
+                updateTrayIcon(globalState.capsicainOn, globalState.activeConfig);
                 if (globalState.capsicainOn)
                 {
                     reset();
                     cout << endl << endl << "[" << getPrettyVKLabel(globals.capsicainOnOffKey) << "] -> Capsicain ON";
-                    cout << endl << "active layer: " << globalState.activeLayer << " = " << globalState.activeLayerName;
+                    cout << endl << "active config: " << globalState.activeConfig << " = " << globalState.activeConfigName;
                 }
                 else
                     cout << endl << endl << "[" << getPrettyVKLabel(globals.capsicainOnOffKey) << "] -> Capsicain OFF";
@@ -374,8 +384,8 @@ int main()
             
         }
 
-        //Layer 0: standard keyboard, no further processing, just forward everything
-        if (globalState.activeLayer == LAYER_DISABLED)
+        //Config 0: standard keyboard, no further processing, just forward everything
+        if (globalState.activeConfig == DISABLED_CONFIG_NUMBER)
         {
             interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke *)&interceptionState.lastIKstroke, 1);
             continue;
@@ -612,7 +622,7 @@ void testBeta()
 {
     //flip icon
     options.debug = !options.debug;
-    bool res = ShowInTraybar(options.debug, globalState.activeLayer);
+    bool res = ShowInTraybar(options.debug, globalState.activeConfig);
     if (!res)
         cout << endl << "not flipped";
 }
@@ -636,8 +646,8 @@ bool processCommand()
     }
     case SC_0:
     {
-        cout << endl << "LAYER CHANGE: " << LAYER_DISABLED;
-        switchLayer(LAYER_DISABLED, 0);
+        cout << endl << "CONFIG CHANGE: " << DISABLED_CONFIG_NUMBER;
+        switchConfig(DISABLED_CONFIG_NUMBER, 0);
         break;
     }
     case SC_1:
@@ -650,9 +660,9 @@ bool processCommand()
     case SC_8:
     case SC_9:
     {
-        int layer = loopState.scancode - 1;
-        cout << endl << "LAYER CHANGE: " << layer;
-        switchLayer(layer, false);
+        int config = loopState.scancode - 1;
+        cout << endl << "CONFIG CHANGE: " << config;
+        switchConfig(config, false);
         break;
     }
     case SC_BACK:
@@ -671,7 +681,7 @@ bool processCommand()
         else
         {
             cout << "Show traybar";
-            ShowInTraybar(globalState.activeLayer != 0 , globalState.activeLayer);
+            ShowInTraybar(globalState.activeConfig != 0 , globalState.activeConfig);
         }
         break;
     }
@@ -719,9 +729,9 @@ bool processCommand()
     }
     case SC_I:
     {
-        cout << "INI filtered for layer " << globalState.activeLayerName;
-        vector<string> assembledLayer = assembleLayerConfig(globalState.activeLayer);
-        for (string line : assembledLayer)
+        cout << "INI filtered for config " << globalState.activeConfigName;
+        vector<string> tmpAssembledConfig = assembleConfig(globalState.activeConfig);
+        for (string line : tmpAssembledConfig)
             cout << endl << line;
         break;
     }
@@ -905,14 +915,19 @@ bool initConsoleWindow()
 bool parseIniOptions(std::vector<std::string> assembledIni)
 {
     vector<string> sectLines = getTaggedLinesFromIni(INI_TAG_OPTIONS, assembledIni);
-    globalState.activeLayerName = "OPTION_layerName_undefined";
+    globalState.activeConfigName = INI_TAG_OPTIONS+" configName is undefined";
 
     for (string line : sectLines)
     {
         string token = stringGetFirstToken(line);
-        if (token == "layername")
+        if (token == "configname")
         {
-            globalState.activeLayerName = stringGetRestBehindFirstToken(line);
+            globalState.activeConfigName = stringGetRestBehindFirstToken(line);
+        }
+        else if (token == "layername")  //back compat, deprecated
+        {
+            globalState.activeConfigName = stringGetRestBehindFirstToken(line);
+            cout << endl << "INFO: Option LAYERname is deprecated. Use Option CONFIGname instead.";
         }
         else if (token == "debug")
         {
@@ -924,7 +939,7 @@ bool parseIniOptions(std::vector<std::string> assembledIni)
         }
         else if (token == "altalttoalt")
         {
-            cout << endl << "OPTION AltAltToAlt is obsolete. You can do this now with 'REWIRE LALT MOD12 // LALT'";
+            cout << endl << INI_TAG_OPTIONS+" AltAltToAlt is obsolete. You can do this now with 'REWIRE LALT MOD12 // LALT'";
         }
         else if (token == "flipaltwinonapplekeyboards")
         {
@@ -971,7 +986,7 @@ void parseIniRewires(std::vector<std::string> assembledIni)
     {
         keyTap = -1;
         keyTapHold = -1;
-        if (lexRewireRule(line, keyIn, keyOut, keyTap, keyTapHold, PRETTY_VK_LABELS))
+        if (parseKeywordRewire(line, keyIn, keyOut, keyTap, keyTapHold, PRETTY_VK_LABELS))
         {
             //duplicate?
             if (allMaps.rewiremap[keyIn][REWIRE_OUT] >= 0)
@@ -1008,7 +1023,7 @@ bool parseIniCombos(std::vector<std::string> assembledIni)
     for (string line : sectLines)
     {
         int key;
-        if (lexComboRule(line, key, mods, keyEventSequence, PRETTY_VK_LABELS))
+        if (parseKeywordCombo(line, key, mods, keyEventSequence, PRETTY_VK_LABELS))
         {
             bool isDuplicate = false;
             for (ModifierCombo testcombo : allMaps.modCombos)
@@ -1072,7 +1087,7 @@ bool parseIniAlphaLayout(std::vector<std::string> assembledIni)
         else if (firstToken == tagEnd)
         {
             inMapFromTo = false;
-            if (!lexAlphaFromTo(mapFromTo, allMaps.alphamap, PRETTY_VK_LABELS))
+            if (!parseKeywordsAlpha_FromTo(mapFromTo, allMaps.alphamap, PRETTY_VK_LABELS))
                 error("Cannot parse the " + INI_TAG_ALPHA_FROM + ".." + INI_TAG_ALPHA_TO + " alpha definition");
         }
         else if (inMapFromTo)
@@ -1083,11 +1098,20 @@ bool parseIniAlphaLayout(std::vector<std::string> assembledIni)
     return true;
 }
 
-//insert all the INCLUDEd sub-sections into the base layer section
-std::vector<std::string> assembleLayerConfig(int layer)
+//insert all the INCLUDEd sub-sections into the base config section
+std::vector<std::string> assembleConfig(int config)
 {
-    string sectionName = "layer_" + to_string(layer);
+    string sectionName = "config_" + to_string(config);
     vector<string> assembledIni = getSectionFromIni(sectionName, sanitizedIniContent);
+
+    if (assembledIni.size() == 0)
+    {
+        sectionName = "layer_" + to_string(config);
+        assembledIni = getSectionFromIni(sectionName, sanitizedIniContent);
+
+        if (assembledIni.size() > 0)
+            cout << endl << "INFO: section [layer_x]  should now be named  [config_x]";
+    }
 
     while (true)
     {
@@ -1140,7 +1164,7 @@ void initializeAllMaps()
 
 
 //processes the sanitized ini that was read on startup or reload
-bool parseProcessIniLayer(int layer)
+bool parseProcessIniConfig(int config)
 {
     initializeAllMaps();
 
@@ -1150,23 +1174,23 @@ bool parseProcessIniLayer(int layer)
         return false;
     }
 
-    vector<string> assembledLayer = assembleLayerConfig(layer);
-    if (assembledLayer.size() == 0)
+    vector<string> assembledConfig = assembleConfig(config);
+    if (assembledConfig.size() == 0)
     {
-        cout << endl << "No valid configuration for Layer " << layer;
+        cout << endl << "No valid configuration for Config " << config;
         return false;
     }
 
-    IFDEBUG cout << endl << "Assembled config for Layer " << layer << " : " << dec << assembledLayer.size() << " lines";
+    IFDEBUG cout << endl << "Assembled config #" << config << " : " << dec << assembledConfig.size() << " lines";
 
-    parseIniOptions(assembledLayer);
+    parseIniOptions(assembledConfig);
 
-    parseIniRewires(assembledLayer);
+    parseIniRewires(assembledConfig);
 
-    parseIniCombos(assembledLayer);
+    parseIniCombos(assembledConfig);
     IFDEBUG cout << endl << "Combo  Definitions: " << dec << allMaps.modCombos.size();
 
-    parseIniAlphaLayout(assembledLayer);
+    parseIniAlphaLayout(assembledConfig);
     IFDEBUG
     {
         int remapped = 0;
@@ -1179,38 +1203,38 @@ bool parseProcessIniLayer(int layer)
     return true;
 }
 
-void switchLayer(int layer, bool forceReloadSameLayer)
+void switchConfig(int config, bool forceReloadSameConfig)
 {
-    if (!forceReloadSameLayer && layer == globalState.activeLayer)
+    if (!forceReloadSameConfig && config == globalState.activeConfig)
         return;
 
-    int oldLayer = globalState.activeLayer;
+    int oldConfig = globalState.activeConfig;
     reset();
 
-    if (layer == LAYER_DISABLED)
+    if (config == DISABLED_CONFIG_NUMBER)
     {
-        globalState.activeLayer = LAYER_DISABLED;
-        globalState.activeLayerName = LAYER_DISABLED_LAYER_NAME;
+        globalState.activeConfig = DISABLED_CONFIG_NUMBER;
+        globalState.activeConfigName = DISABLED_CONFIG_NAME;
     }
-    else if (parseProcessIniLayer(layer))
+    else if (parseProcessIniConfig(config))
     {
-        globalState.activeLayer = layer;
-        globalState.previousLayer = oldLayer;
+        globalState.activeConfig = config;
+        globalState.previousConfig = oldConfig;
         printOptions();
     }
-    else if (parseProcessIniLayer(oldLayer))
+    else if (parseProcessIniConfig(oldConfig))
     {
-        cout << endl << endl << "Staying on current layer";
+        cout << endl << endl << "Keeping the current config";
     }
     else
     {
-        cout << endl << endl << "ERROR: CANNOT RELOAD CURRENT LAYER? Switching to layer 0";
-        globalState.activeLayer = LAYER_DISABLED;
-        globalState.activeLayerName = LAYER_DISABLED_LAYER_NAME;
+        cout << endl << endl << "ERROR: CANNOT RELOAD CURRENT CONFIG? Switching to config 0";
+        globalState.activeConfig = DISABLED_CONFIG_NUMBER;
+        globalState.activeConfigName = DISABLED_CONFIG_NAME;
     }
 
-    updateTrayIcon(true, globalState.activeLayer);
-    cout << endl << endl << "ACTIVE LAYER: " << globalState.activeLayer << " = " << globalState.activeLayerName;
+    updateTrayIcon(true, globalState.activeConfig);
+    cout << endl << endl << "ACTIVE CONFIG: " << globalState.activeConfig << " = " << globalState.activeConfigName;
 }
 
 void resetCapsNumScrollLock()
@@ -1237,9 +1261,9 @@ void reset()
 
     GlobalState tmp = globalState; //some settings shall survive the reset
     globalState = defaultGlobalState;
-    globalState.activeLayer = tmp.activeLayer;
-    globalState.activeLayerName = tmp.activeLayerName;
-    globalState.previousLayer = tmp.previousLayer;
+    globalState.activeConfig = tmp.activeConfig;
+    globalState.activeConfigName = tmp.activeConfigName;
+    globalState.previousConfig = tmp.previousConfig;
     globalState.username = tmp.username;
     globalState.password = tmp.password;
 }
@@ -1254,7 +1278,7 @@ void reload()
     readSanitizeIniFile(sanitizedIniContent);
 
     parseIniGlobals();
-    switchLayer(globalState.activeLayer, true);
+    switchConfig(globalState.activeConfig, true);
 }
 
 //Release all keys to 'up' that have been sent out as 'down'
@@ -1314,7 +1338,7 @@ void printStatus()
     cout << "STATUS" << endl << endl
         << "Capsicain version: " << VERSION << endl
         << "ini version: " << globals.iniVersion << endl
-        << "active layer: " << globalState.activeLayer << " = " << globalState.activeLayerName << endl
+        << "active config: " << globalState.activeConfig << " = " << globalState.activeConfigName << endl
         << "Capsicain on/off key: [" << (globals.capsicainOnOffKey >= 0 ? getPrettyVKLabel(globals.capsicainOnOffKey) : "(not defined)") << "]" << endl
         << "keyboard hardware id: " << globalState.deviceIdKeyboard << endl
         << "Apple keyboard: " << globalState.deviceIsAppleKeyboard << endl
@@ -1374,7 +1398,7 @@ void printHelp()
         << "Press [ESC] + [key] for core commands" << endl << endl
         << "[H] Help" << endl
         << "[X] Exit" << endl
-        << "[0]..[9] switch layers. [0] is the 'do nothing but listen for commands' layer" << endl
+        << "[0]..[9] switch configs. [0] is the unchangeable empty 'do nothing but listen for commands' config" << endl
         << "[W] flip ALT <-> WIN on Apple keyboards" << endl
         << "[Z] (labeled [Y] on GER keyboard): flip Y <-> Z keys" << endl
         << "[S] Status" << endl
@@ -1385,7 +1409,7 @@ void printHelp()
         << "[T] Move Taskbar icon to Tray and back" << endl
         << "[U] Username Enter/Playback" << endl
         << "[P] Password Enter/Playback. DO NOT USE if strangers can access your local machine." << endl
-        << "[I] Show processed Ini for the active layer" << endl
+        << "[I] Show processed Ini for the active config" << endl
         << "[A] Autohotkey start" << endl
         << "[Y] autohotkeY stop" << endl
         << "[J][K][L][;] Macro Recording: Start,Stop,Playback,Copy macro definition to clipboard." << endl
@@ -1441,7 +1465,7 @@ void sendCapsicainCodeHandler(VKeyEvent keyEvent)
 
     switch (keyEvent.vcode)
     {
-    case VK_CAPSON:
+    case VK_CPS_CAPSON:
     {
         if (!(GetKeyState(VK_CAPITAL) & 0x0001))
         {
@@ -1450,7 +1474,7 @@ void sendCapsicainCodeHandler(VKeyEvent keyEvent)
         }
         break;
     }
-    case VK_CAPSOFF:
+    case VK_CPS_CAPSOFF:
     {
         if ((GetKeyState(VK_CAPITAL) & 0x0001))
         {
@@ -1459,9 +1483,9 @@ void sendCapsicainCodeHandler(VKeyEvent keyEvent)
         }
         break;
     }
-    case VK_CPS_LAYERPREVIOUS:
+    case VK_CPS_CONFIGPREVIOUS:
     {
-        switchLayer(globalState.previousLayer, false);
+        switchConfig(globalState.previousConfig, false);
     }
     }
 
@@ -1504,28 +1528,28 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
     //'next key has special meaning'
     bool expectNextSleepValue = false;
     bool expectNextDeadkey = false;
-    bool expectNextLayerSwitch = false;
+    bool expectNextConfigSwitch = false;
 
     IFDEBUG cout << "\t--> SEQUENCE (" << dec << keyEventSequence.size() << ")";
     for (VKeyEvent keyEvent : keyEventSequence)
     {
         if (expectNextSleepValue)
         {
-            IFDEBUG cout << endl << "vksleep: " << keyEvent.vcode;
+            IFDEBUG cout << endl << "vk_cps_sleep: " << keyEvent.vcode;
             Sleep(keyEvent.vcode);
             expectNextSleepValue = false;
         }
         else if (expectNextDeadkey)
         {
-            IFDEBUG cout << endl << "vkdeadkey: " << getPrettyVKLabelPadded(keyEvent.vcode, 0);
+            IFDEBUG cout << endl << "vk_cps_deadkey: " << getPrettyVKLabelPadded(keyEvent.vcode, 0);
             modifierState.activeDeadkey = keyEvent.vcode;
             expectNextDeadkey = false;
         }
-        else if (expectNextLayerSwitch)
+        else if (expectNextConfigSwitch)
         {
-            IFDEBUG cout << endl << "vklayerswitch: " << getPrettyVKLabelPadded(keyEvent.vcode, 0);
-            switchLayer(keyEvent.vcode, false);
-            expectNextLayerSwitch = false;
+            IFDEBUG cout << endl << "vk_cps_configswitch: " << getPrettyVKLabelPadded(keyEvent.vcode, 0);
+            switchConfig(keyEvent.vcode, false);
+            expectNextConfigSwitch = false;
         }
         //release and remember all keys that are physically down
         else if (keyEvent.vcode == VK_CPS_TEMPRELEASEKEYS)
@@ -1540,7 +1564,7 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
             if (globalState.keysDownSentCounter != 0)
                 error("BUG: keysDownSentCounter != 0");
         }
-        //restore all keys that were down before 'VK_temprelease'
+        //restore all keys that were down before 'VK_cps_temprelease'
         else if (keyEvent.vcode == VK_CPS_TEMPRESTOREKEYS)
         {
             bool tempReleasedKeys = false;
@@ -1561,9 +1585,9 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
         {
             expectNextDeadkey = true;
         }
-        else if (keyEvent.vcode == VK_CPS_LAYERSWITCH)
+        else if (keyEvent.vcode == VK_CPS_CONFIGSWITCH)
         {
-            expectNextLayerSwitch = true;
+            expectNextConfigSwitch = true;
         }
         else //regular non-escaped keyEvent
         {
@@ -1581,8 +1605,8 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
         error("BUG: VK_CPS_SLEEP is unfinished");
     if (expectNextDeadkey)
         error("BUG: VK_CPS_DEADKEY is unfinished");
-    if (expectNextLayerSwitch)
-        error("BUG: VK_CPS_LAYERSWITCH is unfinished");
+    if (expectNextConfigSwitch)
+        error("BUG: VK_CPS_CONFIGSWITCH is unfinished");
 }
 
 

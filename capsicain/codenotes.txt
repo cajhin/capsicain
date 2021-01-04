@@ -118,3 +118,8 @@ v78beta: configurable layer change
 - (new internal vkeys LAYERSWITCH, LAYERPREVIOUS)
 
 v79: fix reload, final non-beta
+
+v80: change ALL "Layer" to "Config"
+- the word "Layer" was for historical reasons, it made no sense with how it works now.
+- old .ini keywords with "layer" are still supported, but throw an 'INFO deprecated'
+- set platform toolset to v141 so that VS2017 works out of the box
