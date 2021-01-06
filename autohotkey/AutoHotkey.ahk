@@ -16,6 +16,7 @@
 ; 20210101: Reduce script to what capsicain can't do.
 ;           Change all combos to F14 + key
 ; 20210103: Disable joystick. Xbox SX stopped working anyway.
+; 20210106: WinD starts WT, or cmd if not there. F15 starts wsl
 
 
 
@@ -137,13 +138,20 @@ F14 & x up::Send !{F4}
 F14 & , up::RunApp("ahk_exe capsicain.exe","capsicain.exe")
 F14 & . up::RunApp("ahk_exe capsicain.exe","C:\wsl\home\git\capsicain\x64\Debug\capsicain.exe")
 F14 & f up::RunApp("ahk_exe LibBrowser.exe","..\mine\libbrowser\libbrowser.exe")
-F14 & u up::RunApp("ahk_exe ubuntu1804.exe","wsl.exe")
-F14 & d up::RunApp("ahk_exe cmd.exe","cmd.exe /k cd..")
 F14 & c up::RunApp("ahk_exe calc.exe","calc.exe")
 F14 & t up::RunApp("ahk_exe cherrytree.exe","..\cherrytree\mingw64\bin\cherrytree.exe")
 F14 & i up::RunApp("ahk_exe iview.exe","..\irfanview\iview.exe")
 F14 & k up::RunApp("ahk_exe keepass.exe","C:\app\keepass\KeePass.exe")
 F14 & w up::RunApp("ahk_class Notepad++","..\npp\notepad++.exe")
+
+
+
+F14 & d up::
+    if !RunApp("ahk_exe wt.exe","wt.exe")
+        RunApp("ahk_exe cmd.exe","cmd.exe /k cd..")
+return
+
+F15 & d up::RunApp("ahk_exe ubuntu1804.exe","wsl.exe")
 
 ; LWin+E for XYPlorer, RWin+E or Alt+Win+E for Windows Explorer
 F14 & e up::
