@@ -477,7 +477,7 @@ int main()
 
 void processModifierState()
 {
-    unsigned short modBitmask = getBitmaskForModifier(loopState.vcode);
+    unsigned short modBitmask = getModifierBitmaskForVcode(loopState.vcode);
 
     //set internal modifier state
     if (loopState.isDownstroke)
@@ -491,10 +491,9 @@ void processModifierState()
         modifierState.modifierTapped |= modBitmask;
 }
 
-//handle all REWIRE configs
+//handle all REWIRE configs. Rewire to new vcode; check for Tapped rules
 void processRewireScancodeToVirtualcode()
 {
-    //Rewire to new vcode; check for Tapped rule
     //ignore auto-repeating tapHold key
     if (loopState.scancode == globalState.tapAndHoldKey && loopState.isDownstroke)
     {
@@ -512,18 +511,19 @@ void processRewireScancodeToVirtualcode()
         int rewtapkey = allMaps.rewiremap[loopState.scancode][REWIRE_TAP];
         if (loopState.tapped && rewtapkey >= 0)  //ifTapped definition applies
         {
-            //rewired tap (like TAB to TAB) clears all previous modifier taps. Good?
+            //rewired tap (like TAB to TAB) clears all previous modifier taps. Good rule? Consider that maybe "outkey tapped" detection happens(?)
             modifierState.modifierTapped = 0;
 
-            //release the original rewired result for hardware keys (e.g. Shift may be down)
+            //release the preceding "rewired on press" result, only for hardware keys (e.g. "rewire Tab Shift Tab": Shift down was sent when tap arrives)
             loopState.resultingVKeyEventSequence.push_back({ rewoutkey, false });
+            //clear the 'modifier down' state for preceding "to mod" def
             if (isModifier(loopState.vcode))
             {
-                unsigned short modBitmask = getBitmaskForModifier(loopState.vcode);
+                unsigned short modBitmask = getModifierBitmaskForVcode(loopState.vcode);
                 if (modBitmask != 0)
                     modifierState.modifierDown &= ~modBitmask; //undo previous key down, e.g. clear internal 'MOD10 is down'
             }
-            //send tap key
+            //send ifTapped key
             loopState.vcode = rewtapkey;
             loopState.resultingVKeyEventSequence.push_back({ rewtapkey, true });
             loopState.resultingVKeyEventSequence.push_back({ rewtapkey, false });
@@ -538,9 +538,21 @@ void processRewireScancodeToVirtualcode()
                 if (globalState.tapAndHoldKey < 0)
                 {
                     globalState.tapAndHoldKey = loopState.scancode;  //remember the original scancode
-                    if(rewtapholdkey < 255) //send make only for real keys
+                    if(rewtapholdkey <= 255) //send make only for real keys
                         loopState.resultingVKeyEventSequence.push_back({ rewtapholdkey, true });
                     loopState.vcode = rewtapholdkey;
+
+                    //clear the preceding tapped state(s)
+                    int rewtappedkey = allMaps.rewiremap[loopState.scancode][REWIRE_TAP];
+                    //1. Tap&Hold of a key rewired to modifier always first triggers the generic "modifier tapped"
+                    unsigned short modBitmask1 = getModifierBitmaskForVcode(rewoutkey);
+                    if (modBitmask1 != 0)
+                        modifierState.modifierTapped &= ~modBitmask1;
+                    //2. Explicit "Rewire in out ifTapped" (should probably never combine ifTapped with ifTappedAndHold, but not sure)
+                    unsigned short modBitmask2 = getModifierBitmaskForVcode(rewtappedkey);
+                    if (modBitmask2 != 0)
+                        modifierState.modifierTapped &= ~modBitmask2;
+
                     IFDEBUG cout << endl << "Make taphold rewired: " << hex << rewtapholdkey;
                 }
                 else
@@ -556,6 +568,8 @@ void processRewireScancodeToVirtualcode()
                 globalState.tapAndHoldKey = -1;
                 if (rewtapholdkey < 255) //send break only for real keys
                     loopState.resultingVKeyEventSequence.push_back({ rewtapholdkey, false });
+                else
+                    loopState.vcode = SC_NOP;
                 loopState.vcode = rewtapholdkey;
                 IFDEBUG cout << endl << "Break taphold rewired: " << hex << rewtapholdkey;
             }

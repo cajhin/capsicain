@@ -123,3 +123,7 @@ v80: change ALL "Layer" to "Config"
 - the word "Layer" was for historical reasons, it made no sense with how it works now.
 - old .ini keywords with "layer" are still supported, but throw an 'INFO deprecated'
 - set platform toolset to v141 so that VS2017 works out of the box
+
+v81: rewire: undo preceding tapped state on tap&hold
+- tap&hold always results in tap first. The 'mod tapped' state needs to be cleared
+- cleanup modifier bitmask functions (take vcode instead of scancode)

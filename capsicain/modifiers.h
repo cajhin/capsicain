@@ -6,17 +6,17 @@
 
 const int NUMBER_OF_MODIFIERS = 15;
 
-unsigned short getBitmaskForModifier(unsigned short modifier);
+unsigned short getModifierBitmaskForVcode(int vcode);
 
 unsigned short getModifierForBitmask(unsigned short bitmask);
 
-bool isModifier(unsigned short scancode);
+bool isModifier(int vcode);
 
-bool isRealModifier(unsigned short scancode);
+bool isRealModifier(int vcode);
 
-bool isVirtualModifier(unsigned short scancode);
+bool isVirtualModifier(int vcode);
 
-bool isModifierDown(unsigned short modifier, unsigned short modState);
+bool isModifierDown(int vcode, unsigned short modState);
 
 #define BITMASK_LSHIFT      0x001
 #define BITMASK_LCTRL       0x002
