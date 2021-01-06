@@ -83,8 +83,8 @@ This is the config I use myself. I call it the King Configuration, because, like
 - Tap ALT, key -> Special character layer  
     € © ° ¹²³ ...  
 
-- Tap ALT, deadkey -> Special deadkey sequences  
-    ~,n -> ñ / ~,a -> ã
+- Tap ALT, deadkey, basekey -> Special deadkey sequences  
+    ~,n -> ñ / ~,a -> ã / ^,a -> â
 
 - Tap Caps, Tap ALT, Shift + key -> Uppercase greek characters  
     Σ   (just because I can)
@@ -109,7 +109,7 @@ An AHK script must run that catches F14 / F15 key combos.
     Caps + [0]..[9] copies to clipboard #n   
     Tap Caps , [0]..[9] pastes from clipboard #n  
     
- - Start many apps with centrally configured hotkeys  
+ - Start my apps with centrally configured hotkeys  
  
  - Windows control shortcuts (maximize minimize restore close)
   
