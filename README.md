@@ -14,16 +14,16 @@ Uses the Interception driver https://github.com/oblitum/Interception to receive 
 ## Why?
 
 I touch type. I code. I need a keyboard setup where I can keep my fingers on the home row most of the time.  
-Also, my layout cured my RSI, and I'm a seriously fast coder/editor on any keyboard (because I don't need the random extra keys on the side).
+Also, my layout cured my RSI, and I'm a seriously fast coder/editor on any keyboard (and I never need to learn non-standard laptop keyboards).
 
-Earlier versions were very focused on my own configuration. Latest versions are quite general, you can configure a lot.
+Earlier versions were very focused on my own configuration. Latest versions are fully configurable.
 
 ## Why I don't use tool X instead
 **AutoHotkey** is nice, did it for 10 years, but it runs in userspace and fails whenever the target gets key input from low level (VMs, RDP fullscreen, security boxes, games). It is limited when comes to multi-modifier combos. I still use it as a deputy for capsicain, doing Windowsy userspace tasks.  
 
 **Windows Keyboard Layout Creator** works more reliable, but it supports only very basic key remapping, and requires a reboot for every change.  
 
-**Karabiner** is really good, but Mac-only (and oh so awful config syntax).  
+**Karabiner** is really good, but Mac-only.
 
 **Tmk / Qmk with Hasu's Usb-to-Usb stick** is very cool, but it cannot do laptop keyboards.  
 
@@ -31,7 +31,8 @@ Earlier versions were very focused on my own configuration. Latest versions are 
 
 ## Features
 
-- Like a hardware programmable keyboard, Capsicain can view and remap key strokes before anyone else does.  
+- It just works. Everywhere.  
+  Like a hardware programmable keyboard, Capsicain can view and remap key strokes before anyone else does.  
 
 - Can remap EVERY key that is sent out by the keyboard.  
 
@@ -45,12 +46,12 @@ Earlier versions were very focused on my own configuration. Latest versions are 
     
 - Powerful modfier combos  
   Can do keycombos with all 15 modifiers with a single one-liner rule.  
-  Combine Modifier-Down, Modifier-NOT-down, Modifier-A-OR-B-down, Modifier-tapped, Modifier-tapAndHold in one combo.  
+  Combine Modifier-Down, Modifier-NOT-down, Modifier-A-OR-B-down, Modifier-tapped in one combo.  
   
 - Simple, fast and pretty alpha key mapping, to define Workman, Colemak, Dvorak, or play with your own layout.  
   Changing a key position is one character in the .ini file, [ESC]+[R] to reload and you're live.  
 
-- Dead key system to define your own äççéñtèd characters, and how to create them.
+- Dead key system to define your own äççéñtèd characters.
 
 - Sequences (key macros) with configurable delay between keys.  
   On the fly recording and playback of macros.  
@@ -82,8 +83,8 @@ This is the config I use myself. I call it the King Configuration, because, like
 - Tap ALT, key -> Special character layer  
     € © ° ¹²³ ...  
 
-- Tap ALT, deadkey -> Special deadkey sequences  
-    ~,n -> ñ / ~,a -> ã
+- Tap ALT, deadkey, basekey -> Special deadkey sequences  
+    ~,n -> ñ / ~,a -> ã / ^,a -> â
 
 - Tap Caps, Tap ALT, Shift + key -> Uppercase greek characters  
     Σ   (just because I can)
@@ -108,7 +109,7 @@ An AHK script must run that catches F14 / F15 key combos.
     Caps + [0]..[9] copies to clipboard #n   
     Tap Caps , [0]..[9] pastes from clipboard #n  
     
- - Start many apps with centrally configured hotkeys  
+ - Start my apps with centrally configured hotkeys  
  
  - Windows control shortcuts (maximize minimize restore close)
   
