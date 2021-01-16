@@ -10,3 +10,4 @@
 #define IDI_ICON_L7   109
 #define IDI_ICON_L8   110
 #define IDI_ICON_L9   111
+#define IDI_ICON_REC  112

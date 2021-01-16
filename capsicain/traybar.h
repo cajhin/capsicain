@@ -4,5 +4,5 @@
 bool IsCapsicainInTray();
 bool ShowInTaskbar();
 bool ShowInTaskbarMinimized();
-bool ShowInTraybar(bool enabled, int activeConfig);
-void updateTrayIcon(bool enabled, int activeConfig);
+bool ShowInTraybar(bool enabled, bool recording, int activeConfig);
+void updateTrayIcon(bool enabled, bool recording, int activeConfig);

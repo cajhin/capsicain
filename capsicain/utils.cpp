@@ -206,3 +206,55 @@ bool stringToInt(string strval, int &result)
 
     return true;
 }
+
+//trim left then cut first token
+std::string stringCutFirstToken(std::string& line)
+{
+    line.erase(0, line.find_first_not_of(' '));
+    size_t idx = line.find_first_of(" ");
+    string res = "";
+    if (idx == string::npos)
+    {
+        res = line;
+        line = "";
+    }
+    else
+    {
+        res = line.substr(0, idx);
+        line = line.substr(idx);
+        while (line[0] == ' ')
+            line = line.substr(1);
+    }
+    return res;
+}
+//trim left, then copy first token
+std::string stringCopyFirstToken(std::string line)
+{
+    line.erase(0, line.find_first_not_of(' '));
+    size_t idx = line.find_first_of(" ");
+    if (idx == string::npos)
+        idx = line.length();
+    return line.substr(0, idx);
+}
+std::string stringGetLastToken(std::string line)
+{
+    return line.substr(line.find_last_of(' ') + 1);
+}
+std::string stringGetRestBehindFirstToken(std::string line)
+{
+    line.erase(0, line.find_first_not_of(' '));
+    size_t idx = line.find_first_of(" ");
+    if (idx == string::npos)
+        return(line);
+    line = line.substr(idx);
+    line.erase(0, line.find_first_not_of(' '));
+    return line;
+}
+bool stringReplace(std::string& haystack, const std::string& needle, const std::string& newneedle) 
+{
+    size_t start_pos = haystack.find(needle);
+    if (start_pos == std::string::npos)
+        return false;
+    haystack.replace(start_pos, needle.length(), newneedle);
+    return true;
+}

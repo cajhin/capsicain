@@ -52,7 +52,7 @@ bool ShowInTaskbar()
 }
 
 
-bool ShowInTraybar(bool enabled, int activeConfig)
+bool ShowInTraybar(bool enabled, bool recording, int activeConfig)
 {
     LPCTSTR lpszTip = "Capsicain "; // tooltip.c_str();
 
@@ -60,6 +60,8 @@ bool ShowInTraybar(bool enabled, int activeConfig)
     HICON hIcon;
     if( !enabled || activeConfig == 0)
         hIcon = LoadIcon(handleToMyself, MAKEINTRESOURCE(IDI_ICON_OFF));
+    else if (recording)
+        hIcon = LoadIcon(handleToMyself, MAKEINTRESOURCE(IDI_ICON_REC));
     else if (activeConfig >= 2 && activeConfig <= 9)
     {
         int dummy = (int)(102 + activeConfig); //MAKEINT macro ignores (int)
@@ -91,10 +93,10 @@ bool ShowInTraybar(bool enabled, int activeConfig)
     return res;
 }
 
-void updateTrayIcon(bool enabled, int activeConfig)
+void updateTrayIcon(bool enabled, bool recording, int activeConfig)
 {
     if (!IsCapsicainInTray())
         return;  //cannot change the taskbar icon
 
-    ShowInTraybar(enabled, activeConfig);
+    ShowInTraybar(enabled, recording, activeConfig);
 }

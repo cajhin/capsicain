@@ -1,11 +1,12 @@
 #pragma once
 
-#define VERSION "81"
+#define VERSION "82"
 
 
 //arbitray limits
 #define MAX_VCODES 0x120  //biggest defined code in scancodes.h must be smaller than this
 #define MAX_MACRO_LENGTH 200  //stop recording at some point if it was forgotten.
+#define MAX_NUM_MACROS 11 //max number of stored macros (mapped later to 1..10, and the 'hard' macro 0)
 
 //constants
 #define DISABLED_CONFIG_NUMBER  0 // layer 0 does nothing

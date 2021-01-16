@@ -98,8 +98,10 @@ struct GlobalState
     bool keysDownSent[256] = { false };  //Remember all forwarded to Windows. Sent keys must be 8 bit
     bool keysDownTempReleased[256] = { false };  //Remember all keys that were temporarily released, e.g. to send an Alt-Numpad combo
 
-    bool recordingMacro = false; //currently recordingq
-    vector<VKeyEvent> recordedMacro;
+    bool secretSequenceRecording = false;
+    bool secretSequencePlayback = false;
+    int recordingMacro = -1; //-1: not recording. 1..MAX_SIMPLE_MACROS : this is currently recording. 0=currently recording the 'hard' ESC+J macro
+    vector<VKeyEvent> recordedMacros[MAX_NUM_MACROS];  // [0] stores the 'hard' macro
 
     vector<VKeyEvent> username;
     vector<VKeyEvent> password;
@@ -163,7 +165,7 @@ void parseIniGlobals()
 
     for (string line : sectLines)
     {
-        string token = stringGetFirstToken(line);
+        string token = stringCopyFirstToken(line);
         if (token == "debugonstartup")
             options.debug = true;
         else if (token == "capsicainonoffkey")
@@ -279,7 +281,7 @@ int main()
     cout << endl << endl << "capsicain running.... ";
 
     if (globals.startInTraybar)
-        ShowInTraybar(globalState.activeConfig != 0, globalState.activeConfig);
+        ShowInTraybar(globalState.activeConfig != 0, globalState.recordingMacro >= 0, globalState.activeConfig);
     else if (globals.startMinimized)
         ShowInTaskbarMinimized();
 
@@ -308,7 +310,7 @@ int main()
             if (loopState.isDownstroke)
             {
                 globalState.capsicainOn = !globalState.capsicainOn;
-                updateTrayIcon(globalState.capsicainOn, globalState.activeConfig);
+                updateTrayIcon(globalState.capsicainOn, globalState.recordingMacro >= 0, globalState.activeConfig);
                 if (globalState.capsicainOn)
                 {
                     reset();
@@ -328,7 +330,8 @@ int main()
             continue;
         }
 
-        IFDEBUG cout << ". ";
+        if (!globalState.secretSequenceRecording)
+            IFDEBUG cout << ". ";
         //ignore secondary keyboard?
         if (options.processOnlyFirstKeyboard 
             && (interceptionState.previousInterceptionDevice != NULL)
@@ -371,6 +374,15 @@ int main()
         {
             IFDEBUG cout << endl << "(Hard ESC" << (loopState.isDownstroke ? "v " : "^ ") << ")";
             globalState.realEscapeIsDown = loopState.isDownstroke;
+
+            //stop macro recording?
+            if (globalState.recordingMacro > 0)
+            {
+                IFDEBUG cout << endl << "Stop recording macro #" << globalState.recordingMacro;
+                globalState.secretSequenceRecording = false;
+                globalState.recordingMacro = -1;
+                updateTrayIcon(true, globalState.recordingMacro >= 0, globalState.activeConfig);
+            }
         }
         else if (globalState.realEscapeIsDown && loopState.isDownstroke)
         {
@@ -378,10 +390,9 @@ int main()
                 continue;
             else
             {
-                ShowInTaskbar();
+                ShowInTaskbar(); //exit
                 break;
             }
-            
         }
 
         //Config 0: standard keyboard, no further processing, just forward everything
@@ -419,37 +430,14 @@ int main()
             continue;
         }
 
-        //Username
-        if (globalState.recordingUsername)
-        {
-            if (loopState.vcode == SC_RETURN)
-            {
-                globalState.recordingUsername = false;
-                cout << " done";
-            }
-            else if (loopState.isDownstroke || globalState.username.size() > 0)  //filter upstroke from the command key
-                globalState.username.push_back({ loopState.vcode,loopState.isDownstroke });
-            continue;
-        }
-        //Password
-        if (globalState.recordingPassword)
-        {
-            if (loopState.scancode == SC_RETURN)
-            {
-                globalState.recordingPassword = false;
-                cout << " done";
-            }
-            else if (loopState.isDownstroke || globalState.password.size() > 0)  //filter upstroke from the command key
-                globalState.password.push_back({ loopState.vcode, loopState.isDownstroke });
-            continue;
-        }
-
-         IFDEBUG printLoopState1Incoming();
+        if (!globalState.secretSequenceRecording)
+            IFDEBUG printLoopState1Incoming();
 
         //evaluate modifiers
         processModifierState();
     
-        IFDEBUG printLoopState2Modifier();
+        if (!globalState.secretSequenceRecording)
+            IFDEBUG printLoopState2Modifier();
 
         //evaluate modified keys
         processCombos();
@@ -461,11 +449,13 @@ int main()
         if (!isModifier(loopState.vcode))
             modifierState.modifierTapped = 0;
 
-        IFDEBUG printLoopState3Timing();
+        if(!globalState.secretSequenceRecording)
+            IFDEBUG printLoopState3Timing();
 
         sendResultingKeyOrSequence();
 
-        IFDEBUG printLoopState4TapState();
+        if (!globalState.secretSequenceRecording)
+            IFDEBUG printLoopState4TapState();
     }
     interception_destroy_context(interceptionState.interceptionContext);
 
@@ -636,7 +626,7 @@ void testBeta()
 {
     //flip icon
     options.debug = !options.debug;
-    bool res = ShowInTraybar(options.debug, globalState.activeConfig);
+    bool res = ShowInTraybar(options.debug, globalState.recordingMacro >= 0, globalState.activeConfig);
     if (!res)
         cout << endl << "not flipped";
 }
@@ -695,7 +685,7 @@ bool processCommand()
         else
         {
             cout << "Show traybar";
-            ShowInTraybar(globalState.activeConfig != 0 , globalState.activeConfig);
+            ShowInTraybar(globalState.activeConfig != 0 , globalState.recordingMacro >= 0, globalState.activeConfig);
         }
         break;
     }
@@ -727,40 +717,12 @@ bool processCommand()
         cout << "Stop AHK";
         closeOrKillProgram("autohotkey.exe");
         break;
-    case SC_U:
-    {
-        if (globalState.username.size() == 0)
-        {
-            cout << "Type Username (Enter)";
-            globalState.recordingUsername = true;
-        }
-        else
-        {
-            cout << "Play user";
-            playKeyEventSequence(globalState.username);
-        }
-        break;
-    }
     case SC_I:
     {
         cout << "INI filtered for config " << globalState.activeConfigName;
         vector<string> tmpAssembledConfig = assembleConfig(globalState.activeConfig);
         for (string line : tmpAssembledConfig)
             cout << endl << line;
-        break;
-    }
-    case SC_P:
-    {
-        if (globalState.password.size() == 0)
-        {
-            cout << "Type Password (Enter)";
-            globalState.recordingPassword = true;
-        }
-        else
-        {
-            cout << "Play password";
-            playKeyEventSequence(globalState.password);
-        }
         break;
     }
     case SC_A:
@@ -785,26 +747,35 @@ bool processCommand()
         popupConsole = true;
         break;
     case SC_J:
-        cout << "MACRO START RECORDING";
-        globalState.recordingMacro = true;
-        globalState.recordedMacro.clear();
+        cout << "MACRO 0 START RECORDING";
+        globalState.recordingMacro = 0;
+        globalState.recordedMacros[0].clear();
+        updateTrayIcon(true, globalState.recordingMacro >= 0, globalState.activeConfig);
         break;
     case SC_K:
-        if (globalState.recordingMacro)
-            cout << "MACRO STOP RECORDING (" << globalState.recordedMacro.size() << ")";
+        if (globalState.recordingMacro == 0)
+        {
+            while (globalState.recordedMacros[0].size() > 0 && globalState.recordedMacros[0].back().isDownstroke)  //remove all key down at the end, caused by pressing ESC+K
+                globalState.recordedMacros[0].pop_back();
+            while (globalState.recordedMacros[0].size()>0 && !globalState.recordedMacros[0].front().isDownstroke)  //remove all key-up at the beginning, caused by releasing the shortcut ESC+J
+                globalState.recordedMacros[0].erase(globalState.recordedMacros[0].begin());
+            cout << "MACRO 0 STOP RECORDING (" << globalState.recordedMacros[0].size() << ")";
+        }
         else
-            cout << "MACRO RECORDING ALREADY STOPPED";
-        globalState.recordingMacro = false;
+            cout << "MACRO 0 RECORDING ALREADY STOPPED";
+
+        globalState.recordingMacro = -1;
+        updateTrayIcon(true, globalState.recordingMacro >= 0, globalState.activeConfig);
         break;
     case SC_L:
-        cout << "MACRO PLAYBACK";
-        playKeyEventSequence(globalState.recordedMacro);
+        cout << "MACRO 0 PLAYBACK";
+        playKeyEventSequence(globalState.recordedMacros[0]);
         break;
     case SC_SEMI:
     {
-        cout << "COPY MACRO TO CLIPBOARD";
+        cout << "COPY MACRO 0 TO CLIPBOARD";
         string macro = "";
-        for (VKeyEvent key : globalState.recordedMacro)
+        for (VKeyEvent key : globalState.recordedMacros[0])
         {
             if (macro.size() > 0)
                 macro += "_";
@@ -933,7 +904,7 @@ bool parseIniOptions(std::vector<std::string> assembledIni)
 
     for (string line : sectLines)
     {
-        string token = stringGetFirstToken(line);
+        string token = stringCopyFirstToken(line);
         if (token == "configname")
         {
             globalState.activeConfigName = stringGetRestBehindFirstToken(line);
@@ -1087,7 +1058,7 @@ bool parseIniAlphaLayout(std::vector<std::string> assembledIni)
     bool inMapFromTo = false;
     for (string line : assembledIni)
     {
-        string firstToken = stringGetFirstToken(line);
+        string firstToken = stringCopyFirstToken(line);
         if (firstToken == tagFrom)
         {
             if (inMapFromTo)
@@ -1247,7 +1218,7 @@ void switchConfig(int config, bool forceReloadSameConfig)
         globalState.activeConfigName = DISABLED_CONFIG_NAME;
     }
 
-    updateTrayIcon(true, globalState.activeConfig);
+    updateTrayIcon(true, globalState.recordingMacro >= 0, globalState.activeConfig);
     cout << endl << endl << "ACTIVE CONFIG: " << globalState.activeConfig << " = " << globalState.activeConfigName;
 }
 
@@ -1278,8 +1249,8 @@ void reset()
     globalState.activeConfig = tmp.activeConfig;
     globalState.activeConfigName = tmp.activeConfigName;
     globalState.previousConfig = tmp.previousConfig;
-    globalState.username = tmp.username;
-    globalState.password = tmp.password;
+    for(int i=0;i<MAX_NUM_MACROS;i++)
+        globalState.recordedMacros[i] = tmp.recordedMacros[i];
 }
 
 //Reset and reload the ini from scratch
@@ -1421,8 +1392,6 @@ void printHelp()
         << "[C] Print list of key labels for all scancodes" << endl
         << "[R] Reset and reload the .ini file" << endl
         << "[T] Move Taskbar icon to Tray and back" << endl
-        << "[U] Username Enter/Playback" << endl
-        << "[P] Password Enter/Playback. DO NOT USE if strangers can access your local machine." << endl
         << "[I] Show processed Ini for the active config" << endl
         << "[A] Autohotkey start" << endl
         << "[Y] autohotkeY stop" << endl
@@ -1500,10 +1469,16 @@ void sendCapsicainCodeHandler(VKeyEvent keyEvent)
     case VK_CPS_CONFIGPREVIOUS:
     {
         switchConfig(globalState.previousConfig, false);
+        break;
+    }
+    case VK_CPS_OBFUSCATED_SEQUENCE_START:
+    {
+        globalState.secretSequencePlayback = true;
+        break;
     }
     }
 
-    IFDEBUG cout << endl << "(CapsicainCode: " << getPrettyVKLabelPadded(keyEvent.vcode,0) << ")";
+    IFDEBUG cout << endl << "(CPS code: " << getPrettyVKLabelPadded(keyEvent.vcode,0) << ")";
 }
 
 void sendResultingKeyOrSequence()
@@ -1514,59 +1489,122 @@ void sendResultingKeyOrSequence()
     }
     else
     {
-        IFDEBUG
-        {
-            if (loopState.vcode > 254)  //real key but not 255 CAPS_ESC
-                cout << "\t--> BLOCKED ";
-            else if (loopState.scancode != loopState.vcode)
-                cout << "\t--> " << PRETTY_VK_LABELS[loopState.vcode] << " " << getSymbolForIKStrokeState(interceptionState.lastIKstroke.state);
-            else
-                cout << "\t--";
-        }
-            if (loopState.vcode < 255 && loopState.vcode != SC_NOP)
+        if (!globalState.secretSequenceRecording)
+            IFDEBUG
             {
-                sendVKeyEvent({ loopState.vcode, loopState.isDownstroke });
+                if (loopState.scancode != loopState.vcode)
+                    cout << "\t--> " << PRETTY_VK_LABELS[loopState.vcode] << " " << getSymbolForIKStrokeState(interceptionState.lastIKstroke.state);
+                else
+                    cout << "\t--";
             }
+        {
+            sendVKeyEvent({ loopState.vcode, loopState.isDownstroke });
+        }
     }
 }
 
 //Send out all keys in a sequence
 //Sequences are created for anything that requires more than one key event, like AltChar(123)
-//Catch and process CPS virtual keys
+//Catch and process CPS virtual keys that have a value following in the next key
 void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
 {
+    if (keyEventSequence.size() == 0) 
+    {
+        cout << endl << "BUG? keyEventSequence.size == 0" << endl;
+        return;
+    }
+
     VKeyEvent newKeyEvent;
     unsigned int delayBetweenKeyEventsMS = options.delayForKeySequenceMS;
-    bool tempReleasedKeys = false; //command to temporarily release all physical keys came in
+    bool tempReleasedKeys = false; //command to temporarily release all physical keys that came before the current combo
 
-    //'next key has special meaning'
-    bool expectNextSleepValue = false;
-    bool expectNextDeadkey = false;
-    bool expectNextConfigSwitch = false;
+    //remember that the next key will be the value for a func key'
+    int  expectParamForFuncKey = -1;
 
-    IFDEBUG cout << "\t--> SEQUENCE (" << dec << keyEventSequence.size() << ")";
+    IFDEBUG
+        if (!globalState.secretSequencePlayback && keyEventSequence.at(0).vcode != VK_CPS_OBFUSCATED_SEQUENCE_START)
+             cout << "\t--> SEQUENCE (" << dec << keyEventSequence.size() << ")";
+
     for (VKeyEvent keyEvent : keyEventSequence)
     {
-        if (expectNextSleepValue)
+        int vc = keyEvent.vcode;
+        if (globalState.secretSequencePlayback)
+            vc = deObfuscateVKey(vc);
+
+        //test if this is the param for the preceding func key in "command + value" sequence
+        if (expectParamForFuncKey != -1)
         {
-            IFDEBUG cout << endl << "vk_cps_sleep: " << keyEvent.vcode;
-            Sleep(keyEvent.vcode);
-            expectNextSleepValue = false;
+            switch (expectParamForFuncKey)
+            {
+            case VK_CPS_SLEEP:
+                IFDEBUG cout << endl << "vk_cps_sleep: " << vc;
+                Sleep(vc);
+                break;
+            case VK_CPS_DEADKEY:
+                IFDEBUG cout << endl << "vk_cps_deadkey: " << getPrettyVKLabelPadded(vc, 0);
+                modifierState.activeDeadkey = vc;
+                break;
+            case VK_CPS_CONFIGSWITCH:
+                IFDEBUG cout << endl << "vk_cps_configswitch: " << vc;
+                switchConfig(vc, false);
+                break;
+            case VK_CPS_RECORDMACRO:
+            case VK_CPS_RECORDSECRETMACRO:
+            {
+                int macroNum = vc;
+
+                bool isSecret = false;
+                if (expectParamForFuncKey == VK_CPS_RECORDSECRETMACRO)
+                    isSecret = true;
+
+                if (macroNum < 1 || macroNum >= MAX_NUM_MACROS)
+                    cout << endl << "ERROR in .ini: bad number for macro. Must be 1.." << MAX_NUM_MACROS - 1;
+                else if (globalState.recordingMacro != -1)
+                    cout << endl << "INFO: a macro is already being recorded: #" << globalState.recordingMacro;
+                else
+                {
+                    IFDEBUG cout << endl << "Start recording " << (isSecret ? "secret" : "") << "macro #" << macroNum << endl;
+                    globalState.recordingMacro = macroNum;
+                    globalState.recordedMacros[macroNum].clear();
+
+                    if (isSecret)
+                    {
+                        globalState.secretSequenceRecording = true;
+                        globalState.recordedMacros[macroNum].push_back({ VK_CPS_OBFUSCATED_SEQUENCE_START, true });
+                    }
+                }
+                updateTrayIcon(true, globalState.recordingMacro >= 0, globalState.activeConfig);
+                break;
+            }
+            case VK_CPS_PLAYMACRO:
+            {
+                IFDEBUG cout << endl << "vk_cps_playmacro: " << vc;
+                int macnum = vc;
+
+                if (macnum < 1 || macnum >= MAX_NUM_MACROS)
+                    cout << endl << "ERROR: bad number for macro. Must be 1.." << MAX_NUM_MACROS - 1;
+                else
+                {
+                    if (globalState.recordedMacros[macnum].size() == 0)
+                        cout << endl << "INFO macro #" << macnum << " has not been recorded before.";
+                    else
+                    {
+                        playKeyEventSequence(globalState.recordedMacros[macnum]);
+                        globalState.secretSequencePlayback = false;
+                    }
+                }
+                break;
+            }
+            default:
+                cout << endl << "BUG? unknown expectParamForFuncKey";
+            }
+
+            expectParamForFuncKey = -1;
+            continue;
         }
-        else if (expectNextDeadkey)
-        {
-            IFDEBUG cout << endl << "vk_cps_deadkey: " << getPrettyVKLabelPadded(keyEvent.vcode, 0);
-            modifierState.activeDeadkey = keyEvent.vcode;
-            expectNextDeadkey = false;
-        }
-        else if (expectNextConfigSwitch)
-        {
-            IFDEBUG cout << endl << "vk_cps_configswitch: " << getPrettyVKLabelPadded(keyEvent.vcode, 0);
-            switchConfig(keyEvent.vcode, false);
-            expectNextConfigSwitch = false;
-        }
-        //release and remember all keys that are physically down
-        else if (keyEvent.vcode == VK_CPS_TEMPRELEASEKEYS)
+
+        //in no special state, evaluate the key
+        if (vc == VK_CPS_TEMPRELEASEKEYS) //release and remember all keys that are physically down
         {
             bool tempReleasedKeys = true;
             for (int i = 0; i <= 255; i++)
@@ -1578,8 +1616,7 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
             if (globalState.keysDownSentCounter != 0)
                 error("BUG: keysDownSentCounter != 0");
         }
-        //restore all keys that were down before 'VK_cps_temprelease'
-        else if (keyEvent.vcode == VK_CPS_TEMPRESTOREKEYS)
+        else if (vc == VK_CPS_TEMPRESTOREKEYS) //restore all keys that were down before 'VK_cps_temprelease'
         {
             bool tempReleasedKeys = false;
             for (int i = 0; i <= 255; i++)
@@ -1591,23 +1628,26 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
                 }
             }
         }
-        else if (keyEvent.vcode == VK_CPS_SLEEP)
+        //func key with param; wait for next key which is the param
+        else if (vc == VK_CPS_SLEEP
+            || vc == VK_CPS_DEADKEY
+            || vc == VK_CPS_CONFIGSWITCH
+            || vc == VK_CPS_RECORDMACRO
+            || vc == VK_CPS_RECORDSECRETMACRO
+            || vc == VK_CPS_PLAYMACRO
+            )
         {
-            expectNextSleepValue = true;
-        }
-        else if (keyEvent.vcode == VK_CPS_DEADKEY)
-        {
-            expectNextDeadkey = true;
-        }
-        else if (keyEvent.vcode == VK_CPS_CONFIGSWITCH)
-        {
-            expectNextConfigSwitch = true;
+            expectParamForFuncKey = vc;
         }
         else //regular non-escaped keyEvent
         {
-            sendVKeyEvent(keyEvent);
-            if (keyEvent.vcode == AHK_HOTKEY1 || keyEvent.vcode == AHK_HOTKEY2)
-                delayBetweenKeyEventsMS = DEFAULT_DELAY_FOR_AHK_MS;
+            if(globalState.secretSequencePlayback)
+                sendVKeyEvent({ deObfuscateVKey(keyEvent.vcode) , keyEvent.isDownstroke });
+            else
+                sendVKeyEvent(keyEvent);
+
+            if (vc == AHK_HOTKEY1 || vc == AHK_HOTKEY2)
+                Sleep(DEFAULT_DELAY_FOR_AHK_MS);
             else
                 Sleep(delayBetweenKeyEventsMS);
         }
@@ -1615,22 +1655,29 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
 
     if (tempReleasedKeys)
         error("VK_CPS_TEMPRELEASEKEYS without corresponding VK_CPS_TEMPRESTOREKEYS. Check your config.");
-    if (expectNextSleepValue)
-        error("BUG: VK_CPS_SLEEP is unfinished");
-    if (expectNextDeadkey)
-        error("BUG: VK_CPS_DEADKEY is unfinished");
-    if (expectNextConfigSwitch)
-        error("BUG: VK_CPS_CONFIGSWITCH is unfinished");
+    if (expectParamForFuncKey != -1)
+        error("BUG: func key with param: " + getPrettyVKLabel(expectParamForFuncKey) + "is unfinished");
 }
 
 
 void sendVKeyEvent(VKeyEvent keyEvent)
 {
+    if (keyEvent.vcode < 0)
+    {
+        cout << endl << "BUG: vcode<0";
+        return;
+    }
+    if (keyEvent.vcode == 0)
+    {
+        cout << endl << "(NOP blocked)";
+        return;
+    }
     if (keyEvent.vcode > 0xFF)
     {
         sendCapsicainCodeHandler(keyEvent);
         return;
     }
+
     unsigned char scancode = (unsigned char) keyEvent.vcode;
 
     if (scancode == 0xE4)  //what was that for?
@@ -1650,22 +1697,33 @@ void sendVKeyEvent(VKeyEvent keyEvent)
 
     globalState.keysDownSent[scancode] = keyEvent.isDownstroke;
 
-    if (globalState.recordingMacro)
+    //handle live macro recording
+    if (globalState.recordingMacro >= 0)
     {
-        if (globalState.recordedMacro.size() < MAX_MACRO_LENGTH)
-            globalState.recordedMacro.push_back(keyEvent);
+        if (globalState.recordedMacros[globalState.recordingMacro].size() >= MAX_MACRO_LENGTH -2)  //macro getting too big
+        {
+            globalState.recordingMacro = -1;
+            globalState.secretSequenceRecording = false;
+            updateTrayIcon(true, globalState.recordingMacro >= 0, globalState.activeConfig);
+            cout << endl << "Macro Length > " << MAX_MACRO_LENGTH << ". Forgotten Macro? Stop recording macro #" << globalState.recordingMacro << endl;
+        }
         else
         {
-            globalState.recordingMacro = false;
-            cout << endl << "Macro Length > " << MAX_MACRO_LENGTH << ". Forgotten Macro? Stopping recording.";
+            //store the macro obfuscated?
+            VKeyEvent obfusc = keyEvent;
+            if (globalState.secretSequenceRecording)
+                obfusc.vcode = obfuscateVKey(obfusc.vcode);
+            globalState.recordedMacros[globalState.recordingMacro].push_back(obfusc);
         }
     }
     
     InterceptionKeyStroke iks = vkeyEvent2ikstroke(keyEvent);
-    IFDEBUG cout << " {" << PRETTY_VK_LABELS[keyEvent.vcode] << (keyEvent.isDownstroke ? "v" : "^") << " #" << globalState.keysDownSentCounter << "}";
+    //hide secret macro recording
+    IFDEBUG
+        if(!globalState.secretSequenceRecording && ! globalState.secretSequencePlayback)
+            cout << " {" << PRETTY_VK_LABELS[keyEvent.vcode] << (keyEvent.isDownstroke ? "v" : "^") << " #" << globalState.keysDownSentCounter << "}";
 
     interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke *)&iks, 1);
-//    interception_send(globalState.interceptionContext, globalState.interceptionDevice, (InterceptionStroke *)&loopState.originalIKstroke, 1);
 }
 
 
@@ -1693,4 +1751,13 @@ string getSymbolForIKStrokeState(unsigned short state)
     case 3: return "*^";
     }
     return "???" + state;
+}
+
+int obfuscateVKey(int vk)
+{
+    return vk ^ 0b0101010101010101;
+}
+int deObfuscateVKey(int vk)
+{
+    return vk ^ 0b0101010101010101;
 }

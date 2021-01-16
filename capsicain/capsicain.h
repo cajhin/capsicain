@@ -59,3 +59,6 @@ std::vector<std::string> assembleConfig(int config);
 void switchConfig(int config, bool forceReloadSameLayer);
 void resetCapsNumScrollLock();
 
+int obfuscateVKey(int vk);
+int deObfuscateVKey(int vk);
+

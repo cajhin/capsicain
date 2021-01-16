@@ -16,8 +16,10 @@ long timeBetweenTimepointsMS(std::chrono::steady_clock::time_point timepoint1, s
 bool stringStartsWith(std::string haystack, std::string needle);
 std::string stringGetLastToken(std::string line);
 std::string stringGetRestBehindFirstToken(std::string line);
-std::string stringGetFirstToken(std::string line);
+std::string stringCutFirstToken(std::string& line);
+std::string stringCopyFirstToken(std::string line);
 std::string stringToLower(std::string str);
 std::string stringToUpper(std::string str);
 std::vector<std::string> stringSplit(const std::string &line, char delimiter);
 bool stringToInt(std::string strval, int& result);
+bool stringReplace(std::string& haystack, const std::string& needle, const std::string& newneedle);

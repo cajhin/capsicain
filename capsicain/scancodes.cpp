@@ -234,4 +234,8 @@ void defineAllPrettyVKLabels(string arr[])
     checkAddLabel(VK_MOD15, "MOD15", arr);
     checkAddLabel(VK_CPS_CAPSON, "CAPSON", arr);
     checkAddLabel(VK_CPS_CAPSOFF, "CAPSOFF", arr);
+    checkAddLabel(VK_CPS_RECORDMACRO, "RECMAC", arr);
+    checkAddLabel(VK_CPS_RECORDSECRETMACRO, "RECSECMACRO", arr);
+    checkAddLabel(VK_CPS_PLAYMACRO, "PLAYMAC", arr);
+    checkAddLabel(VK_CPS_OBFUSCATED_SEQUENCE_START, "OBFUSEQSTART", arr);
 }

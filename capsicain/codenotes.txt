@@ -127,3 +127,17 @@ v80: change ALL "Layer" to "Config"
 v81: rewire: undo preceding tapped state on tap&hold
 - tap&hold always results in tap first. The 'mod tapped' state needs to be cleared
 - cleanup modifier bitmask functions (take vcode instead of scancode)
+
+v82: record/play simple macros (usr/pw, others)
+- removed dedicated ESC+U ESC+P macros
+- 10 configurable macros (+ the existing 'hard macro 0' with ESC JKL;)
+- new .ini Combo functions
+  o recordMacro(1..10)
+  o recordSecretMacro(1..10) (never shown on the console, obfuscated in RAM)
+  o playMacro(1..10)
+- new internal VKeys 
+  VK_CPS_RECORDMACRO, VK_CPS_RECORDSECRETMACRO, VK_CPS_PLAYMACRO, VK_CPS_OBFUSCATED_SEQUENCE_START
+- tray icon to indicate recording is ongoing
+- fix 'deadkey-x ] []' // 'combo(np++x)' // 'comboNtimes(x+,,3)'
+
+broken: COMBO J []
