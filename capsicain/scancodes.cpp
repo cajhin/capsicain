@@ -178,7 +178,6 @@ void defineAllPrettyVKLabels(string arr[])
     checkAddLabel(SC_DIVIDE, "NP/", arr);
     checkAddLabel(SC_SYSRQ, "SYSRQ", arr);
     checkAddLabel(SC_RALT, "RALT", arr);
-    checkAddLabel(SC_PAUSE, "PAUSE", arr);
     checkAddLabel(SC_HOME, "HOME", arr);
     checkAddLabel(SC_UP, "UP", arr);
     checkAddLabel(SC_PGUP, "PGUP", arr);
@@ -238,4 +237,6 @@ void defineAllPrettyVKLabels(string arr[])
     checkAddLabel(VK_CPS_RECORDSECRETMACRO, "RECSECMACRO", arr);
     checkAddLabel(VK_CPS_PLAYMACRO, "PLAYMAC", arr);
     checkAddLabel(VK_CPS_OBFUSCATED_SEQUENCE_START, "OBFUSEQSTART", arr);
+    checkAddLabel(VK_CPS_PAUSE, "PAUSE", arr);  //this is not a real scancode, used to map the PAUSE combo E1 LCTRL SCRLCK
+
 }

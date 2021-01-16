@@ -103,11 +103,6 @@ struct GlobalState
     int recordingMacro = -1; //-1: not recording. 1..MAX_SIMPLE_MACROS : this is currently recording. 0=currently recording the 'hard' ESC+J macro
     vector<VKeyEvent> recordedMacros[MAX_NUM_MACROS];  // [0] stores the 'hard' macro
 
-    vector<VKeyEvent> username;
-    vector<VKeyEvent> password;
-    bool recordingUsername = false;
-    bool recordingPassword = false;
-
     chrono::steady_clock::time_point timepointPreviousKeyEvent;
 
 } globalState;
@@ -119,6 +114,7 @@ struct ModifierState
     unsigned short modifierDown = 0;
     unsigned short modifierTapped = 0;
     vector<VKeyEvent> modsTempAltered;
+    bool inE1sequence = false;  //to detect Pause = E1 LCtrl NumLock
 } modifierState;
 static const struct ModifierState defaultModifierState;
 
@@ -295,6 +291,8 @@ int main()
         interceptionState.interceptionDevice = interception_wait(interceptionState.interceptionContext),
                                  (InterceptionStroke *)&interceptionState.lastIKstroke, 1)   > 0)
     {
+        //printIKStrokeState(interceptionState.lastIKstroke);  //for low level debugging
+
         //clear loop state
         loopState = defaultLoopState;
 
@@ -332,6 +330,7 @@ int main()
 
         if (!globalState.secretSequenceRecording)
             IFDEBUG cout << ". ";
+
         //ignore secondary keyboard?
         if (options.processOnlyFirstKeyboard 
             && (interceptionState.previousInterceptionDevice != NULL)
@@ -416,6 +415,36 @@ int main()
             loopState.scancode = loopState.vcode;       //only time where scancode is rewritten. Simplifies tapping and rewiring
         }
 
+        //handle rare E1 or higher extended code
+        if (modifierState.inE1sequence || interceptionState.lastIKstroke.state > 3) 
+        {
+            if (loopState.vcode == SC_LCTRL)
+            {
+                modifierState.inE1sequence = true;
+                continue;  //drop the ctrl key
+            }
+            else if (loopState.vcode == SC_NUMLOCK)
+            {
+                IFDEBUG if(loopState.isDownstroke) 
+                    cout << endl << ("Pause key combo (E1 LCTRL NUMLOCK) -> virtual key PAUSE");
+                loopState.vcode = VK_CPS_PAUSE;
+                modifierState.inE1sequence = false;
+            }
+            else
+            {
+                cout << endl << endl << "???? Extended escape code not handled. What is this key???"
+                    << "Please open a ticket on github";
+                continue;
+            }
+        }
+
+        //handle Ctrl+NumLock
+        if (loopState.vcode == SC_NUMLOCK)
+        {
+            if((modifierState.modifierDown & BITMASK_LCTRL) > 0) // isModifierDown(SC_LCTRL, modifierState.modifierDown))
+                loopState.vcode = VK_CPS_PAUSE;
+        }
+
         //Tapdance
         DetectTapping();
         //slow tap breaks tapping
@@ -423,7 +452,7 @@ int main()
             modifierState.modifierTapped = 0;
 
         //hard rewire all REWIREd keys
-         processRewireScancodeToVirtualcode();
+        processRewireScancodeToVirtualcode();
         if (loopState.vcode == SC_NOP)   //rewired to NOP to disable keys
         {
             IFDEBUG cout << " (REW2NOP)";
@@ -491,7 +520,7 @@ void processRewireScancodeToVirtualcode()
         return;
     }
 
-    int rewoutkey = allMaps.rewiremap[loopState.scancode][REWIRE_OUT];
+    int rewoutkey = allMaps.rewiremap[loopState.vcode][REWIRE_OUT];
     if (rewoutkey >= 0)
     {
         //Rewire
@@ -965,8 +994,7 @@ void parseIniRewires(std::vector<std::string> assembledIni)
     vector<string> sectLines = getTaggedLinesFromIni(INI_TAG_REWIRE, assembledIni);
 
     int tagCounter = 0;
-    unsigned char keyIn;
-    int keyOut, keyTap, keyTapHold;
+    int keyIn, keyOut, keyTap, keyTapHold;
     for (string line : sectLines)
     {
         keyTap = -1;
@@ -1246,6 +1274,7 @@ void reset()
 
     GlobalState tmp = globalState; //some settings shall survive the reset
     globalState = defaultGlobalState;
+    globalState.timepointPreviousKeyEvent = timeSetTimepointNow();
     globalState.activeConfig = tmp.activeConfig;
     globalState.activeConfigName = tmp.activeConfigName;
     globalState.previousConfig = tmp.previousConfig;
@@ -1335,6 +1364,14 @@ void printStatus()
     printOptions();
 }
 
+void printIKStrokeState(InterceptionKeyStroke iks)
+{
+    cout << endl << "IKS: " << hex << iks.code
+        << " " << iks.state
+        << " = " << getPrettyVKLabel(iks.code)
+        << " i" << iks.information;
+}
+
 void printLoopState1Incoming()
 {
     cout << endl << "(" << setw(5) << dec << loopState.timeSinceLastKeyEventMS << " ms) [" << hex << \
@@ -1415,7 +1452,7 @@ InterceptionKeyStroke vkeyEvent2ikstroke(VKeyEvent vkstroke)
 
     if (vkstroke.vcode >= 0xFF)
     {
-        error("bug: trying to send an interception keystroke > xFF");
+        error("BUG: trying to send an interception keystroke > xFF");
         iks.code = SC_NOP;
     }
 
@@ -1445,6 +1482,8 @@ void sendCapsicainCodeHandler(VKeyEvent keyEvent)
 {
     if (!keyEvent.isDownstroke)
         return;
+
+    IFDEBUG cout << endl << "(CPS code: " << getPrettyVKLabelPadded(keyEvent.vcode, 0) << ")";
 
     switch (keyEvent.vcode)
     {
@@ -1476,9 +1515,26 @@ void sendCapsicainCodeHandler(VKeyEvent keyEvent)
         globalState.secretSequencePlayback = true;
         break;
     }
+    case VK_CPS_PAUSE:
+        if (IsCapsicainForegroundWindow())
+        {
+            cout << endl << endl << "INFO: Discarding the PAUSE key. " << endl 
+                << "      This would freeze Capsicain which is currently the active window (and this would stop your keyboard)";
+        }
+        else
+        {
+            //manually send a PAUSE sequence with E1 escape (iks state 4/5)
+            IFDEBUG cout << endl << "sending the Pause key sequence E1 LCTRL NUMLOCK";
+            InterceptionKeyStroke iks_cont = {SC_LCTRL,4,0};
+            interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke*)&iks_cont, 1);
+            InterceptionKeyStroke iks_numl = { SC_NUMLOCK,0,0 };
+            interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke*)&iks_numl, 1);
+            iks_cont.state = 5;
+            interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke*)&iks_cont, 1);
+            iks_numl.state = 1;
+            interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke*)&iks_numl, 1);
+        }
     }
-
-    IFDEBUG cout << endl << "(CPS code: " << getPrettyVKLabelPadded(keyEvent.vcode,0) << ")";
 }
 
 void sendResultingKeyOrSequence()
@@ -1672,7 +1728,7 @@ void sendVKeyEvent(VKeyEvent keyEvent)
         cout << endl << "(NOP blocked)";
         return;
     }
-    if (keyEvent.vcode > 0xFF)
+    if (keyEvent.vcode > 0xFF || keyEvent.vcode == VK_CPS_PAUSE)
     {
         sendCapsicainCodeHandler(keyEvent);
         return;
@@ -1718,7 +1774,7 @@ void sendVKeyEvent(VKeyEvent keyEvent)
     }
     
     InterceptionKeyStroke iks = vkeyEvent2ikstroke(keyEvent);
-    //hide secret macro recording
+    //hide secret macro recording?
     IFDEBUG
         if(!globalState.secretSequenceRecording && ! globalState.secretSequencePlayback)
             cout << " {" << PRETTY_VK_LABELS[keyEvent.vcode] << (keyEvent.isDownstroke ? "v" : "^") << " #" << globalState.keysDownSentCounter << "}";
@@ -1745,12 +1801,20 @@ string getSymbolForIKStrokeState(unsigned short state)
 {
     switch (state)
     {
-    case 0: return "v";
-    case 1: return "^";
-    case 2: return "*v";
-    case 3: return "*^";
+    case 0b000: return "v";
+    case 0b001: return "^";
+    case 0b010: return "*v";
+    case 0b011: return "*^";
+    case 0b100: return "**v";
+    case 0b101: return "**^";
+    case 0b001000: return "??TERMSRV_SET_LED down??";
+    case 0b001001: return "??TERMSRV_SET_LED up??";
+    case 0b010000: return "??TERMSRV_SHADOW down??";
+    case 0b010001: return "??TERMSRV_SHADOW up??";
+    case 0b100000: return "??TERMSRV_VKPACKET down??";
+    case 0b100001: return "??TERMSRV_VKPACKET up??";
     }
-    return "???" + state;
+    return "???" + to_string(state);
 }
 
 int obfuscateVKey(int vk)

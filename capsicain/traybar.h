@@ -1,6 +1,8 @@
 #pragma once
 #include <string>
+#include <windows.h> 
 
+bool IsCapsicainForegroundWindow();
 bool IsCapsicainInTray();
 bool ShowInTaskbar();
 bool ShowInTaskbarMinimized();

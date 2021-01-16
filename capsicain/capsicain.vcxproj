@@ -214,7 +214,6 @@ $(ProjectDir)copy_release.bat</Command>
   </ItemGroup>
   <ItemGroup>
     <Text Include="documentation.txt" />
-    <Text Include="layoutTest.txt" />
     <Text Include="codenotes.txt" />
   </ItemGroup>
   <ItemGroup>

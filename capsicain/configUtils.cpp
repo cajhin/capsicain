@@ -267,7 +267,7 @@ bool parseKeywordsAlpha_FromTo(std::string alpha_to, int (&alphamap)[MAX_VCODES]
 
 // parse "REWIRE A B"  or  "REWIRE A B C D". Does not touch optional keys that are not defined in the line.
 // the // symbol stands for -1 "do nothing with this"
-bool parseKeywordRewire(std::string line, unsigned char &keyA, int &keyB, int &keyC, int &keyD, std::string scLabels[])
+bool parseKeywordRewire(std::string line, int &keyA, int &keyB, int &keyC, int &keyD, std::string scLabels[])
 {
     vector<string> labels = stringSplit(line, ' ');
     if (labels.size() < 2 && labels.size() > 4)
@@ -291,9 +291,9 @@ bool parseKeywordRewire(std::string line, unsigned char &keyA, int &keyB, int &k
 
     if (ikeyA < 0 || ikeyB < 0 || (hasTapConfig && ikeyC < 0) || (hasTapHoldConfig && ikeyD < 0) )
         return false; //invalid key label
-    if (ikeyA > 255)
+    if (ikeyA > 255 && ikeyA != VK_CPS_PAUSE)
     {
-        cout << endl << "ERROR: the rewired key cannot be a virtual key: " << labels[0];
+        cout << endl << "INFO: rewiring a virtual key (other than PAUSE) does not make sense. Your keyboard never sends VKeys";
         return false;
     }
 
@@ -483,7 +483,7 @@ bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[5], std
     }
     else if (funcName == "combontimes")
     {
-        int idx = funcParams.rfind(',');
+        size_t idx = (int)funcParams.rfind(',');
         if (idx == string::npos)
             return false;
         string combo = funcParams.substr(0, idx);

@@ -1,14 +1,14 @@
 Ongoing stream of what I want to remember...
 
 TODO
-- user/pass, different keys for record playback
+- change? combo x []  matches any modifier, but not none
 - test if static linking works for both ms*.dll
 - timeout for tappings, deadkeys?
-- record macros on key in (today) or on key out?
 - nicer macro 'language'
 - accented altChars should not ignore CapsLock ON
 - rethink double tap breaking tapped state
 - nicer syntax for input sequences (COMPOSE f y i [.T] > print("For your information")
+- directly send UTF chars to the upper echelons
 - Documentation.....
 
 v(old)
@@ -128,7 +128,7 @@ v81: rewire: undo preceding tapped state on tap&hold
 - tap&hold always results in tap first. The 'mod tapped' state needs to be cleared
 - cleanup modifier bitmask functions (take vcode instead of scancode)
 
-v82: record/play simple macros (usr/pw, others)
+v82beta: record/play simple macros (usr/pw, others)
 - removed dedicated ESC+U ESC+P macros
 - 10 configurable macros (+ the existing 'hard macro 0' with ESC JKL;)
 - new .ini Combo functions
@@ -140,4 +140,15 @@ v82: record/play simple macros (usr/pw, others)
 - tray icon to indicate recording is ongoing
 - fix 'deadkey-x ] []' // 'combo(np++x)' // 'comboNtimes(x+,,3)'
 
+v83beta: 
+- fix logging of escape scancode E1
+- ignore other arcane escape codes gracefully
+- translate Ctrl-NumLock and Pause key (E1-Ctrl-NumLock) to new VK_CPS_PAUSE ("PAUSE")
+- discard VK Pause if Capsicain is the foreground window, so Windows does not freeze it.
+  This is not bullet proof. In disabled state / layer 0, capsicain does not check any keys.
+  Still possible to menu > Edit > Mark > select text, which also pauses the console process.
+- Windows formalities that show up in Properties (version, file description, ...)
+
+
+document macros
 broken: COMBO J []

@@ -1,6 +1,6 @@
 #pragma once
 
-#define VERSION "82"
+#define VERSION "83beta"
 
 
 //arbitray limits
@@ -24,7 +24,7 @@
 
 //rewiremap columns
 #define REWIRE_COLS 4
-#define REWIRE_ROWS 256
+#define REWIRE_ROWS MAX_VCODES
 //#define REWIRE_IN  0 IN is the row index
 #define REWIRE_OUT 0
 #define REWIRE_TAP 1

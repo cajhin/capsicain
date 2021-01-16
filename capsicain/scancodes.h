@@ -81,7 +81,7 @@ enum ScanCode {
     SC_F8 = 0x42,
     SC_F9 = 0x43,
     SC_F10 = 0x44,
-    SC_NUMLOCK = 0x45, // also, 1dv 45v 1d^ 45^ is [Pause]
+    SC_NUMLOCK = 0x45, // also, escape code E1 then 1dv 45v 1d^ 45^ is [Pause]
     SC_SCRLOCK = 0x46, // Scroll Lock
     SC_NP7 = 0x47,
     SC_NP8 = 0x48,
@@ -143,7 +143,7 @@ enum ScanCode {
     SC_DIVIDE = 0xB5, // / on numeric keypad
     SC_SYSRQ = 0xB7,  // Print, sends Shift+Print 2A B7
     SC_RALT = 0xB8, // right Alt
-    SC_PAUSE = 0xC5, // Pause
+//    VK_CPS_PAUSE = 0xC5, // not a real scancode; Pause sends an escaped key combo
     SC_HOME = 0xC7, // Home on arrow keypad
     SC_UP = 0xC8, // UpArrow on arrow keypad
     SC_PGUP = 0xC9, // PgUp on arrow keypad
@@ -195,4 +195,5 @@ enum VirtualCode
     VK_CPS_RECORDSECRETMACRO = 0x113,
     VK_CPS_PLAYMACRO = 0x114,
     VK_CPS_OBFUSCATED_SEQUENCE_START = 0x115,
+    VK_CPS_PAUSE = 0x116, // not a real scancode; Cherry Pause key sends an escaped key combo E1 LCTRL NUMLOCK
 };

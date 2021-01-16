@@ -19,6 +19,10 @@ bool DeleteIconFromTraybar()
     return (::Shell_NotifyIcon(NIM_DELETE, &tnid) ? true : false);
 }
 
+bool IsCapsicainForegroundWindow()
+{
+    return GetConsoleWindow() == GetForegroundWindow();
+}
 bool IsCapsicainVisible()
 {
     return ::IsWindowVisible(::GetConsoleWindow());

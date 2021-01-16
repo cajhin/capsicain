@@ -10,8 +10,10 @@ enum KEYSTATE
 {
     KEYSTATE_DOWN = 0,
     KEYSTATE_UP = 1,
-    KEYSTATE_EXT_DOWN = 2,
-    KEYSTATE_EXT_UP = 3,
+    KEYSTATE_E0_DOWN = 2,
+    KEYSTATE_E0_UP = 3,
+    KEYSTATE_E1_DOWN = 4,
+    KEYSTATE_E1_UP = 5
 };
 
 void keySequenceAppendMakeKey(unsigned short scancode, std::vector<VKeyEvent> &sequence);
@@ -46,6 +48,7 @@ void printHelloHeader();
 void printStatus();
 void printKeylabels();
 void printHelp();
+void printIKStrokeState(InterceptionKeyStroke iks);
 void printLoopState1Incoming();
 void printLoopState2Modifier();
 void printLoopState3Timing();
