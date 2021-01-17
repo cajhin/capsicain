@@ -148,17 +148,21 @@ void closeOrKillProgram(string processName)
 }
 
 //time stuff
-unsigned int timeMillisecondsSinceTimepoint(chrono::steady_clock::time_point timepoint)
+unsigned long timeSinceTimepointMS(chrono::steady_clock::time_point timepoint)
 {
-    return (int)chrono::duration_cast<chrono::milliseconds>(std::chrono::steady_clock::now() - timepoint).count();
+    return (unsigned long)chrono::duration_cast<chrono::milliseconds>(std::chrono::steady_clock::now() - timepoint).count();
 }
-std::chrono::steady_clock::time_point timeSetTimepointNow()
+unsigned long timeSinceTimepointUS(chrono::steady_clock::time_point timepoint)
+{
+    return (unsigned long)chrono::duration_cast<chrono::microseconds>(std::chrono::steady_clock::now() - timepoint).count();
+}
+std::chrono::steady_clock::time_point timeGetTimepointNow()
 {
     return std::chrono::steady_clock::now();
 }
-long timeBetweenTimepointsMS(std::chrono::steady_clock::time_point timepoint1, std::chrono::steady_clock::time_point timepoint2)
+unsigned long timeBetweenTimepointsUS(std::chrono::steady_clock::time_point timepoint1, std::chrono::steady_clock::time_point timepoint2)
 {
-    long dura = (long) std::chrono::duration_cast<std::chrono::milliseconds>(timepoint2 - timepoint1).count();
+    unsigned long dura = (unsigned long) std::chrono::duration_cast<std::chrono::microseconds>(timepoint2 - timepoint1).count();
     return dura;
 }
 
@@ -257,4 +261,11 @@ bool stringReplace(std::string& haystack, const std::string& needle, const std::
         return false;
     haystack.replace(start_pos, needle.length(), newneedle);
     return true;
+}
+
+std::string stringIntToHex(const unsigned int i, unsigned int minLength) 
+{
+    std::stringstream s;
+    s << setfill('0') << setw(minLength) << std::hex << i;
+    return s.str();
 }

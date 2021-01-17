@@ -1,7 +1,6 @@
 #pragma once
 
-#define VERSION "83beta"
-
+#define VERSION "84beta"
 
 //arbitray limits
 #define MAX_VCODES 0x120  //biggest defined code in scancodes.h must be smaller than this

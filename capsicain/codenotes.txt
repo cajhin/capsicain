@@ -1,7 +1,6 @@
 Ongoing stream of what I want to remember...
 
 TODO
-- change? combo x []  matches any modifier, but not none
 - test if static linking works for both ms*.dll
 - timeout for tappings, deadkeys?
 - nicer macro 'language'
@@ -10,6 +9,14 @@ TODO
 - nicer syntax for input sequences (COMPOSE f y i [.T] > print("For your information")
 - directly send UTF chars to the upper echelons
 - Documentation.....
+
+CLEANUP
+- precise timers, profiling
+- move prints to separate file
+- move ini loads
+- console to win form with worker thread
+- separate all windows stuff (prepare linux version)
+- rework scancodes, E0 &0x80, iks state
 
 v(old)
 New ini GLOBALs
@@ -149,6 +156,15 @@ v83beta:
   Still possible to menu > Edit > Mark > select text, which also pauses the console process.
 - Windows formalities that show up in Properties (version, file description, ...)
 
+v84beta: Performance timers, fix modstring []
+- removed performance optimization that broke 'no-modifier' rules like 'combo x []'
+- nicer debug output formatting
+- compile time switch IFTRACE for low level details
+- compile time switch IFPROF for time measurements while debug is off
+- new performance profiling timers
+  Result: the cost of debugging output is not maybe 50%, but 99%
+  Average key processing time is 2ms with debugging on, and 0.02ms when off
+  -> don't do minor performance optimizations, it's not worth it
 
 document macros
-broken: COMBO J []
+speed up: broken: COMBO J []

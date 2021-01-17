@@ -17,7 +17,6 @@
 
 using namespace std;
 
-
 string PRETTY_VK_LABELS[MAX_VCODES]; // contains e.g. [01]="ESC" instead of SC_ESCAPE, and all VKs > 0xFF
 
 vector<string> sanitizedIniContent;  //loaded on startup and reset
@@ -59,12 +58,13 @@ struct ModifierCombo
 
 struct AllMaps
 {
-    int alphamap[MAX_VCODES] = { }; //MUST initialize this manually to 1 1, 2 2, 3 3, ...
-    vector<ModifierCombo> modCombos;// = new vector<ModifierCombo>();
-
     //inkey outkey (tapped)
     //-1 = undefined key
     int rewiremap[REWIRE_ROWS][REWIRE_COLS] = { }; //MUST initialize this manually to -1 !!
+
+    vector<ModifierCombo> modCombos;// = new vector<ModifierCombo>();
+
+    int alphamap[MAX_VCODES] = { }; //MUST initialize this manually to 1 1, 2 2, 3 3, ...
 } allMaps;
 
 struct InterceptionState
@@ -102,9 +102,6 @@ struct GlobalState
     bool secretSequencePlayback = false;
     int recordingMacro = -1; //-1: not recording. 1..MAX_SIMPLE_MACROS : this is currently recording. 0=currently recording the 'hard' ESC+J macro
     vector<VKeyEvent> recordedMacros[MAX_NUM_MACROS];  // [0] stores the 'hard' macro
-
-    chrono::steady_clock::time_point timepointPreviousKeyEvent;
-
 } globalState;
 static const struct GlobalState defaultGlobalState;
 
@@ -130,11 +127,38 @@ struct LoopState
 
     vector<VKeyEvent> resultingVKeyEventSequence;
 
-    chrono::steady_clock::time_point timepointLoopStart;
-    chrono::steady_clock::time_point timepointStopwatch;
-    long timeSinceLastKeyEventMS = 0;
 } loopState;
 static const struct LoopState defaultLoopState;
+
+struct ProfilingTimer
+{
+    chrono::steady_clock::time_point timepointStopwatch;
+    chrono::steady_clock::time_point timepointPreviousKeyEvent;
+    chrono::steady_clock::time_point timepointLoopStart = std::chrono::steady_clock::now();
+
+    int countIncoming = 0;
+    int countOutgoing = 0;
+    unsigned long totalMappingTimeUS = 0;
+    unsigned long totalSendingTimeUS = 0;
+    unsigned long worstMappingTimeUS = 0;
+    unsigned long worstSendingTimeUS = 0;
+
+    chrono::steady_clock::time_point getTimepointNow()
+    {
+        return std::chrono::steady_clock::now();
+    }
+    unsigned long stopwatchRestart()
+    {
+        unsigned long dura = stopwatchReadUS();
+        timepointStopwatch = std::chrono::steady_clock::now();
+        return dura;
+    }
+    unsigned long stopwatchReadUS()
+    {
+        return (unsigned long)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - timepointStopwatch).count();
+    }
+} profiler;
+static const struct ProfilingTimer defaultProfiler;
 
 string errorLog = "";
 void error(string txt)
@@ -249,10 +273,11 @@ int main()
         return 0;
     }
 
+    IFPROF profiler.stopwatchRestart();
+
     printHelloHeader();
 
     defineAllPrettyVKLabels(PRETTY_VK_LABELS);
-    loopState.timepointLoopStart = timeSetTimepointNow();
 
     if (!readSanitizeIniFile(sanitizedIniContent))
     {
@@ -285,13 +310,26 @@ int main()
 
     raise_process_priority(); //careful: if we spam key events, other processes get no timeslots to process them. Sleep a bit...
 
+    IFPROF cout << endl << endl << "Profiling enabled in this build" << endl << "Startup time: " << profiler.stopwatchReadUS() / 1000 << " ms" << endl;
+
     //CORE LOOP
     //wait for the next key from Interception
     while (interception_receive(interceptionState.interceptionContext,
         interceptionState.interceptionDevice = interception_wait(interceptionState.interceptionContext),
                                  (InterceptionStroke *)&interceptionState.lastIKstroke, 1)   > 0)
     {
-        //printIKStrokeState(interceptionState.lastIKstroke);  //for low level debugging
+
+        IFPROF
+        {
+            //Measure Timing. sleep() is not precise; just a rough outline. Expect occasional 30ms sleeps from thread scheduling.
+            profiler.timepointPreviousKeyEvent = profiler.timepointLoopStart;
+            profiler.timepointLoopStart = profiler.getTimepointNow();
+            profiler.stopwatchRestart();
+            profiler.countIncoming++;
+        }
+
+        //low level debugging, show incoming raw key
+        //printIKStrokeState(interceptionState.lastIKstroke);
 
         //clear loop state
         loopState = defaultLoopState;
@@ -328,8 +366,7 @@ int main()
             continue;
         }
 
-        if (!globalState.secretSequenceRecording)
-            IFDEBUG cout << ". ";
+        IFDEBUG if(globalState.activeConfig == 0) cout << ". ";
 
         //ignore secondary keyboard?
         if (options.processOnlyFirstKeyboard 
@@ -346,20 +383,16 @@ int main()
             || interceptionState.previousInterceptionDevice != interceptionState.interceptionDevice)  //keyboard changed
         {
             getHardwareId();
-            cout << endl << "new keyboard: " << (globalState.deviceIsAppleKeyboard ? "Apple keyboard" : "IBM keyboard");
+            cout << endl << "new keyboard: " << (globalState.deviceIsAppleKeyboard ? "Apple keyboard" : "IBM keyboard") << endl;
             resetCapsNumScrollLock();
             interceptionState.previousInterceptionDevice = interceptionState.interceptionDevice;
         }
-
-        //Timing. Timer is not precise, sleep() even less; just a rough outline. Expect occasional 30ms sleeps from thread scheduling.
-        loopState.timepointLoopStart = timeSetTimepointNow();
-        loopState.timeSinceLastKeyEventMS = timeBetweenTimepointsMS(globalState.timepointPreviousKeyEvent, loopState.timepointLoopStart);
-        globalState.timepointPreviousKeyEvent = loopState.timepointLoopStart;
 
         //sanity check
         if (interceptionState.lastIKstroke.code >= 0x80)
         {
             error("Received unexpected extended Interception Key Stroke code > 0x79: " + to_string(interceptionState.lastIKstroke.code));
+            cout << endl << "Please open a ticket on github";
             continue;
         }
         if (interceptionState.lastIKstroke.code == 0)
@@ -455,18 +488,21 @@ int main()
         processRewireScancodeToVirtualcode();
         if (loopState.vcode == SC_NOP)   //rewired to NOP to disable keys
         {
-            IFDEBUG cout << " (REW2NOP)";
+            IFDEBUG cout << " (r2NOP)";
             continue;
         }
 
-        if (!globalState.secretSequenceRecording)
-            IFDEBUG printLoopState1Incoming();
+        IFDEBUG
+        {
+            cout << endl;
+            IFPROF cout << "(" << setw(5) << dec << timeBetweenTimepointsUS(profiler.timepointPreviousKeyEvent, profiler.timepointLoopStart) / 1000 << " m) ";
+            printLoopState1Input();
+        }
 
         //evaluate modifiers
         processModifierState();
     
-        if (!globalState.secretSequenceRecording)
-            IFDEBUG printLoopState2Modifier();
+        IFDEBUG printLoopState2Modifier();
 
         //evaluate modified keys
         processCombos();
@@ -478,13 +514,28 @@ int main()
         if (!isModifier(loopState.vcode))
             modifierState.modifierTapped = 0;
 
-        if(!globalState.secretSequenceRecording)
-            IFDEBUG printLoopState3Timing();
+        IFPROF
+        {
+        unsigned long mappingtime = profiler.stopwatchRestart();
+        profiler.totalMappingTimeUS += mappingtime;
+        profiler.countOutgoing++;
+        if (mappingtime > profiler.worstMappingTimeUS)
+            profiler.worstMappingTimeUS = mappingtime;
+        IFDEBUG printLoopStateMappingTime(mappingtime);
+        }
 
         sendResultingKeyOrSequence();
+        IFPROF
+        {
+        unsigned long sendingtime = profiler.stopwatchReadUS();
+        profiler.totalSendingTimeUS += sendingtime;
+        if (sendingtime > profiler.worstSendingTimeUS)
+            profiler.worstSendingTimeUS = sendingtime;
+        if (sendingtime > 1000)
+            cout << "\t (slow send: " << dec << sendingtime << " u)";
+        }
 
-        if (!globalState.secretSequenceRecording)
-            IFDEBUG printLoopState4TapState();
+        IFDEBUG printLoopState4TapState();
     }
     interception_destroy_context(interceptionState.interceptionContext);
 
@@ -572,7 +623,7 @@ void processRewireScancodeToVirtualcode()
                     if (modBitmask2 != 0)
                         modifierState.modifierTapped &= ~modBitmask2;
 
-                    IFDEBUG cout << endl << "Make taphold rewired: " << hex << rewtapholdkey;
+                    IFTRACE cout << endl << "Make taphold rewired: " << hex << rewtapholdkey;
                 }
                 else
                     error("Ignoring second tap-and-hold event; only one can be active.");
@@ -590,7 +641,7 @@ void processRewireScancodeToVirtualcode()
                 else
                     loopState.vcode = SC_NOP;
                 loopState.vcode = rewtapholdkey;
-                IFDEBUG cout << endl << "Break taphold rewired: " << hex << rewtapholdkey;
+                IFTRACE cout << endl << "Break taphold rewired: " << hex << rewtapholdkey;
             }
             else
             {
@@ -606,7 +657,7 @@ void processRewireScancodeToVirtualcode()
 
 void processCombos()
 {
-    if (!loopState.isDownstroke || (modifierState.modifierDown == 0 && modifierState.modifierTapped == 0 && modifierState.activeDeadkey == 0))
+    if (!loopState.isDownstroke)  //this check breaks 'x []' : // || (modifierState.modifierDown == 0 && modifierState.modifierTapped == 0 && modifierState.activeDeadkey == 0))
         return;
 
     for (ModifierCombo modcombo : allMaps.modCombos)
@@ -614,7 +665,7 @@ void processCombos()
         if (modcombo.vkey == loopState.vcode)
         {
             if (
-                modifierState.activeDeadkey == modcombo.deadkey &&
+                (modifierState.activeDeadkey == modcombo.deadkey) &&
                 (modifierState.modifierDown & modcombo.modAnd) == modcombo.modAnd &&
                 (modcombo.modOr == 0 || (modifierState.modifierDown & modcombo.modOr) > 0) &&
                 (modifierState.modifierDown & modcombo.modNot) == 0 &&
@@ -881,7 +932,7 @@ void getHardwareId()
         globalState.deviceIdKeyboard = id;
         globalState.deviceIsAppleKeyboard = (id.find("VID_05AC") != string::npos) || (id.find("VID&000205ac") != string::npos);
 
-        IFDEBUG cout << endl << "getHardwareId:" << id << " / Apple keyboard: " << globalState.deviceIsAppleKeyboard;
+        IFDEBUG cout << endl << endl << "getHardwareId:" << id << " / Apple keyboard: " << globalState.deviceIsAppleKeyboard;
     }
 }
 
@@ -1004,13 +1055,13 @@ void parseIniRewires(std::vector<std::string> assembledIni)
             //duplicate?
             if (allMaps.rewiremap[keyIn][REWIRE_OUT] >= 0)
             {
-                IFDEBUG cout << endl << "WARNING: ignoring redefinition of " << INI_TAG_REWIRE << " "
+                cout << endl << "WARNING: ignoring redefinition of " << INI_TAG_REWIRE << " "
                     << PRETTY_VK_LABELS[keyIn] << " " << PRETTY_VK_LABELS[keyOut] << " " << PRETTY_VK_LABELS[keyTap];
                 continue;
             }
 
             if (!isModifier(keyOut) && keyTap > 0)
-                IFDEBUG cout << endl << "WARNING: 'If-Tapped' definition only makes sense for modifiers: " << INI_TAG_REWIRE << " " << line;
+                cout << endl << "WARNING: 'If-Tapped' definition only makes sense for modifiers: " << INI_TAG_REWIRE << " " << line;
 
             tagCounter++;
             allMaps.rewiremap[keyIn][REWIRE_OUT] = keyOut;
@@ -1271,10 +1322,20 @@ void reset()
 
     loopState = defaultLoopState;
     modifierState = defaultModifierState;
+    
+    IFPROF
+    {
+        chrono::steady_clock::time_point tps = profiler.timepointStopwatch;
+        chrono::steady_clock::time_point tppk = profiler.timepointPreviousKeyEvent;
+        chrono::steady_clock::time_point tpls = profiler.timepointLoopStart;
+        profiler = defaultProfiler;
+        profiler.timepointStopwatch = tps;
+        profiler.timepointPreviousKeyEvent = tppk;
+        profiler.timepointLoopStart = tpls;
+    }
 
     GlobalState tmp = globalState; //some settings shall survive the reset
     globalState = defaultGlobalState;
-    globalState.timepointPreviousKeyEvent = timeSetTimepointNow();
     globalState.activeConfig = tmp.activeConfig;
     globalState.activeConfigName = tmp.activeConfigName;
     globalState.previousConfig = tmp.previousConfig;
@@ -1361,6 +1422,14 @@ void printStatus()
         << (errorLog.length() > 1 ? "ERROR LOG contains entries" : "clean error log") << " (" << dec << errorLog.length() << " chars)"
         ;
 
+    IFPROF cout << endl << endl << "Profiling statistics (microseconds)"
+        << endl << "Incoming / Sent out: " << profiler.countIncoming << " / " << profiler.countOutgoing
+        << endl << "Average mapping time: " << profiler.totalMappingTimeUS / profiler.countOutgoing
+        << endl << "Average sending time: " << profiler.totalSendingTimeUS / profiler.countOutgoing
+        << endl << "Worst mapping time: " << profiler.worstMappingTimeUS
+        << endl << "Worst sending time: " << profiler.worstSendingTimeUS
+        ;
+
     printOptions();
 }
 
@@ -1372,40 +1441,40 @@ void printIKStrokeState(InterceptionKeyStroke iks)
         << " i" << iks.information;
 }
 
-void printLoopState1Incoming()
+void printLoopState1Input()
 {
-    cout << endl << "(" << setw(5) << dec << loopState.timeSinceLastKeyEventMS << " ms) [" << hex << \
-        (loopState.vcode == loopState.scancode ? "" : PRETTY_VK_LABELS[loopState.scancode] + " => ") \
-        << getPrettyVKLabelPadded(loopState.vcode, 8) << getSymbolForIKStrokeState(interceptionState.lastIKstroke.state)
-        << " =" << hex << interceptionState.lastIKstroke.code << " " << interceptionState.lastIKstroke.state << "]";
+    cout
+        << " ["
+        << hex << setw(2) << interceptionState.lastIKstroke.code << " " << interceptionState.lastIKstroke.state
+        << "= " << setw(8) << (loopState.vcode == loopState.scancode ? "" : PRETTY_VK_LABELS[loopState.scancode] + " > ")
+        << setw(8) << getPrettyVKLabel(loopState.vcode) << setw(2) << left << getSymbolForIKStrokeState(interceptionState.lastIKstroke.state) << right
+        << "] ";
 }
 
 void printLoopState2Modifier()
 {
-    cout << " [M:" << hex << modifierState.modifierDown;
-    if (modifierState.modifierTapped)  cout << " TAP:" << hex << modifierState.modifierTapped;
-    if (modifierState.activeDeadkey)  cout << " DEAD:" << hex << getPrettyVKLabelPadded(modifierState.activeDeadkey, 0);
-    cout << "] ";
+    string mdown = modifierState.modifierDown > 0 ? stringIntToHex(modifierState.modifierDown,0) : "";
+    string mtapp = modifierState.modifierTapped > 0 ? stringIntToHex(modifierState.modifierTapped,0) : "";
+    cout << "[M:" << setw(4) << mdown
+         << " T:" << setw(4) << mtapp
+         << " D:" << setw(6) << (modifierState.activeDeadkey > 0 ? getPrettyVKLabel(modifierState.activeDeadkey): "")
+         << "] ";
 }
 
-void printLoopState3Timing()
+void printLoopStateMappingTime(long us)
 {
-    cout << "\t (" << dec << timeMillisecondsSinceTimepoint(loopState.timepointLoopStart) << dec << " ms)";
-    loopState.timepointStopwatch = timeSetTimepointNow();
+    cout << "  (" << setw(5) << dec << us << " u)";
 }
 
 void printLoopState4TapState()
 {
-    cout << (loopState.tappedSlow ? " (slow tap)" : "");
+    cout << (loopState.tappedSlow ? " (tap slow)" : "");
     cout << (loopState.tapped ? " (tap)" : "");
-    if (loopState.tapHoldMake)
-        cout << " (TH_in:" << hex << interceptionState.lastIKstroke.code << ")";
-    if (globalState.tapAndHoldKey >= 0)
-        cout << " (TH_out:" << hex << globalState.tapAndHoldKey << ")";
 
-    long sendtime = timeMillisecondsSinceTimepoint(loopState.timepointStopwatch);
-    if (sendtime > 2)
-        cout << "\t (slow to send: " << dec << sendtime << " ms)";
+    IFTRACE if (loopState.tapHoldMake) 
+        cout << " (TapHold:" << hex << interceptionState.lastIKstroke.code << ")";
+    if (globalState.tapAndHoldKey >= 0)
+        cout << " (TapHoldKey: " << hex << globalState.tapAndHoldKey << ")";
 }
 
 void printKeylabels()
@@ -1483,7 +1552,7 @@ void sendCapsicainCodeHandler(VKeyEvent keyEvent)
     if (!keyEvent.isDownstroke)
         return;
 
-    IFDEBUG cout << endl << "(CPS code: " << getPrettyVKLabelPadded(keyEvent.vcode, 0) << ")";
+    IFTRACE cout << endl << "(CPS code: " << getPrettyVKLabelPadded(keyEvent.vcode, 0) << ")";
 
     switch (keyEvent.vcode)
     {
@@ -1524,7 +1593,7 @@ void sendCapsicainCodeHandler(VKeyEvent keyEvent)
         else
         {
             //manually send a PAUSE sequence with E1 escape (iks state 4/5)
-            IFDEBUG cout << endl << "sending the Pause key sequence E1 LCTRL NUMLOCK";
+            IFTRACE cout << endl << "sending the Pause key sequence E1 LCTRL NUMLOCK";
             InterceptionKeyStroke iks_cont = {SC_LCTRL,4,0};
             interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke*)&iks_cont, 1);
             InterceptionKeyStroke iks_numl = { SC_NUMLOCK,0,0 };
@@ -1545,14 +1614,13 @@ void sendResultingKeyOrSequence()
     }
     else
     {
-        if (!globalState.secretSequenceRecording)
-            IFDEBUG
-            {
-                if (loopState.scancode != loopState.vcode)
-                    cout << "\t--> " << PRETTY_VK_LABELS[loopState.vcode] << " " << getSymbolForIKStrokeState(interceptionState.lastIKstroke.state);
-                else
-                    cout << "\t--";
-            }
+        IFDEBUG
+        {
+            if (loopState.scancode != loopState.vcode)
+                cout << "  --  " << PRETTY_VK_LABELS[loopState.vcode] << getSymbolForIKStrokeState(interceptionState.lastIKstroke.state);
+            else
+                cout << "  -->";
+        }
         {
             sendVKeyEvent({ loopState.vcode, loopState.isDownstroke });
         }
@@ -1579,7 +1647,7 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
 
     IFDEBUG
         if (!globalState.secretSequencePlayback && keyEventSequence.at(0).vcode != VK_CPS_OBFUSCATED_SEQUENCE_START)
-             cout << "\t--> SEQUENCE (" << dec << keyEventSequence.size() << ")";
+             cout << "  --> SEQUENCE (" << dec << keyEventSequence.size() << ")  ";
 
     for (VKeyEvent keyEvent : keyEventSequence)
     {
@@ -1593,15 +1661,15 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
             switch (expectParamForFuncKey)
             {
             case VK_CPS_SLEEP:
-                IFDEBUG cout << endl << "vk_cps_sleep: " << vc;
+                IFTRACE cout << endl << "vk_cps_sleep: " << vc;
                 Sleep(vc);
                 break;
             case VK_CPS_DEADKEY:
-                IFDEBUG cout << endl << "vk_cps_deadkey: " << getPrettyVKLabelPadded(vc, 0);
+                IFTRACE cout << endl << "vk_cps_deadkey: " << getPrettyVKLabelPadded(vc, 0);
                 modifierState.activeDeadkey = vc;
                 break;
             case VK_CPS_CONFIGSWITCH:
-                IFDEBUG cout << endl << "vk_cps_configswitch: " << vc;
+                IFTRACE cout << endl << "vk_cps_configswitch: " << vc;
                 switchConfig(vc, false);
                 break;
             case VK_CPS_RECORDMACRO:
@@ -1634,7 +1702,7 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
             }
             case VK_CPS_PLAYMACRO:
             {
-                IFDEBUG cout << endl << "vk_cps_playmacro: " << vc;
+                IFTRACE cout << endl << "vk_cps_playmacro: " << vc;
                 int macnum = vc;
 
                 if (macnum < 1 || macnum >= MAX_NUM_MACROS)
@@ -1725,7 +1793,7 @@ void sendVKeyEvent(VKeyEvent keyEvent)
     }
     if (keyEvent.vcode == 0)
     {
-        cout << endl << "(NOP blocked)";
+        cout << endl << "{blocked NOP}";
         return;
     }
     if (keyEvent.vcode > 0xFF || keyEvent.vcode == VK_CPS_PAUSE)
@@ -1741,7 +1809,7 @@ void sendVKeyEvent(VKeyEvent keyEvent)
 
     if (!keyEvent.isDownstroke &&  !globalState.keysDownSent[scancode])  //ignore up when key is already up
     {
-        IFDEBUG cout << " >(blocked " << PRETTY_VK_LABELS[scancode] << " UP: was not down)>";
+        IFDEBUG cout << " {blocked " << PRETTY_VK_LABELS[scancode] << " UP: was not down}";
         return;
     }
 
@@ -1761,7 +1829,7 @@ void sendVKeyEvent(VKeyEvent keyEvent)
             globalState.recordingMacro = -1;
             globalState.secretSequenceRecording = false;
             updateTrayIcon(true, globalState.recordingMacro >= 0, globalState.activeConfig);
-            cout << endl << "Macro Length > " << MAX_MACRO_LENGTH << ". Forgotten Macro? Stop recording macro #" << globalState.recordingMacro << endl;
+            cout << endl << endl << "Macro Length > " << MAX_MACRO_LENGTH << ". Forgotten Macro?" << "Stop recording macro #" << globalState.recordingMacro << endl << endl;
         }
         else
         {
@@ -1776,7 +1844,7 @@ void sendVKeyEvent(VKeyEvent keyEvent)
     InterceptionKeyStroke iks = vkeyEvent2ikstroke(keyEvent);
     //hide secret macro recording?
     IFDEBUG
-        if(!globalState.secretSequenceRecording && ! globalState.secretSequencePlayback)
+        if(!globalState.secretSequencePlayback)
             cout << " {" << PRETTY_VK_LABELS[keyEvent.vcode] << (keyEvent.isDownstroke ? "v" : "^") << " #" << globalState.keysDownSentCounter << "}";
 
     interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke *)&iks, 1);
@@ -1803,10 +1871,10 @@ string getSymbolForIKStrokeState(unsigned short state)
     {
     case 0b000: return "v";
     case 0b001: return "^";
-    case 0b010: return "*v";
-    case 0b011: return "*^";
-    case 0b100: return "**v";
-    case 0b101: return "**^";
+    case 0b010: return "v*";
+    case 0b011: return "^*";
+    case 0b100: return "v**";
+    case 0b101: return "^**";
     case 0b001000: return "??TERMSRV_SET_LED down??";
     case 0b001001: return "??TERMSRV_SET_LED up??";
     case 0b010000: return "??TERMSRV_SHADOW down??";

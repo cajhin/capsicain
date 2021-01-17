@@ -4,7 +4,12 @@
 #include "configUtils.h"
 #include "traybar.h"
 
-#define IFDEBUG if(options.debug)
+#define IFDEBUG if(options.debug && !globalState.secretSequenceRecording)
+#define IFTRACE if(false)
+
+//measuring time takes some time
+#define IFPROF if(true)
+
 
 enum KEYSTATE
 {
@@ -49,9 +54,9 @@ void printStatus();
 void printKeylabels();
 void printHelp();
 void printIKStrokeState(InterceptionKeyStroke iks);
-void printLoopState1Incoming();
+void printLoopState1Input();
 void printLoopState2Modifier();
-void printLoopState3Timing();
+void printLoopStateMappingTime(long us);
 void printLoopState4TapState();
 
 
