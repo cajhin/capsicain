@@ -166,5 +166,9 @@ v84beta: Performance timers, fix modstring []
   Average key processing time is 2ms with debugging on, and 0.02ms when off
   -> don't do minor performance optimizations, it's not worth it
 
+v85beta: Enable hex input for altChar, like > altChar(+11D)
+  requires 'HKEY_CURRENT_USER\Control Panel\Input Method\EnableHexNumpad 1'
+  see https://en.wikipedia.org/wiki/Unicode_input#Hexadecimal_input
+
 document macros
 speed up: broken: COMBO J []

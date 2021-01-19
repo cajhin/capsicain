@@ -503,11 +503,20 @@ bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[5], std
         for (int i = 0; i < funcParams.length(); i++)
         {
             char c = funcParams[i];
-            if (c < '0' || c > '9')
+            string altkey="NP";
+            if (c >= '0' && c <= '9')
+                altkey.push_back(c);
+            else if (c == '+')
+                altkey = "NP+";
+            else if (c >= 'a' && c <= 'f')
+            {
+                altkey = "";
+                altkey.push_back(c);
+            }
+            else
                 return false;
-            string temp = "NP";
-            temp += c;
-            int isc = getVcode(temp, scLabels);
+
+            int isc = getVcode(altkey, scLabels);
             if (isc < 0)
                 return false;
             strokeSeq.push_back({ (unsigned char)isc, true });
