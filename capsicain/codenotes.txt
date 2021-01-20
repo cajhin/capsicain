@@ -170,5 +170,7 @@ v85beta: Enable hex input for altChar, like > altChar(+11D)
   requires 'HKEY_CURRENT_USER\Control Panel\Input Method\EnableHexNumpad 1'
   see https://en.wikipedia.org/wiki/Unicode_input#Hexadecimal_input
 
+v85beta2: max macros = 20+1
+
 document macros
 speed up: broken: COMBO J []
