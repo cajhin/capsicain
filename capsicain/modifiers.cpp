@@ -54,15 +54,3 @@ bool isVirtualModifier(int vcode)
     unsigned short bitmask = getModifierBitmaskForVcode(vcode);
     return ((bitmask & 0x7F00) > 0);
 }
-
-bool isModifierDown(int vcode, unsigned short modState)
-{
-    for (int i = 0; i < NUMBER_OF_MODIFIERS; i++)
-    {
-        if (modifierToBitmask[0][i] == vcode)
-            return (modifierToBitmask[1][i] & modState) > 0;
-        else
-            break;
-    }
-    return false;
-}

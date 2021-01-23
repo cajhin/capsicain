@@ -130,6 +130,7 @@ void defineAllPrettyVKLabels(string arr[])
     checkAddLabel(SC_NP3, "NP3", arr);
     checkAddLabel(SC_NP0, "NP0", arr);
     checkAddLabel(SC_NPDOT, "NP.", arr);
+    checkAddLabel(SC_ALTPRINT, "ALTPRINT", arr);
     checkAddLabel(SC_LBSLASH, "L\\", arr);
     checkAddLabel(SC_F11, "F11", arr);
     checkAddLabel(SC_F12, "F12", arr);
@@ -145,7 +146,6 @@ void defineAllPrettyVKLabels(string arr[])
     checkAddLabel(SC_F21, "F21", arr);
     checkAddLabel(SC_F22, "F22", arr);
     checkAddLabel(SC_F23, "F23", arr);
-    //messy international special keys
     checkAddLabel(SC_KANA, "KANA", arr);
     checkAddLabel(SC_LANG2, "LANG2", arr);
     checkAddLabel(SC_LANG1, "LANG1", arr);
@@ -154,6 +154,8 @@ void defineAllPrettyVKLabels(string arr[])
     checkAddLabel(SC_NOCONVERT, "NOCONVERT", arr);
     checkAddLabel(SC_YEN, "YEN", arr);
     checkAddLabel(SC_ABNT_C2, "ABNT_C2", arr);
+
+    //poorly standardized special keys > 0x80, escaped with E0 (IKS state 2/3)
     checkAddLabel(SC_NPEQUALS2, "NPEQUALS2", arr);
     checkAddLabel(SC_PREVTRACK, "PREVTRACK", arr);
     checkAddLabel(SC_AT, "AT", arr);
@@ -170,14 +172,15 @@ void defineAllPrettyVKLabels(string arr[])
     checkAddLabel(SC_CALCULATOR, "CALCULATOR", arr);
     checkAddLabel(SC_PLAYPAUSE, "PLAYPAUSE", arr);
     checkAddLabel(SC_MEDIASTOP, "MEDIASTOP", arr);
-    checkAddLabel(SC_TWOSUPERIOR, "TWOSUPERIOR", arr);
+    checkAddLabel(SC_E0LSHF, "E0LSHF", arr);
     checkAddLabel(SC_VOLUMEDOWN, "VOLUMEDOWN", arr);
     checkAddLabel(SC_VOLUMEUP, "VOLUMEUP", arr);
     checkAddLabel(SC_WEBHOME, "WEBHOME", arr);
     checkAddLabel(SC_NUMPADCOMMA, "NP,", arr);
     checkAddLabel(SC_DIVIDE, "NP/", arr);
-    checkAddLabel(SC_SYSRQ, "SYSRQ", arr);
+    checkAddLabel(SC_PRINT, "PRINT", arr);
     checkAddLabel(SC_RALT, "RALT", arr);
+    checkAddLabel(SC_BREAK, "SC_BREAK", arr);
     checkAddLabel(SC_HOME, "HOME", arr);
     checkAddLabel(SC_UP, "UP", arr);
     checkAddLabel(SC_PGUP, "PGUP", arr);

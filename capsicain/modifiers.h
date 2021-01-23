@@ -16,8 +16,6 @@ bool isRealModifier(int vcode);
 
 bool isVirtualModifier(int vcode);
 
-bool isModifierDown(int vcode, unsigned short modState);
-
 #define BITMASK_LSHIFT      0x001
 #define BITMASK_LCTRL       0x002
 #define BITMASK_LWIN        0x004

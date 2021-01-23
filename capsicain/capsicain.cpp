@@ -30,6 +30,8 @@ struct Globals
     bool startInTraybar = false;
     bool startAHK = false;
     int capsicainOnOffKey = -1;
+    bool protectConsole = true; //drop Pause and Break signals when console is foreground
+    bool translateMessyKeys = true; //translate various DOS keys (e.g. Ctrl+Pause=SC_Break -> SC_Pause, Alt+Print=SC_altprint -> sc_print)
 } globals;
 static const struct Globals defaultGlobals;
 
@@ -93,6 +95,8 @@ struct GlobalState
     VKeyEvent previousKey2EventIn = { SC_NOP, 0 };
     VKeyEvent previousKey3EventIn = { SC_NOP, 0 }; //2 keys ago
     VKeyEvent previousKey1EventIn = { SC_NOP, 0 }; //mostly useless but simplifies the handling
+
+    InterceptionKeyStroke onOffPreviousIKStroke = convertVkeyEvent2ikstroke({ SC_NOP, 0 });
 
     int keysDownSentCounter = 0;  //tracks how many keys are actually down that Windows knows about
     bool keysDownSent[256] = { false };  //Remember all forwarded to Windows. Sent keys must be 8 bit
@@ -194,7 +198,7 @@ void parseIniGlobals()
             int key = getVcode(s, PRETTY_VK_LABELS);
             if (key < 0)
                 cout << "ERROR: unknown key label: " << line << endl;
-            else if (key > 255)
+            else if (key > 255 && key != VK_CPS_PAUSE)
                 cout << "ERROR: virtual key makes no sense: " << line << endl;
             else 
                 globals.capsicainOnOffKey = key;
@@ -207,6 +211,10 @@ void parseIniGlobals()
             globals.startInTraybar = true;
         else if (token == "startahk")
             globals.startAHK = true;
+        else if (token == "donttranslatemessykeys")
+            globals.translateMessyKeys = false;
+        else if (token == "dontprotectconsole")
+            globals.protectConsole = false;
         else if ((token == "activeconfigonstartup") || (token == "activelayeronstartup"))
             cout << endl;
         else
@@ -329,35 +337,56 @@ int main()
         }
 
         //low level debugging, show incoming raw key
-        //printIKStrokeState(interceptionState.lastIKstroke);
+        IFTRACE printIKStrokeState(interceptionState.lastIKstroke);
 
         //clear loop state
         loopState = defaultLoopState;
 
         //copy InterceptionKeyStroke (unpleasant to use) to plain VKeyEvent
-        VKeyEvent originalVKeyEvent = ikstroke2VKeyEvent(interceptionState.lastIKstroke);
+        VKeyEvent originalVKeyEvent = convertIkstroke2VKeyEvent(interceptionState.lastIKstroke);
         loopState.scancode = originalVKeyEvent.vcode;  //scancode is write-once (except for the AppleWinAlt option)
         loopState.vcode = loopState.scancode;          //vcode may be altered below
         loopState.isDownstroke = originalVKeyEvent.isDownstroke;
 
         //if GLOBAL capsicainEnableDisable is configured, it toggles the state and still forwards the (scrLock?) key
-        if (loopState.scancode == globals.capsicainOnOffKey)
+        if (globals.capsicainOnOffKey != -1)
         {
-            if (loopState.isDownstroke)
+            //handle the @#$ Pause key
+            bool pauseKeyTriggersOnOff = false;
+            if (globals.capsicainOnOffKey == VK_CPS_PAUSE)
             {
-                globalState.capsicainOn = !globalState.capsicainOn;
-                updateTrayIcon(globalState.capsicainOn, globalState.recordingMacro >= 0, globalState.activeConfig);
-                if (globalState.capsicainOn)
+                if (loopState.scancode == SC_NUMLOCK
+                    && globalState.onOffPreviousIKStroke.code == SC_LCTRL
+                    && globalState.onOffPreviousIKStroke.state > 3)
                 {
-                    reset();
-                    cout << endl << endl << "[" << getPrettyVKLabel(globals.capsicainOnOffKey) << "] -> Capsicain ON";
-                    cout << endl << "active config: " << globalState.activeConfig << " = " << globalState.activeConfigName;
+                    pauseKeyTriggersOnOff = true;
+                    modifierState.inE1sequence = false;
+                    
                 }
-                else
-                    cout << endl << endl << "[" << getPrettyVKLabel(globals.capsicainOnOffKey) << "] -> Capsicain OFF";
+                globalState.onOffPreviousIKStroke = interceptionState.lastIKstroke;
             }
-            interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke*)&interceptionState.lastIKstroke, 1);
-            continue;
+
+            //toggle ON/OFF ?
+            if (loopState.scancode == globals.capsicainOnOffKey || pauseKeyTriggersOnOff)
+            {
+                if (loopState.isDownstroke)
+                {
+                    globalState.capsicainOn = !globalState.capsicainOn;
+                    updateTrayIcon(globalState.capsicainOn, globalState.recordingMacro >= 0, globalState.activeConfig);
+                    if (globalState.capsicainOn)
+                    {
+                        reset();
+                        cout << endl << endl << "[" << getPrettyVKLabel(globals.capsicainOnOffKey) << "] -> Capsicain ON";
+                        cout << endl << "active config: " << globalState.activeConfig << " = " << globalState.activeConfigName;
+                    }
+                    else
+                        cout << endl << endl << "[" << getPrettyVKLabel(globals.capsicainOnOffKey) << "] -> Capsicain OFF";
+                }
+                IFTRACE cout << endl << pauseKeyTriggersOnOff;
+                if(!pauseKeyTriggersOnOff)
+                    interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke*)&interceptionState.lastIKstroke, 1);
+                continue;
+            }
         }
         //if disabled, just forward
         if (!globalState.capsicainOn)
@@ -411,9 +440,16 @@ int main()
             if (globalState.recordingMacro > 0)
             {
                 IFDEBUG cout << endl << "Stop recording macro #" << globalState.recordingMacro;
-                globalState.secretSequenceRecording = false;
+                //wrap macro in tokens to tmprelease / restore keys, to deal with the physical 'Ctrl down' that started the macro
+                if (globalState.recordedMacros[globalState.recordingMacro].size() > 0)
+                    globalState.secretSequenceRecording = false;
+                {
+                    globalState.recordedMacros[globalState.recordingMacro].push_back({ VK_CPS_TEMPRESTOREKEYS,true });
+                    globalState.recordedMacros[globalState.recordingMacro].insert(globalState.recordedMacros[globalState.recordingMacro].begin(), { VK_CPS_TEMPRELEASEKEYS,true });
+                }
                 globalState.recordingMacro = -1;
                 updateTrayIcon(true, globalState.recordingMacro >= 0, globalState.activeConfig);
+                continue;
             }
         }
         else if (globalState.realEscapeIsDown && loopState.isDownstroke)
@@ -448,35 +484,8 @@ int main()
             loopState.scancode = loopState.vcode;       //only time where scancode is rewritten. Simplifies tapping and rewiring
         }
 
-        //handle rare E1 or higher extended code
-        if (modifierState.inE1sequence || interceptionState.lastIKstroke.state > 3) 
-        {
-            if (loopState.vcode == SC_LCTRL)
-            {
-                modifierState.inE1sequence = true;
-                continue;  //drop the ctrl key
-            }
-            else if (loopState.vcode == SC_NUMLOCK)
-            {
-                IFDEBUG if(loopState.isDownstroke) 
-                    cout << endl << ("Pause key combo (E1 LCTRL NUMLOCK) -> virtual key PAUSE");
-                loopState.vcode = VK_CPS_PAUSE;
-                modifierState.inE1sequence = false;
-            }
-            else
-            {
-                cout << endl << endl << "???? Extended escape code not handled. What is this key???"
-                    << "Please open a ticket on github";
-                continue;
-            }
-        }
-
-        //handle Ctrl+NumLock
-        if (loopState.vcode == SC_NUMLOCK)
-        {
-            if((modifierState.modifierDown & BITMASK_LCTRL) > 0) // isModifierDown(SC_LCTRL, modifierState.modifierDown))
-                loopState.vcode = VK_CPS_PAUSE;
-        }
+        if (!processMessyKeys())
+            continue;
 
         //Tapdance
         DetectTapping();
@@ -544,6 +553,90 @@ int main()
 }
 ////////////////////////////////////END MAIN//////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////
+
+//handle PRINT, SCRLOCK, PAUSE, NUMLOCK, E1, Exit and Break signals
+//return false = drop the key
+bool processMessyKeys()
+{
+    //Alt+Print = ALTPRINT, map to PRINT?
+    if (loopState.vcode == SC_ALTPRINT)
+    {
+        IFTRACE cout << endl << SC_ALTPRINT;
+        if (globals.translateMessyKeys)
+            loopState.vcode = SC_PRINT;
+    }
+
+    //Ctrl+NumLock -> pause signal
+    if  (globals.protectConsole
+            && loopState.vcode == SC_NUMLOCK
+            && IS_LCTRL_DOWN
+            && IsCapsicainForegroundWindow()
+        )
+    {
+        if (loopState.isDownstroke)
+            cout << endl << "INFO: Ctrl+NumLock detected, which is the 'Pause console' signal. Discarding it so capsicain does not freeze.";
+        return false;
+    }
+
+    //Ctrl+ScrLock -> exit signal
+    if  (globals.protectConsole 
+            && loopState.vcode == SC_SCRLOCK
+            && IS_LCTRL_DOWN
+            && IsCapsicainForegroundWindow()
+        )
+    {
+        if (loopState.isDownstroke)
+            cout << endl << "INFO: Ctrl+ScrLock detected, which is the 'Exit console' signal. Discarding it so capsicain does not exit.";
+        return false;
+    }
+
+    //Ctrl+Pause produces SC_BREAK = Exit signal
+    if (loopState.vcode == SC_BREAK)
+    {
+        IFTRACE cout << endl << "Ctrl+Pause=BREAK";
+        //drop SC_BREAK ?
+        if (globals.protectConsole
+            && IS_LCTRL_DOWN 
+            && IsCapsicainForegroundWindow())
+        {
+            if (loopState.isDownstroke)
+                cout << endl << "INFO: Ctrl+Pause detected, which is the BREAK signal. Discarding it so capsicain does not exit.";
+            return false;
+        }
+
+        //map break to pause
+        if(globals.translateMessyKeys)
+            loopState.vcode = VK_CPS_PAUSE;
+    }
+
+    //translate unmodified pause key sequence to PAUSE (E1 LCTRL NUMLOCK)
+    if (globals.translateMessyKeys)
+    {
+        if (modifierState.inE1sequence || interceptionState.lastIKstroke.state > 3)
+        {
+            if (loopState.vcode == SC_LCTRL)
+            {
+                modifierState.inE1sequence = true;
+                return false;  //drop the ctrl key
+            }
+            else if (loopState.vcode == SC_NUMLOCK)
+            {
+                IFDEBUG if (loopState.isDownstroke)
+                    cout << endl << ("INFO: Pause key combo (E1 LCTRL NUMLOCK) -> virtual key PAUSE");
+                loopState.vcode = VK_CPS_PAUSE;
+                modifierState.inE1sequence = false;
+            }
+            else
+            {
+                cout << endl << endl << "???? Extended escape code not handled. What is this key???"
+                    << "Please open a ticket on github";
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
 
 void processModifierState()
 {
@@ -1515,7 +1608,7 @@ void normalizeIKStroke(InterceptionKeyStroke &ikstroke) {
     }
 }
 
-InterceptionKeyStroke vkeyEvent2ikstroke(VKeyEvent vkstroke)
+InterceptionKeyStroke convertVkeyEvent2ikstroke(VKeyEvent vkstroke)
 {
     InterceptionKeyStroke iks = { (unsigned short) vkstroke.vcode, 0 };
 
@@ -1536,7 +1629,7 @@ InterceptionKeyStroke vkeyEvent2ikstroke(VKeyEvent vkstroke)
     return iks;
 }
 
-VKeyEvent ikstroke2VKeyEvent(InterceptionKeyStroke ikStroke)
+VKeyEvent convertIkstroke2VKeyEvent(InterceptionKeyStroke ikStroke)
 {
     VKeyEvent strk;
     strk.vcode = ikStroke.code;
@@ -1585,24 +1678,25 @@ void sendCapsicainCodeHandler(VKeyEvent keyEvent)
         break;
     }
     case VK_CPS_PAUSE:
-        if (IsCapsicainForegroundWindow())
+        if (globals.protectConsole && IsCapsicainForegroundWindow())
         {
             cout << endl << endl << "INFO: Discarding the PAUSE key. " << endl 
                 << "      This would freeze Capsicain which is currently the active window (and this would stop your keyboard)";
+            break;
         }
-        else
-        {
-            //manually send a PAUSE sequence with E1 escape (iks state 4/5)
-            IFTRACE cout << endl << "sending the Pause key sequence E1 LCTRL NUMLOCK";
-            InterceptionKeyStroke iks_cont = {SC_LCTRL,4,0};
-            interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke*)&iks_cont, 1);
-            InterceptionKeyStroke iks_numl = { SC_NUMLOCK,0,0 };
-            interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke*)&iks_numl, 1);
-            iks_cont.state = 5;
-            interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke*)&iks_cont, 1);
-            iks_numl.state = 1;
-            interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke*)&iks_numl, 1);
-        }
+        
+        //manually send a PAUSE sequence with E1 escape (iks state 4/5)
+        IFTRACE cout << endl << "sending the Pause key sequence E1 LCTRL NUMLOCK";
+        InterceptionKeyStroke iks_cont = {SC_LCTRL,4,0};
+        interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke*)&iks_cont, 1);
+        InterceptionKeyStroke iks_numl = { SC_NUMLOCK,0,0 };
+        interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke*)&iks_numl, 1);
+        iks_cont.state = 5;
+        interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke*)&iks_cont, 1);
+        iks_numl.state = 1;
+        interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke*)&iks_numl, 1);
+
+        break;
     }
 }
 
@@ -1786,6 +1880,7 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
 
 void sendVKeyEvent(VKeyEvent keyEvent)
 {
+    IFTRACE cout << endl << "sendVkeyEvent(" << keyEvent.vcode << ")";
     if (keyEvent.vcode < 0)
     {
         cout << endl << "BUG: vcode<0";
@@ -1832,16 +1927,20 @@ void sendVKeyEvent(VKeyEvent keyEvent)
             cout << endl << endl << "Macro Length > " << MAX_MACRO_LENGTH << ". Forgotten Macro?" << "Stop recording macro #" << globalState.recordingMacro << endl << endl;
         }
         else
-        {
-            //store the macro obfuscated?
-            VKeyEvent obfusc = keyEvent;
-            if (globalState.secretSequenceRecording)
-                obfusc.vcode = obfuscateVKey(obfusc.vcode);
-            globalState.recordedMacros[globalState.recordingMacro].push_back(obfusc);
+        { 
+            //drop upstroke from the starting shortcut?
+            if (keyEvent.isDownstroke || globalState.recordedMacros[globalState.recordingMacro].size() > 0 )
+            {
+                //store the macro obfuscated?
+                VKeyEvent obfusc = keyEvent;
+                if (globalState.secretSequenceRecording)
+                    obfusc.vcode = obfuscateVKey(obfusc.vcode);
+                globalState.recordedMacros[globalState.recordingMacro].push_back(obfusc);
+            }
         }
     }
     
-    InterceptionKeyStroke iks = vkeyEvent2ikstroke(keyEvent);
+    InterceptionKeyStroke iks = convertVkeyEvent2ikstroke(keyEvent);
     //hide secret macro recording?
     IFDEBUG
         if(!globalState.secretSequencePlayback)

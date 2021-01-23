@@ -8,8 +8,7 @@
 #define IFTRACE if(false)
 
 //measuring time takes some time
-#define IFPROF if(true)
-
+#define IFPROF if(false)
 
 enum KEYSTATE
 {
@@ -28,12 +27,14 @@ void keySequenceAppendMakeBreakKey(unsigned short scancode, std::vector<VKeyEven
 std::string getSymbolForIKStrokeState(unsigned short state);
 
 bool processCommand();
-void processMapAlphaKeys();
+void processModifierState();
+bool processMessyKeys();
+void processRewireScancodeToVirtualcode();
 void processCombos();
+void processMapAlphaKeys();
+
 void DetectTapping(const VKeyEvent &originalVKeyEvent);
 void playKeyEventSequence(std::vector<VKeyEvent> keyEventSequence);
-void processModifierState();
-void processRewireScancodeToVirtualcode();
 
 void printOptions();
 
@@ -41,10 +42,10 @@ void sendVKeyEvent(VKeyEvent keyEvent);
 
 void sendResultingKeyOrSequence();
 
-VKeyEvent ikstroke2VKeyEvent(InterceptionKeyStroke ikStroke);
+VKeyEvent convertIkstroke2VKeyEvent(InterceptionKeyStroke ikStroke);
 
 void normalizeIKStroke(InterceptionKeyStroke &ikstroke);
-InterceptionKeyStroke vkeyEvent2ikstroke(VKeyEvent keyEvent);
+InterceptionKeyStroke convertVkeyEvent2ikstroke(VKeyEvent keyEvent);
 void getHardwareId();
 
 bool initConsoleWindow();

@@ -81,8 +81,8 @@ enum ScanCode {
     SC_F8 = 0x42,
     SC_F9 = 0x43,
     SC_F10 = 0x44,
-    SC_NUMLOCK = 0x45, // also, escape code E1 then 1dv 45v 1d^ 45^ is [Pause]
-    SC_SCRLOCK = 0x46, // Scroll Lock
+    SC_NUMLOCK = 0x45, // NumLock. Also, Pause sends FAKELCTRL+NUMLOCK (E1 1dv 45v E1 1d^ 45^)
+    SC_SCRLOCK = 0x46, // Scroll Lock. Also Ctrl+Pause sends E0 SCRLOCK
     SC_NP7 = 0x47,
     SC_NP8 = 0x48,
     SC_NP9 = 0x49,
@@ -96,6 +96,7 @@ enum ScanCode {
     SC_NP3 = 0x51,
     SC_NP0 = 0x52,
     SC_NPDOT = 0x53, // . on numeric keypad
+    SC_ALTPRINT = 0x54, // created by Alt+Print
     SC_LBSLASH = 0x56, //  Left BackSlash \  or < > |  right of left shift on UK/Germany keyboards
     SC_F11 = 0x57,
     SC_F12 = 0x58,
@@ -135,15 +136,15 @@ enum ScanCode {
     SC_CALCULATOR = 0xA1, // Calculator
     SC_PLAYPAUSE = 0xA2, // Play / Pause
     SC_MEDIASTOP = 0xA4, // Media Stop
-    SC_TWOSUPERIOR = 0xAA, // ² on French AZERTY keyboard (same place as ~ ` on QWERTY)
+    SC_E0LSHF = 0xAA, // produced by Print key without modifier. '²' on French AZERTY keyboard (same place as ~ ` on QWERTY)
     SC_VOLUMEDOWN = 0xAE, // Volume -
     SC_VOLUMEUP = 0xB0, // Volume +
     SC_WEBHOME = 0xB2, // Web home
     SC_NUMPADCOMMA = 0xB3, // , on numeric keypad (NEC PC98)
     SC_DIVIDE = 0xB5, // / on numeric keypad
-    SC_SYSRQ = 0xB7,  // Print, sends Shift+Print 2A B7
+    SC_PRINT = 0xB7,  // Print aka SysRq, wrapped in E0 2A (fake LShift) when no modifiers down
     SC_RALT = 0xB8, // right Alt
-//    VK_CPS_PAUSE = 0xC5, // not a real scancode; Pause sends an escaped key combo
+    SC_BREAK = 0xC6, //Produced by Ctrl+Pause
     SC_HOME = 0xC7, // Home on arrow keypad
     SC_UP = 0xC8, // UpArrow on arrow keypad
     SC_PGUP = 0xC9, // PgUp on arrow keypad
