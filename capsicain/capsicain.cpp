@@ -14,10 +14,11 @@
 #include "modifiers.h"
 #include "scancodes.h"
 #include "resource.h"
+#include "led.h"
 
 using namespace std;
 
-string PRETTY_VK_LABELS[MAX_VCODES]; // contains e.g. [01]="ESC" instead of SC_ESCAPE, and all VKs > 0xFF
+string PRETTY_VK_LABELS[MAX_VCODES]; // contains e.g. [SC_ESCAPE]="ESC"; all VKs incl. > 0xFF
 
 vector<string> sanitizedIniContent;  //loaded on startup and reset
 
@@ -74,8 +75,9 @@ struct InterceptionState
     InterceptionContext interceptionContext = NULL;
     InterceptionDevice interceptionDevice = NULL;
     InterceptionDevice previousInterceptionDevice = NULL;
-    InterceptionKeyStroke lastIKstroke = { SC_NOP, 0 };
-
+    InterceptionKeyStroke currentIKstroke = { SC_NOP, 0 };
+    InterceptionKeyStroke previousIKstroke1 = { SC_NOP, 0 }; //remember history
+    InterceptionKeyStroke previousIKstroke2 = { SC_NOP, 0 };
 } interceptionState;
 
 struct GlobalState
@@ -90,13 +92,6 @@ struct GlobalState
 
     string deviceIdKeyboard = "";
     bool deviceIsAppleKeyboard = false;
-
-    int tapAndHoldKey = -1; //remember the tap-and-hold key as long as it is down
-    VKeyEvent previousKey2EventIn = { SC_NOP, 0 };
-    VKeyEvent previousKey3EventIn = { SC_NOP, 0 }; //2 keys ago
-    VKeyEvent previousKey1EventIn = { SC_NOP, 0 }; //mostly useless but simplifies the handling
-
-    InterceptionKeyStroke onOffPreviousIKStroke = convertVkeyEvent2ikstroke({ SC_NOP, 0 });
 
     int keysDownSentCounter = 0;  //tracks how many keys are actually down that Windows knows about
     bool keysDownSent[256] = { false };  //Remember all forwarded to Windows. Sent keys must be 8 bit
@@ -115,7 +110,7 @@ struct ModifierState
     unsigned short modifierDown = 0;
     unsigned short modifierTapped = 0;
     vector<VKeyEvent> modsTempAltered;
-    bool inE1sequence = false;  //to detect Pause = E1 LCtrl NumLock
+    int tapAndHoldKey = -1; //remember the tap-and-hold key as long as it is down
 } modifierState;
 static const struct ModifierState defaultModifierState;
 
@@ -183,95 +178,6 @@ string getPrettyVKLabel(int vcode)
     return PRETTY_VK_LABELS[vcode];
 }
 
-void parseIniGlobals()
-{
-    vector<string> sectLines = getTaggedLinesFromIni(INI_TAG_GLOBAL, sanitizedIniContent);
-
-    for (string line : sectLines)
-    {
-        string token = stringCopyFirstToken(line);
-        if (token == "debugonstartup")
-            options.debug = true;
-        else if (token == "capsicainonoffkey")
-        {
-            string s = stringGetRestBehindFirstToken(line);
-            int key = getVcode(s, PRETTY_VK_LABELS);
-            if (key < 0)
-                cout << "ERROR: unknown key label: " << line << endl;
-            else if (key > 255 && key != VK_CPS_PAUSE)
-                cout << "ERROR: virtual key makes no sense: " << line << endl;
-            else 
-                globals.capsicainOnOffKey = key;
-        }
-        else if (token == "iniversion")
-            globals.iniVersion = stringGetRestBehindFirstToken(line);
-        else if (token == "startminimized")
-            globals.startMinimized = true;
-        else if (token == "startintraybar")
-            globals.startInTraybar = true;
-        else if (token == "startahk")
-            globals.startAHK = true;
-        else if (token == "donttranslatemessykeys")
-            globals.translateMessyKeys = false;
-        else if (token == "dontprotectconsole")
-            globals.protectConsole = false;
-        else if ((token == "activeconfigonstartup") || (token == "activelayeronstartup"))
-            cout << endl;
-        else
-            cout << endl << "WARNING: unknown GLOBAL " << token;
-    }
-
-    if (!getIntValueForTaggedKey(INI_TAG_GLOBAL, "ActiveConfigOnStartup", globals.activeConfigOnStartup, sanitizedIniContent))
-    {
-        //backward compat for "layer"
-        if (getIntValueForTaggedKey(INI_TAG_GLOBAL, "ActiveLayerOnStartup", globals.activeConfigOnStartup, sanitizedIniContent))
-        {
-            cout << endl << "INFO: Use 'GLOBAL activeConfigOnStartup' instead of 'GLOBAL activeLayerOnStartup'";
-        }
-        else
-        {
-            cout << endl << "No ini setting for 'GLOBAL activeConfigOnStartup'. Setting default config " << globals.activeConfigOnStartup;
-        }
-    }
-}
-
-void DetectTapping()
-{
-    //Tapped key?
-    loopState.tapped = !loopState.isDownstroke
-        && (loopState.vcode == globalState.previousKey1EventIn.vcode)
-        && (globalState.previousKey1EventIn.isDownstroke);
-
-    //Slow tap?
-    loopState.tappedSlow = loopState.tapped
-        && (globalState.previousKey2EventIn.vcode == loopState.vcode)
-        && (globalState.previousKey2EventIn.isDownstroke);
-
-    if (loopState.tappedSlow)
-        loopState.tapped = false;
-
-    //Tap and hold Make?
-    if (loopState.isDownstroke)
-    {
-        if (
-            loopState.vcode == globalState.previousKey1EventIn.vcode
-            && loopState.vcode == globalState.previousKey2EventIn.vcode
-            && !globalState.previousKey1EventIn.isDownstroke
-            && globalState.previousKey2EventIn.isDownstroke
-            )
-        {
-            loopState.tapHoldMake = true;
-        }
-    }
-    
-    //cannot detect tapHold Break here. This is done by ProcessRewire()
-
-    //remember last three keys
-    globalState.previousKey3EventIn = globalState.previousKey2EventIn;
-    globalState.previousKey2EventIn = globalState.previousKey1EventIn;
-    globalState.previousKey1EventIn = { loopState.vcode, loopState.isDownstroke };
-}
-
 int main()
 {
     if (!initConsoleWindow())
@@ -316,16 +222,29 @@ int main()
 
     resetCapsNumScrollLock();
 
+    if (globals.capsicainOnOffKey == SC_NUMLOCK
+        || globals.capsicainOnOffKey == SC_SCRLOCK
+        || globals.capsicainOnOffKey == SC_CAPS)
+    {
+        setLED(globals.capsicainOnOffKey, true);
+    }
+
     raise_process_priority(); //careful: if we spam key events, other processes get no timeslots to process them. Sleep a bit...
 
     IFPROF cout << endl << endl << "Profiling enabled in this build" << endl << "Startup time: " << profiler.stopwatchReadUS() / 1000 << " ms" << endl;
 
+
     //CORE LOOP
-    //wait for the next key from Interception
-    while (interception_receive(interceptionState.interceptionContext,
-        interceptionState.interceptionDevice = interception_wait(interceptionState.interceptionContext),
-                                 (InterceptionStroke *)&interceptionState.lastIKstroke, 1)   > 0)
+    while (true)
     {
+        //remember previous two keys to detect tapping and Pause sequence
+        interceptionState.previousIKstroke2 = interceptionState.previousIKstroke1;
+        interceptionState.previousIKstroke1 = interceptionState.currentIKstroke;
+
+        //wait for the next key from Interception
+        (interception_receive(interceptionState.interceptionContext,
+            interceptionState.interceptionDevice = interception_wait(interceptionState.interceptionContext),
+            (InterceptionStroke*)&interceptionState.currentIKstroke, 1) > 0);
 
         IFPROF
         {
@@ -337,61 +256,27 @@ int main()
         }
 
         //low level debugging, show incoming raw key
-        IFTRACE printIKStrokeState(interceptionState.lastIKstroke);
+        IFTRACE printIKStrokeState(interceptionState.currentIKstroke);
 
         //clear loop state
         loopState = defaultLoopState;
 
         //copy InterceptionKeyStroke (unpleasant to use) to plain VKeyEvent
-        VKeyEvent originalVKeyEvent = convertIkstroke2VKeyEvent(interceptionState.lastIKstroke);
+        VKeyEvent originalVKeyEvent = convertIkstroke2VKeyEvent(interceptionState.currentIKstroke);
         loopState.scancode = originalVKeyEvent.vcode;  //scancode is write-once (except for the AppleWinAlt option)
         loopState.vcode = loopState.scancode;          //vcode may be altered below
         loopState.isDownstroke = originalVKeyEvent.isDownstroke;
 
-        //if GLOBAL capsicainEnableDisable is configured, it toggles the state and still forwards the (scrLock?) key
+        //if GLOBAL capsicainEnableDisable is configured, it toggles the ON/OFF state
         if (globals.capsicainOnOffKey != -1)
         {
-            //handle the @#$ Pause key
-            bool pauseKeyTriggersOnOff = false;
-            if (globals.capsicainOnOffKey == VK_CPS_PAUSE)
-            {
-                if (loopState.scancode == SC_NUMLOCK
-                    && globalState.onOffPreviousIKStroke.code == SC_LCTRL
-                    && globalState.onOffPreviousIKStroke.state > 3)
-                {
-                    pauseKeyTriggersOnOff = true;
-                    modifierState.inE1sequence = false;
-                    
-                }
-                globalState.onOffPreviousIKStroke = interceptionState.lastIKstroke;
-            }
-
-            //toggle ON/OFF ?
-            if (loopState.scancode == globals.capsicainOnOffKey || pauseKeyTriggersOnOff)
-            {
-                if (loopState.isDownstroke)
-                {
-                    globalState.capsicainOn = !globalState.capsicainOn;
-                    updateTrayIcon(globalState.capsicainOn, globalState.recordingMacro >= 0, globalState.activeConfig);
-                    if (globalState.capsicainOn)
-                    {
-                        reset();
-                        cout << endl << endl << "[" << getPrettyVKLabel(globals.capsicainOnOffKey) << "] -> Capsicain ON";
-                        cout << endl << "active config: " << globalState.activeConfig << " = " << globalState.activeConfigName;
-                    }
-                    else
-                        cout << endl << endl << "[" << getPrettyVKLabel(globals.capsicainOnOffKey) << "] -> Capsicain OFF";
-                }
-                IFTRACE cout << endl << pauseKeyTriggersOnOff;
-                if(!pauseKeyTriggersOnOff)
-                    interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke*)&interceptionState.lastIKstroke, 1);
+            if (processOnOffKey())
                 continue;
-            }
         }
         //if disabled, just forward
         if (!globalState.capsicainOn)
         {
-            interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke*)&interceptionState.lastIKstroke, 1);
+            interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke*)&interceptionState.currentIKstroke, 1);
             continue;
         }
 
@@ -402,8 +287,8 @@ int main()
             && (interceptionState.previousInterceptionDevice != NULL)
             && (interceptionState.previousInterceptionDevice != interceptionState.interceptionDevice))
         {
-            IFDEBUG cout << endl << "Ignore 2nd board (" << interceptionState.interceptionDevice << ") scancode: " << interceptionState.lastIKstroke.code;
-            interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke *)&interceptionState.lastIKstroke, 1);
+            IFDEBUG cout << endl << "Ignore 2nd board (" << interceptionState.interceptionDevice << ") scancode: " << interceptionState.currentIKstroke.code;
+            interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke *)&interceptionState.currentIKstroke, 1);
             continue;
         }
 
@@ -418,13 +303,13 @@ int main()
         }
 
         //sanity check
-        if (interceptionState.lastIKstroke.code >= 0x80)
+        if (interceptionState.currentIKstroke.code >= 0x80)
         {
-            error("Received unexpected extended Interception Key Stroke code > 0x79: " + to_string(interceptionState.lastIKstroke.code));
+            error("Received unexpected extended Interception Key Stroke code > 0x79: " + to_string(interceptionState.currentIKstroke.code));
             cout << endl << "Please open a ticket on github";
             continue;
         }
-        if (interceptionState.lastIKstroke.code == 0)
+        if (interceptionState.currentIKstroke.code == 0)
         {
             error("Received unexpected SC_NOP Key Stroke code 0. Ignoring this.");
             continue;
@@ -466,7 +351,7 @@ int main()
         //Config 0: standard keyboard, no further processing, just forward everything
         if (globalState.activeConfig == DISABLED_CONFIG_NUMBER)
         {
-            interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke *)&interceptionState.lastIKstroke, 1);
+            interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke *)&interceptionState.currentIKstroke, 1);
             continue;
         }
 
@@ -484,11 +369,12 @@ int main()
             loopState.scancode = loopState.vcode;       //only time where scancode is rewritten. Simplifies tapping and rewiring
         }
 
+        //Handle Sysrq, ScrLock, Pause, NumLock
         if (!processMessyKeys())
             continue;
 
         //Tapdance
-        DetectTapping();
+        detectTapping();
         //slow tap breaks tapping
         if (loopState.tappedSlow)
             modifierState.modifierTapped = 0;
@@ -554,6 +440,70 @@ int main()
 ////////////////////////////////////END MAIN//////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////
 
+void betaTest() //ESC+B
+{
+    setLED(SC_CAPS, true);
+
+    ////flip icon
+    //options.debug = !options.debug;
+    //bool res = ShowInTraybar(options.debug, globalState.recordingMacro >= 0, globalState.activeConfig);
+    //if (!res)
+    //    cout << endl << "not flipped";
+}
+
+bool processOnOffKey()
+{
+    //handle the @#$ Pause key
+    bool pauseKeyTriggeredOnOff = false;
+    if (globals.capsicainOnOffKey == VK_CPS_PAUSE)
+    {
+        //drop all E1 LCTRL
+        if (interceptionState.currentIKstroke.state > 3
+            && interceptionState.currentIKstroke.code == SC_LCTRL)
+        {
+            IFTRACE cout << endl << "dropping E2 LCTRL";
+            return true;
+        }
+
+        if (loopState.scancode == SC_NUMLOCK
+            && interceptionState.previousIKstroke1.code == SC_LCTRL
+            && interceptionState.previousIKstroke1.state > 3)
+        {
+            pauseKeyTriggeredOnOff = true;
+        }
+    }
+
+    //toggle ON/OFF ?
+    if (loopState.scancode == globals.capsicainOnOffKey || pauseKeyTriggeredOnOff)
+    {
+        if (loopState.isDownstroke)
+        {
+            globalState.capsicainOn = !globalState.capsicainOn;
+            updateTrayIcon(globalState.capsicainOn, globalState.recordingMacro >= 0, globalState.activeConfig);
+            if (globalState.capsicainOn)
+            {
+                reset();
+                cout << endl << endl << "[" << getPrettyVKLabel(globals.capsicainOnOffKey) << "] -> Capsicain ON";
+                cout << endl << "active config: " << globalState.activeConfig << " = " << globalState.activeConfigName;
+            }
+            else
+                cout << endl << endl << "[" << getPrettyVKLabel(globals.capsicainOnOffKey) << "] -> Capsicain OFF";
+        }
+        IFTRACE cout << endl << pauseKeyTriggeredOnOff;
+        //forward only the three keys that have LEDs, to signal the state of capsicain
+        if (globals.capsicainOnOffKey == SC_NUMLOCK
+            || globals.capsicainOnOffKey == SC_SCRLOCK
+            || globals.capsicainOnOffKey == SC_CAPS)
+        {
+            IFTRACE cout << "OnOff event: setting LED for: " << getPrettyVKLabel(globals.capsicainOnOffKey);
+            setLED(globals.capsicainOnOffKey, globalState.capsicainOn);
+        }
+        return true;
+    }
+
+    return false;
+}
+
 //handle PRINT, SCRLOCK, PAUSE, NUMLOCK, E1, Exit and Break signals
 //return false = drop the key
 bool processMessyKeys()
@@ -612,30 +562,69 @@ bool processMessyKeys()
     //translate unmodified pause key sequence to PAUSE (E1 LCTRL NUMLOCK)
     if (globals.translateMessyKeys)
     {
-        if (modifierState.inE1sequence || interceptionState.lastIKstroke.state > 3)
+        if (interceptionState.currentIKstroke.state > 3)
         {
             if (loopState.vcode == SC_LCTRL)
             {
-                modifierState.inE1sequence = true;
                 return false;  //drop the ctrl key
             }
-            else if (loopState.vcode == SC_NUMLOCK)
+            else
+            {
+                cout << endl << endl << "??? Extended escape code not handled. What is this key???"
+                    << "Please open a ticket on github";
+                return false;
+            }
+        }
+
+        if (interceptionState.previousIKstroke1.state > 3)
+        {
+            if (interceptionState.previousIKstroke1.code != SC_LCTRL)
+            {
+                cout << endl << "??? unexpected E1 escape sequence. What kind of key is this?";
+                return false;
+            }
+
+            if (loopState.vcode == SC_NUMLOCK)
             {
                 IFDEBUG if (loopState.isDownstroke)
                     cout << endl << ("INFO: Pause key combo (E1 LCTRL NUMLOCK) -> virtual key PAUSE");
                 loopState.vcode = VK_CPS_PAUSE;
-                modifierState.inE1sequence = false;
-            }
-            else
-            {
-                cout << endl << endl << "???? Extended escape code not handled. What is this key???"
-                    << "Please open a ticket on github";
-                return false;
             }
         }
     }
 
     return true;
+}
+
+void detectTapping()
+{
+    //Tapped key?
+    loopState.tapped =
+        !loopState.isDownstroke
+        && (interceptionState.currentIKstroke.code == interceptionState.previousIKstroke1.code)
+        && ((interceptionState.previousIKstroke1.state & 1) == 0);
+
+    //Slow tap?
+    loopState.tappedSlow =
+        loopState.tapped
+        && (interceptionState.previousIKstroke2.code == interceptionState.currentIKstroke.code)
+        && ((interceptionState.previousIKstroke2.state & 1) == 0);
+
+    if (loopState.tappedSlow)
+        loopState.tapped = false;
+
+    //Tap and hold Make? (last three same code, and down-up-down sequence)
+    if (interceptionState.previousIKstroke1.code == interceptionState.currentIKstroke.code
+        && interceptionState.previousIKstroke2.code == interceptionState.currentIKstroke.code
+        && ((interceptionState.currentIKstroke.state & 1) == 0)
+        && ((interceptionState.previousIKstroke1.state & 1) == 1)
+        && ((interceptionState.previousIKstroke2.state & 1) == 0)
+        )
+    {
+        loopState.tapHoldMake = true;
+    }
+
+    //cannot detect tapHold Break here. This is done by ProcessRewire()
 }
 
 void processModifierState()
@@ -658,7 +647,7 @@ void processModifierState()
 void processRewireScancodeToVirtualcode()
 {
     //ignore auto-repeating tapHold key
-    if (loopState.scancode == globalState.tapAndHoldKey && loopState.isDownstroke)
+    if (loopState.scancode == modifierState.tapAndHoldKey && loopState.isDownstroke)
     {
         loopState.vcode = SC_NOP;
         return;
@@ -698,9 +687,9 @@ void processRewireScancodeToVirtualcode()
             int rewtapholdkey = allMaps.rewiremap[loopState.scancode][REWIRE_TAPHOLD];
             if (rewtapholdkey >= 0)
             {
-                if (globalState.tapAndHoldKey < 0)
+                if (modifierState.tapAndHoldKey < 0)
                 {
-                    globalState.tapAndHoldKey = loopState.scancode;  //remember the original scancode
+                    modifierState.tapAndHoldKey = loopState.scancode;  //remember the original scancode
                     if(rewtapholdkey <= 255) //send make only for real keys
                         loopState.resultingVKeyEventSequence.push_back({ rewtapholdkey, true });
                     loopState.vcode = rewtapholdkey;
@@ -723,12 +712,12 @@ void processRewireScancodeToVirtualcode()
             }
         }
         //tapHold Break?
-        if (!loopState.isDownstroke && loopState.scancode == globalState.tapAndHoldKey)
+        if (!loopState.isDownstroke && loopState.scancode == modifierState.tapAndHoldKey)
         {
             int rewtapholdkey = allMaps.rewiremap[loopState.scancode][REWIRE_TAPHOLD];
             if (rewtapholdkey >= 0)
             {
-                globalState.tapAndHoldKey = -1;
+                modifierState.tapAndHoldKey = -1;
                 if (rewtapholdkey < 255) //send break only for real keys
                     loopState.resultingVKeyEventSequence.push_back({ rewtapholdkey, false });
                 else
@@ -793,15 +782,6 @@ void processMapAlphaKeys()
         case SC_Z:		loopState.vcode = SC_Y;		break;
         }
     }
-}
-
-void testBeta()
-{
-    //flip icon
-    options.debug = !options.debug;
-    bool res = ShowInTraybar(options.debug, globalState.recordingMacro >= 0, globalState.activeConfig);
-    if (!res)
-        cout << endl << "not flipped";
 }
 
 // [ESC]+x combos
@@ -982,7 +962,7 @@ bool processCommand()
         cout << "delay between characters in key sequences (ms): " << dec << options.delayForKeySequenceMS;
         break;
     case SC_B:
-        testBeta();
+        betaTest();
         break;
     default: 
     {
@@ -1066,6 +1046,60 @@ bool initConsoleWindow()
     MoveWindow(console, initialRect.left, initialRect.top, 800, 600, TRUE);
 
     return true;
+}
+
+
+//reads all GLOBALs from ini, no matter where they are
+void parseIniGlobals()
+{
+    vector<string> sectLines = getTaggedLinesFromIni(INI_TAG_GLOBAL, sanitizedIniContent);
+
+    for (string line : sectLines)
+    {
+        string token = stringCopyFirstToken(line);
+        if (token == "debugonstartup")
+            options.debug = true;
+        else if (token == "capsicainonoffkey")
+        {
+            string s = stringGetRestBehindFirstToken(line);
+            int key = getVcode(s, PRETTY_VK_LABELS);
+            if (key < 0)
+                cout << "ERROR: unknown key label: " << line << endl;
+            else if (key > 255 && key != VK_CPS_PAUSE)
+                cout << "ERROR: virtual key makes no sense: " << line << endl;
+            else
+                globals.capsicainOnOffKey = key;
+        }
+        else if (token == "iniversion")
+            globals.iniVersion = stringGetRestBehindFirstToken(line);
+        else if (token == "startminimized")
+            globals.startMinimized = true;
+        else if (token == "startintraybar")
+            globals.startInTraybar = true;
+        else if (token == "startahk")
+            globals.startAHK = true;
+        else if (token == "donttranslatemessykeys")
+            globals.translateMessyKeys = false;
+        else if (token == "dontprotectconsole")
+            globals.protectConsole = false;
+        else if ((token == "activeconfigonstartup") || (token == "activelayeronstartup"))
+            cout << endl;
+        else
+            cout << endl << "WARNING: unknown GLOBAL " << token;
+    }
+
+    if (!getIntValueForTaggedKey(INI_TAG_GLOBAL, "ActiveConfigOnStartup", globals.activeConfigOnStartup, sanitizedIniContent))
+    {
+        //backward compat for "layer"
+        if (getIntValueForTaggedKey(INI_TAG_GLOBAL, "ActiveLayerOnStartup", globals.activeConfigOnStartup, sanitizedIniContent))
+        {
+            cout << endl << "INFO: Use 'GLOBAL activeConfigOnStartup' instead of 'GLOBAL activeLayerOnStartup'";
+        }
+        else
+        {
+            cout << endl << "No ini setting for 'GLOBAL activeConfigOnStartup'. Setting default config " << globals.activeConfigOnStartup;
+        }
+    }
 }
 
 // Parses the OPTIONS in the given section.
@@ -1538,9 +1572,9 @@ void printLoopState1Input()
 {
     cout
         << " ["
-        << hex << setw(2) << interceptionState.lastIKstroke.code << " " << interceptionState.lastIKstroke.state
+        << hex << setw(2) << interceptionState.currentIKstroke.code << " " << interceptionState.currentIKstroke.state
         << "= " << setw(8) << (loopState.vcode == loopState.scancode ? "" : PRETTY_VK_LABELS[loopState.scancode] + " > ")
-        << setw(8) << getPrettyVKLabel(loopState.vcode) << setw(2) << left << getSymbolForIKStrokeState(interceptionState.lastIKstroke.state) << right
+        << setw(8) << getPrettyVKLabel(loopState.vcode) << setw(2) << left << getSymbolForIKStrokeState(interceptionState.currentIKstroke.state) << right
         << "] ";
 }
 
@@ -1565,9 +1599,9 @@ void printLoopState4TapState()
     cout << (loopState.tapped ? " (tap)" : "");
 
     IFTRACE if (loopState.tapHoldMake) 
-        cout << " (TapHold:" << hex << interceptionState.lastIKstroke.code << ")";
-    if (globalState.tapAndHoldKey >= 0)
-        cout << " (TapHoldKey: " << hex << globalState.tapAndHoldKey << ")";
+        cout << " (TapHold:" << hex << interceptionState.currentIKstroke.code << ")";
+    if (modifierState.tapAndHoldKey >= 0)
+        cout << " (TapHoldKey: " << hex << modifierState.tapAndHoldKey << ")";
 }
 
 void printKeylabels()
@@ -1711,7 +1745,7 @@ void sendResultingKeyOrSequence()
         IFDEBUG
         {
             if (loopState.scancode != loopState.vcode)
-                cout << "  --  " << PRETTY_VK_LABELS[loopState.vcode] << getSymbolForIKStrokeState(interceptionState.lastIKstroke.state);
+                cout << "  --  " << PRETTY_VK_LABELS[loopState.vcode] << getSymbolForIKStrokeState(interceptionState.currentIKstroke.state);
             else
                 cout << "  -->";
         }
@@ -1947,6 +1981,16 @@ void sendVKeyEvent(VKeyEvent keyEvent)
             cout << " {" << PRETTY_VK_LABELS[keyEvent.vcode] << (keyEvent.isDownstroke ? "v" : "^") << " #" << globalState.keysDownSentCounter << "}";
 
     interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke *)&iks, 1);
+
+    //restore LEDs for ON/OFF indication?
+    if (globals.capsicainOnOffKey >0 
+        && keyEvent.isDownstroke
+        && (globals.capsicainOnOffKey == SC_NUMLOCK || globals.capsicainOnOffKey == SC_SCRLOCK || globals.capsicainOnOffKey == SC_CAPS)
+        && (keyEvent.vcode == SC_NUMLOCK || keyEvent.vcode == SC_SCRLOCK || keyEvent.vcode == SC_CAPS || keyEvent.vcode == SC_ESCAPE)
+        )
+    {
+        setLED(globals.capsicainOnOffKey, true);
+    }
 }
 
 

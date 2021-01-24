@@ -6,9 +6,8 @@
 
 #define IFDEBUG if(options.debug && !globalState.secretSequenceRecording)
 #define IFTRACE if(false)
+#define IFPROF if(false) //measuring time takes some time
 
-//measuring time takes some time
-#define IFPROF if(false)
 
 enum KEYSTATE
 {
@@ -26,6 +25,7 @@ void keySequenceAppendMakeBreakKey(unsigned short scancode, std::vector<VKeyEven
 
 std::string getSymbolForIKStrokeState(unsigned short state);
 
+bool processOnOffKey();
 bool processCommand();
 void processModifierState();
 bool processMessyKeys();
@@ -33,7 +33,7 @@ void processRewireScancodeToVirtualcode();
 void processCombos();
 void processMapAlphaKeys();
 
-void DetectTapping(const VKeyEvent &originalVKeyEvent);
+void detectTapping();
 void playKeyEventSequence(std::vector<VKeyEvent> keyEventSequence);
 
 void printOptions();
@@ -49,6 +49,7 @@ InterceptionKeyStroke convertVkeyEvent2ikstroke(VKeyEvent keyEvent);
 void getHardwareId();
 
 bool initConsoleWindow();
+void parseIniGlobals();
 
 void printHelloHeader();
 void printStatus();

@@ -8,6 +8,7 @@ TODO
 - rethink double tap breaking tapped state
 - nicer syntax for input sequences (COMPOSE f y i [.T] > print("For your information")
 - directly send UTF chars to the upper echelons
+- OnOff key set LED without triggering the key function
 - Documentation.....
 
 CLEANUP
@@ -185,11 +186,17 @@ v86: handle the messy keys PRINT,SCRLOCK,PAUSE,NUMLOCK
 - by default maps BREAK and pause-sequence to PAUSE, ALTPRINT to PRINT
 - can use PAUSE as ON/OFF toggle (what a mess)
 
+v87beta: capsicainOnOffKey can control the LEDs. Clean up On/Off with Pause
+- if Global capsicainOnOffKey is one of the three keys with LEDs,
+  the state of the LED is exclusively controlled by capsicain OnOff state,
+  even when the actual function (like CapsLock) is changed via Combo.
+- clean up onOff key. The key is never forwarded.
+- fixed 'Autorepeating Pause as ON/OFF toggle sends Pause to foreground console'
+- clean up 'previous key history'
 
-Autorepeating Pause as ON/OFF toggle may send Pause to foreground console. Won't fix this.
+v88
+
 document macros, messy keys
-
-
 
 *** NOTES on the messy keys: 
 Print, ScrLock, Pause, NumLock, and the Numpad
