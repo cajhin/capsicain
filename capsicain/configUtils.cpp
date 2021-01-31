@@ -81,12 +81,14 @@ bool readSanitizeIniFile(std::vector<string> &iniLines)
         return false;
 
     bool detectBom = true;  //that nasty UTF BOM that MS loves so much...
-    while (getline(f, line)) {
+    while (getline(f, line)) 
+    {
         if (detectBom)
         {
             detectBom = false;
-            if (line[0] == (char)0xEF)
-                continue;
+            int i = 0;
+            while (i < line.length() && line[i] < 0)
+                line[i++] = 32;
         }
         normalizeLine(line);
         if (line == "")

@@ -1897,7 +1897,6 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
                 sendVKeyEvent({ deObfuscateVKey(keyEvent.vcode) , keyEvent.isDownstroke });
             else
                 sendVKeyEvent(keyEvent);
-
             if (vc == AHK_HOTKEY1 || vc == AHK_HOTKEY2)
                 Sleep(DEFAULT_DELAY_FOR_AHK_MS);
             else
