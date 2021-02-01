@@ -61,7 +61,6 @@ Earlier versions were very focused on my own configuration. Latest versions are 
   - Secret macros that are only stored, obfuscated, in memory
 
 - Fast. Low-fat C/C++ code. 1 exe 1 dll 1 ini. Never writes, only reads inside its folder.
-  <br />
 
   ### Features of the default capsicain.ini
 
@@ -75,15 +74,13 @@ Earlier versions were very focused on my own configuration. Latest versions are 
         `Z` `U`         | `Home` `End`  
         `H`             | `Backspace`
         etc             | etc
-        <br />
 
     - Hold `CapsLock` + left hand keys -> Standard Ctrl-Combos
         Key Pressed         | Result
         --------------------| ------
         `A` `S` `D` `F` `G` | `Undo` `Cut` `Copy` `Paste` `Redo`  
         `Q` `W` `E` `R`     | `SelectAll` `GotoTop` `Find` `FindNext`
-        `Z` `X` `C` `V`     | `NewFile` `NewTab` `Open` `Save` `CloseTab`   
-        <br />
+        `Z` `X` `C` `V`     | `NewFile` `NewTab` `Open` `Save` `CloseTab`
 
     - Hold `TAB` + right hand -> NumPad layer
         Key Pressed | Result
@@ -91,18 +88,16 @@ Earlier versions were very focused on my own configuration. Latest versions are 
         `U` `I` `O` | `7` `8` `9`
         `J` `K` `L` | `4` `5` `6`
         etc         | etc
-        <br />
 
     - `ALT` + letter keys-> all regular symbol characters.  
         - `ALT` + `Q` for '!' is an easier combo than Shift + 1, when you get used to it.
-        - QWERTZ equivalent:
+        - Layout equivalent:
         <br />
         `! @ # $ % ^ & ( ) ü ß`
         <br />
         `- + * / = \ { } ö ä` 
         <br />
         ``` ` ~ | _ … < > [ ] ...```
-        <br />
 
     - Tap `ALT`, `<key>` -> Special character layer  
         `€ © ° ¹²³ ...`
@@ -113,7 +108,7 @@ Earlier versions were very focused on my own configuration. Latest versions are 
         `~`, `n`   | `ñ` 
         `~`, `a`   | `ã`
         `^`, `a`   | `â`
-        <br />
+
     - Tap `Caps`, Tap `ALT`, `Shift` + `<key>` -> Uppercase greek characters  
         - Σ   (just because I can)
         
@@ -143,7 +138,6 @@ Earlier versions were very focused on my own configuration. Latest versions are 
   - Start my apps with centrally configured hotkeys  
   
   - Windows control shortcuts: maximize, minimize, restore, close
-  <br />
 
 ## Core commands
  - These talk directly to Capsicain, trigger them with `ESC` + `<key>`
@@ -154,7 +148,6 @@ Earlier versions were very focused on my own configuration. Latest versions are 
     `H`        | Help - list available commands
     `<1-9>`    | Switch configs
     `0`        | Switch to empty (disabled) config
-    <br />
  - There are various other options, like "flip Z/Y", "flip WIN/ALT on Apple keyboards", timing for macros, status, more.
 
 ## Help! I've broken something and can't use my keyboard! 
