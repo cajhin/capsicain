@@ -66,7 +66,6 @@ Earlier versions were very focused on my own configuration. Latest versions are 
   ### Features of the default capsicain.ini
 
   This is the config I use myself. I call it the King Configuration, because, like the King in Chess, fingers must never move more than one key from their base position into any direction to write and edit any text. (Exceptions: Escape, Enter, app-specific combos that I have not considered).
-
   <details>
 
     - Hold `CapsLock` + right hand keys -> Cursor control layer. I LOVE this!!  
@@ -124,16 +123,14 @@ Earlier versions were very focused on my own configuration. Latest versions are 
       │ I like these things :) │  
       └────────────────────────┘  
       ```
-    - TAB (NumPad) + Ctrl + Shift + Number -> "Fat Table characters"  
+    - TAB (NumPad) + Ctrl + Shift + Number -> "Fat Table" characters  
       ```
       ╔═════════════════════╦═══╦══╗  
       ║     MOAR TABELS!!   ╠═══╬══╣  
       ╚═════════════════════╩═══╩══╝  
       ```
-
   </details>
-  <br />
-    
+
   ### Additional AutoHotKey features
 
   An AHK script must run that catches `F14` / `F15` key combos.
