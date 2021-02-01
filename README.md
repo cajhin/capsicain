@@ -1,6 +1,7 @@
 ### News: January 31, 2021 - major new v89, get it <a href="../../releases/tag/v89">here</a>.
 
 ## Quick links
+
 - <a href="../../releases/latest">Latest release</a>
 - <a href="../../wiki/Installation">Install guide</a>
 - <a href="../../wiki">Manual</a>
@@ -10,9 +11,10 @@
     - [Features of the default capsicain.ini](#features-of-the-default-capsicainini)
     - [Additional AutoHotKey Features](#additional-autohotkey-features)
   - [Core commands](#core-commands)
-  - [What it doesn't do (currently)](#what-it-doesnt-do-currently)
   - [Help!](#help-ive-broken-something-and-cant-use-my-keyboard)
   - [Frequently asked questions](#frequently-asked-questions)
+  - [Getting involved](#getting-involved)
+
 # capsicain
 
 Keyboard configuration tool that re-maps keys and modifier-key-combos at a very low level.
@@ -59,88 +61,92 @@ Earlier versions were very focused on my own configuration. Latest versions are 
   - Secret macros that are only stored, obfuscated, in memory
 
 - Fast. Low-fat C/C++ code. 1 exe 1 dll 1 ini. Never writes, only reads inside its folder.
+  <br />
 
-### Features of the default capsicain.ini
-This is the config I use myself. I call it the King Configuration, because, like the King in Chess, fingers must never move more than one key from their base position into any direction to write and edit any text. (Exceptions: Escape, Enter, app-specific combos that I have not considered).
+  ### Features of the default capsicain.ini
 
-<details>
+  This is the config I use myself. I call it the King Configuration, because, like the King in Chess, fingers must never move more than one key from their base position into any direction to write and edit any text. (Exceptions: Escape, Enter, app-specific combos that I have not considered).
 
-  - Hold `CapsLock` + right hand keys -> Cursor control layer. I LOVE this!!  
-      Key Pressed     | Result
-      ----------------| ------
-      `I` `J` `K` `L` | (Cursor) `↑` `←` `↓` `→`
-      `Z` `U`         | `Home` `End`  
-      `H`             | `Backspace`
-      etc             | etc
-      <br />
+  <details>
 
-  - Hold `CapsLock` + left hand keys -> Standard Ctrl-Combos
-      Key Pressed         | Result
-      --------------------| ------
-      `A` `S` `D` `F` `G` | `Undo` `Cut` `Copy` `Paste` `Redo`  
-      `Q` `W` `E` `R`     | `SelectAll` `GotoTop` `Find` `FindNext`
-      `Z` `X` `C` `V`     | `NewFile` `NewTab` `Open` `Save` `CloseTab`   
-      <br />
+    - Hold `CapsLock` + right hand keys -> Cursor control layer. I LOVE this!!  
+        Key Pressed     | Result
+        ----------------| ------
+        `I` `J` `K` `L` | (Cursor) `↑` `←` `↓` `→`
+        `Z` `U`         | `Home` `End`  
+        `H`             | `Backspace`
+        etc             | etc
+        <br />
 
-  - Hold `TAB` + right hand -> NumPad layer
-      Key Pressed | Result
-      ------------| ------
-      `U` `I` `O` | `7` `8` `9`
-      `J` `K` `L` | `4` `5` `6`
-      etc         | etc
-      <br />
+    - Hold `CapsLock` + left hand keys -> Standard Ctrl-Combos
+        Key Pressed         | Result
+        --------------------| ------
+        `A` `S` `D` `F` `G` | `Undo` `Cut` `Copy` `Paste` `Redo`  
+        `Q` `W` `E` `R`     | `SelectAll` `GotoTop` `Find` `FindNext`
+        `Z` `X` `C` `V`     | `NewFile` `NewTab` `Open` `Save` `CloseTab`   
+        <br />
 
-  - `ALT` + letter keys-> all regular symbol characters.  
-      - `ALT` + `Q` for '!' is an easier combo than Shift + 1, when you get used to it.
-      - QWERTZ equivalent:
-      <br />
-      `! @ # $ % ^ & ( ) ü ß`
-      <br />
-      `- + * / = \ { } ö ä` 
-      <br />
-      ``` ` ~ | _ … < > [ ] ...```
-      <br />
+    - Hold `TAB` + right hand -> NumPad layer
+        Key Pressed | Result
+        ------------| ------
+        `U` `I` `O` | `7` `8` `9`
+        `J` `K` `L` | `4` `5` `6`
+        etc         | etc
+        <br />
 
-  - Tap `ALT`, `<key>` -> Special character layer  
-      `€ © ° ¹²³ ...`
+    - `ALT` + letter keys-> all regular symbol characters.  
+        - `ALT` + `Q` for '!' is an easier combo than Shift + 1, when you get used to it.
+        - QWERTZ equivalent:
+        <br />
+        `! @ # $ % ^ & ( ) ü ß`
+        <br />
+        `- + * / = \ { } ö ä` 
+        <br />
+        ``` ` ~ | _ … < > [ ] ...```
+        <br />
 
-  - Tap `ALT`, `<deadkey>`, `<basekey>` -> Special deadkey sequences
-      Keystrokes | Result
-      -----------| ------
-      `~`, `n`   | `ñ` 
-      `~`, `a`   | `ã`
-      `^`, `a`   | `â`
+    - Tap `ALT`, `<key>` -> Special character layer  
+        `€ © ° ¹²³ ...`
+
+    - Tap `ALT`, `<deadkey>`, `<basekey>` -> Special deadkey sequences
+        Keystrokes | Result
+        -----------| ------
+        `~`, `n`   | `ñ` 
+        `~`, `a`   | `ã`
+        `^`, `a`   | `â`
+        <br />
+    - Tap `Caps`, Tap `ALT`, `Shift` + `<key>` -> Uppercase greek characters  
+        - Σ   (just because I can)
+        
+    - `TAB` (NumPad) + `Ctrl` + `Number` -> "Table" characters  
+      ```
+      ┌────────────────────────┐  
+      │ I like these things :) │  
+      └────────────────────────┘  
+      ```
+    - TAB (NumPad) + Ctrl + Shift + Number -> "Fat Table characters"  
+      ```
+      ╔═════════════════════╦═══╦══╗  
+      ║     MOAR TABELS!!   ╠═══╬══╣  
+      ╚═════════════════════╩═══╩══╝  
+      ```
+
+  </details>
+  <br />
+    
+  ### Additional AutoHotKey features
+
+  An AHK script must run that catches `F14` / `F15` key combos.
+
+  - 10 Clipboards
+      `Caps` + `<0-9>` copies to clipboard #`n`
       <br />
-  - Tap `Caps`, Tap `ALT`, `Shift` + `<key>` -> Uppercase greek characters  
-      - Σ   (just because I can)
+      Tap `Caps` , `<0-9>` pastes from clipboard #`n`
       
-  - `TAB` (NumPad) + `Ctrl` + `Number` -> "Table" characters  
-    ```
-    ┌────────────────────────┐  
-    │ I like these things :) │  
-    └────────────────────────┘  
-    ```
-  - TAB (NumPad) + Ctrl + Shift + Number -> "Fat Table characters"  
-    ```
-    ╔═════════════════════╦═══╦══╗  
-    ║     MOAR TABELS!!   ╠═══╬══╣  
-    ╚═════════════════════╩═══╩══╝  
-    ```
-
-</details>
-<br />
-    
-### Additional AutoHotKey features
-An AHK script must run that catches `F14` / `F15` key combos.
-
-- 10 Clipboards
-    `Caps` + `<0-9>` copies to clipboard #`n`
-    <br />
-    Tap `Caps` , `<0-9>` pastes from clipboard #`n`
-    
- - Start my apps with centrally configured hotkeys  
- 
- - Windows control shortcuts: maximize, minimize, restore, close
+  - Start my apps with centrally configured hotkeys  
+  
+  - Windows control shortcuts: maximize, minimize, restore, close
+  <br />
 
 ## Core commands
  - These talk directly to Capsicain, trigger them with `ESC` + `<key>`
@@ -153,13 +159,6 @@ An AHK script must run that catches `F14` / `F15` key combos.
     `0`        | Switch to empty (disabled) config
     <br />
  - There are various other options, like "flip Z/Y", "flip WIN/ALT on Apple keyboards", timing for macros, status, more.
-
-### What it doesn't do (currently)
-  - Configurable double-taps
-  - No combos-to-modifier (Ctrl+X -> Alt). Useless?
-  - Windows ALT-Numpad combos for special characters ╠═ö€Σε═╣ don't work in Linux VMs.  
-    - If you need this, you have to create your own config for Linux special chars.
-  - Cannot be triggered by other software. Capsicain listens to the keyboard hardware and nothing else.
 
 ## Help! I've broken something and can't use my keyboard! 
   - `ESC`+`X` Exits, always, in case your config makes the keyboard unusable. Capsicain doesn't have to be in the foreground to see `ESC` command combos.   
@@ -199,13 +198,16 @@ An AHK script must run that catches `F14` / `F15` key combos.
 
         But but rootkit keylogger exposing all my sekrits? True that. I didn't see the source, I don't know the guy, but I sniffed around a bit and it all smells legit to me. Well, everytime you run any binary with admin privileges, it can do all this and more.
       </details>
-      <br />
+  * What are the current limitations?
+    - Double-taps are not configurable
+    - No combos-to-modifier (Ctrl+X -> Alt). Useless?
+    - Windows ALT-Numpad combos for special characters ╠═ö€Σε═╣ don't work in Linux VMs.  
+      - If you need this, you have to create your own config for Linux special chars.
+    - Cannot be triggered by other software. Capsicain listens to the keyboard hardware and nothing else.
 
-# Contact
+# Getting Involved
 
-Feel free to open an issue to ask questions.  
-
-I'm willing to help, and interested in ideas.
-
-You're also welcome to start a Discussion
+Feel free to open an [issue](../../issues) to ask questions.  
+I'm willing to help, and interested in ideas.  
+You're also welcome to start a [discussion](../../discussions)
 
