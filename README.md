@@ -1,20 +1,5 @@
 ### News: January 31, 2021 - major new v89, get it <a href="../../releases/tag/v89">here</a>.
 
-## Quick links
-
-- <a href="../../releases/latest">Latest release</a>
-- <a href="../../wiki/Installation">Install guide</a>
-- <a href="../../wiki">Manual</a>
-- [Readme contents](#quick-links)
-  - [Why?](#why)
-  - [Features](#features)
-    - [Features of the default capsicain.ini](#features-of-the-default-capsicainini)
-    - [Additional AutoHotKey Features](#additional-autohotkey-features)
-  - [Core commands](#core-commands)
-  - [Help!](#help-ive-broken-something-and-cant-use-my-keyboard)
-  - [Frequently asked questions](#frequently-asked-questions)
-  - [Getting involved](#getting-involved)
-
 # capsicain
 
 Keyboard configuration tool that re-maps keys and modifier-key-combos at a very low level.
@@ -23,6 +8,21 @@ Created for productivity and fast keyboard layout prototyping, but also works fo
 (Might be useful to work around handicaps, but I have no experience. Open an issue if you need a special feature).
 
 Uses the [Interception driver](https://github.com/oblitum/Interception) to receive keys before almost everyone else.  
+
+## Quick links
+
+- <a href="../../releases/latest">Latest release</a>
+- <a href="../../wiki/Installation">Install guide</a>
+- <a href="../../wiki">Manual</a>
+- [Readme contents]
+  - [Why?](#why)
+  - [Features](#features)
+    - [Features of the default capsicain.ini](#features-of-the-default-capsicainini)
+    - [Additional AutoHotKey Features](#additional-autohotkey-features)
+  - [Core commands](#core-commands)
+  - [Help!](#help-ive-broken-something-and-cant-use-my-keyboard)
+  - [Frequently asked questions](#frequently-asked-questions)
+  - [Getting involved](#getting-involved)
 
 ## Why?
 
@@ -171,10 +171,8 @@ Earlier versions were very focused on my own configuration. Latest versions are 
   * ### What's the old_capsicain_interception repo?
     * v1..12 was created in the capsicain_interception repo. This was an experimental non-VS project, now obsolete, except for the history.
   * ### Why is my keyboard suddenly QWERTZ?!
-    * This is the layout I use by default, you can either use `ESC` + `Z` to flip Y/Z, or edit the config to disable this switch
-  * ### How do I know this isn't a keylogger?
-    1. Interception's is closed (pay for) source, but I've sniffed around a bit and it all seems legit to me
-    2. This is possible with any binary you run with admin priveleges, this caution should be applied universally.
+    * This is the layout I use by default, you can either use `ESC` + `Z` to flip Y/Z, or edit the config to disable this switch  
+      (in capsicain.ini section `[CONFIG_1]`, comment out `INCLUDE LAYOUT_QWERTZJ`)
   * ### What is Interception?
     * Interception is the driver that allows capsicain to intercept and modify keyboard events.
       <details>
@@ -187,7 +185,11 @@ Earlier versions were very focused on my own configuration. Latest versions are 
 
         But but rootkit keylogger exposing all my sekrits? True that. I didn't see the source, I don't know the guy, but I sniffed around a bit and it all smells legit to me. Well, everytime you run any binary with admin privileges, it can do all this and more.
       </details>
-  * What are the current limitations?
+  * ### How do I know this isn't a keylogger?
+    1. capsicain is completely open source. It does not write to disk, it does not do networking.
+    1. The Interception driver is closed (pay for) source, but I've sniffed around a bit and it all seems legit to me
+    1. Reading keyboard input is possible with any binary you run with admin privileges, this caution should be applied universally.
+  * ### What are the current limitations?
     - Double-taps are not configurable
     - No combos-to-modifier (Ctrl+X -> Alt). Useless?
     - Windows ALT-Numpad combos for special characters ╠═ö€Σε═╣ don't work in Linux VMs.  
