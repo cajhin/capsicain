@@ -92,12 +92,11 @@ Earlier versions were very focused on my own configuration. Latest versions are 
     - `ALT` + letter keys-> all regular symbol characters.  
         - `ALT` + `Q` for '!' is an easier combo than Shift + 1, when you get used to it.
         - Layout equivalent:
-        <br />
-        `! @ # $ % ^ & ( ) ü ß`
-        <br />
-        `- + * / = \ { } ö ä` 
-        <br />
-        ``` ` ~ | _ … < > [ ] ...```
+        ```
+        ! @ # $ % ^ & ( ) ü ß
+        - + * / = \ { } ö ä
+        ` ~ | _ … < > [ ] ...
+        ```
 
     - Tap `ALT`, `<key>` -> Special character layer  
         `€ © ° ¹²³ ...`
