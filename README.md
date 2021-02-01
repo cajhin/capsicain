@@ -4,15 +4,15 @@
 - <a href="../../releases/latest">Latest release</a>
 - <a href="../../wiki/Installation">Install guide</a>
 - <a href="../../wiki">Manual</a>
-- [Readme contents](.)
-  - [Why?](#Why?)
-  - [Features](#Features)
-    - [Features of the default capsicain.ini](#Features-of-the-default-capsicain.ini)
-    - [Additional AutoHotKey Features](#Additional-Autohotkey-Features)
-  - [Core commands](#Core-Commands)
-  - [What it doesn't do (currently)](#What-it-doesn't-do-(currently))
-  - [Help!](#Help!-I've-broken-something-and-can't-use-my-keyboard!)
-  - [Frequently asked questions](#Frequently-Asked-Questions)
+- [Readme contents](#quick-links)
+  - [Why?](#why)
+  - [Features](#features)
+    - [Features of the default capsicain.ini](#features-of-the-default-capsicainini)
+    - [Additional AutoHotKey Features](#additional-autohotkey-features)
+  - [Core commands](#core-commands)
+  - [What it doesn't do (currently)](#what-it-doesnt-do-currently)
+  - [Help!](#help-ive-broken-something-and-cant-use-my-keyboard)
+  - [Frequently asked questions](#frequently-asked-questions)
 # capsicain
 
 Keyboard configuration tool that re-maps keys and modifier-key-combos at a very low level.
