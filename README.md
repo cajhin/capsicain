@@ -14,7 +14,7 @@ Uses the [Interception driver](https://github.com/oblitum/Interception) to recei
 - <a href="https://github.com/cajhin/capsicain/releases">Latest release</a>
 - <a href="https://github.com/cajhin/capsicain/wiki/Installation">Install guide</a>
 - <a href="https://github.com/cajhin/capsicain/wiki">Manual</a>
-- [Readme contents]
+- Readme contents
   - [Why?](#why)
   - [Features](#features)
     - [Features of the default capsicain.ini](#features-of-the-default-capsicainini)
@@ -152,7 +152,7 @@ Earlier versions were very focused on my own configuration. Latest versions are 
 ## Help! I've broken something and can't use my keyboard! 
   - `ESC`+`X` Exits, always, in case your config makes the keyboard unusable. Capsicain doesn't have to be in the foreground to see `ESC` command combos.   
   - `ESC`+`0` Switch to Config 0 is the softer 'disable' method; it tells Capsicain to not do anything - except listen for `ESC` combos, so you can switch back to your Config 1 later.
-  - The [wiki](..\..\wiki) has information on most edits you can do
+  - The [wiki](https://github.com/cajhin/capsicain/wiki) has information on most edits you can do
 
 ## Frequently Asked Questions
   * ### Why I don't use tool X instead?
@@ -200,7 +200,7 @@ Earlier versions were very focused on my own configuration. Latest versions are 
 
 # Getting Involved
 
-Feel free to open an [issue](../../issues) to ask questions.  
+Feel free to open an [issue](https://github.com/cajhin/capsicain/issues) to ask questions.  
 I'm willing to help, and interested in ideas.  
-You're also welcome to start a [discussion](../../discussions)
+You're also welcome to start a [discussion](https://github.com/cajhin/capsicain/discussions)
 
