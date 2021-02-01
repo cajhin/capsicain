@@ -1,4 +1,4 @@
-### News: January 31, 2021 - major new v89, get it <a href="../../releases/tag/v89">here</a>.
+### News: January 2021 - major new versions v79 and v89, get it <a href="https://github.com/cajhin/capsicain/releases">here</a>.
 
 # capsicain
 
@@ -11,9 +11,9 @@ Uses the [Interception driver](https://github.com/oblitum/Interception) to recei
 
 ## Quick links
 
-- <a href="../../releases/latest">Latest release</a>
-- <a href="../../wiki/Installation">Install guide</a>
-- <a href="../../wiki">Manual</a>
+- <a href="https://github.com/cajhin/capsicain/releases">Latest release</a>
+- <a href="https://github.com/cajhin/capsicain/wiki/Installation">Install guide</a>
+- <a href="https://github.com/cajhin/capsicain/wiki">Manual</a>
 - [Readme contents]
   - [Why?](#why)
   - [Features](#features)
@@ -178,7 +178,9 @@ Earlier versions were very focused on my own configuration. Latest versions are 
       <details>
         <summary>Long version</summary>
         This is a signed driver ("keyboard driver upper filter"), another project on github. It must be installed for capsicain to work. It provides a DLL to interface with the driver.  
+  
         The filter driver does nothing (just forwards all key events from the keyboard driver to the next driver in the chain) unless a client wants to hook into the keyboard events.    
+        
         The DLL is free and open source, the driver is free but closed source (sources available for $1000. The guy wants to make some money from commercial projects - I hope he does because he did some really good work here).  
 
         Musings: Capsicain is a normal userspace app, which means you can simply start and stop it anytime. It also means it cannot talk to the keyboard driver directly, so it needs the Interception driver. This is an unavoidable complication in Windows 10, but I actually see it is a good thing: because it is not that easy, no normal application or game will do this - and this means that Capsicain is always #1 in the keyboard processing chain.  
@@ -186,8 +188,8 @@ Earlier versions were very focused on my own configuration. Latest versions are 
         But but rootkit keylogger exposing all my sekrits? True that. I didn't see the source, I don't know the guy, but I sniffed around a bit and it all smells legit to me. Well, everytime you run any binary with admin privileges, it can do all this and more.
       </details>
   * ### How do I know this isn't a keylogger?
-    1. capsicain is completely open source. It does not write to disk, it does not do networking.
-    1. The Interception driver is closed (pay for) source, but I've sniffed around a bit and it all seems legit to me
+    1. capsicain is completely open source. It does not write to disk, it does not do any networking.
+    1. The Interception driver is closed (pay for) source, but it is an established project, and after looking into it, it all seems legit to me.
     1. Reading keyboard input is possible with any binary you run with admin privileges, this caution should be applied universally.
   * ### What are the current limitations?
     - Double-taps are not configurable
