@@ -537,6 +537,7 @@ bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[5], std
         vector<string> params = stringSplit(funcParams, '_');
         bool downkeys[256] = { 0 };
         const string SLEEP_TAG = "sleep:";
+        const string CONFIGSWITCH_TAG = "configswitch:";
 
         for (string param : params)
         {
@@ -572,6 +573,22 @@ bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[5], std
                 }
                 strokeSeq.push_back({ VK_CPS_SLEEP, true });
                 strokeSeq.push_back({ stime, true });
+                continue;
+            }
+            //handle the "configswitch:2" items
+            if (stringStartsWith(param, CONFIGSWITCH_TAG)) {
+                string configParam = param.substr(CONFIGSWITCH_TAG.length());
+                int configuration = stoi(configParam);
+                if (configuration > 9) {
+                    cout << endl << "Sequence() defines configswitch: > 9. Not switching.";
+                    continue;
+                }
+                if (configuration < 0) {
+                    cout << endl << "Sequence() defines configswitch: < 0. Not switching.";
+                    continue;
+                }
+                strokeSeq.push_back({VK_CPS_CONFIGSWITCH, true});
+                strokeSeq.push_back({configuration, true});
                 continue;
             }
             int isc = getVcode(param, scLabels);
