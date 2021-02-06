@@ -10,20 +10,32 @@
 #include "scancodes.h"
 
 //set the actual LED
-int ledSendCommand(HANDLE hKeyboard, UINT ledKeySC, bool ledOn)
+int ledSendCommand(HANDLE hKeyboard, USHORT ledFlags)
 {
     KEYBOARD_INDICATOR_PARAMETERS InputBuffer;    // Input buffer for DeviceIoControl
     ULONG               DataLength = sizeof(KEYBOARD_INDICATOR_PARAMETERS);
     ULONG               ReturnedLength; // Number of bytes returned in output buffer
 
-    //LED query always returns 0 for UnitId 0 - the HP laptop keyboard has no LED indicators.
-    //// Preserve current indicators' state
-    //KEYBOARD_INDICATOR_PARAMETERS OutputBuffer;   // Output buffer for DeviceIoControl
-    //if (!DeviceIoControl(hKeyboard, IOCTL_KEYBOARD_QUERY_INDICATORS,
-    //    &InputBuffer, DataLength,
-    //    &OutputBuffer, DataLength,
-    //    &ReturnedLength, NULL))
-    //    return GetLastError();
+    InputBuffer.LedFlags = ledFlags;
+    IFTRACE std::cout << std::endl << "LED out:" << std::hex << InputBuffer.LedFlags;
+
+    InputBuffer.UnitId = 0;
+    if (!DeviceIoControl(hKeyboard, IOCTL_KEYBOARD_SET_INDICATORS,
+        &InputBuffer, DataLength,
+        NULL, 0, &ReturnedLength, NULL))
+        return GetLastError();
+
+    return 0;
+}
+
+//toggles the specified LED on all attached keyboards
+//possible LEDs:  SC_CAPS, SC_SCRLOCK, SC_NUMLOCK
+bool WINAPI setLED(UINT ledKeySC, bool ledOn)
+{
+    USHORT ledFlags = 0;
+    UINT nDevices = 0;
+    PRAWINPUTDEVICELIST pRawInputDeviceList;
+    UINT dlSize = sizeof(RAWINPUTDEVICELIST);
 
     //check the actual state of all LED keys, because keyboard0 may not have LEDs (always returns 0)
     int ledBitmask = 0;
@@ -46,25 +58,7 @@ int ledSendCommand(HANDLE hKeyboard, UINT ledKeySC, bool ledOn)
         return false;
 
     // Real mask to be set
-    InputBuffer.LedFlags = ledOn ? ledBitmask | requestedBitmask : ledBitmask & ~requestedBitmask;
-    IFTRACE std::cout << std::endl << "LED out:" << std::hex << InputBuffer.LedFlags;
-
-    InputBuffer.UnitId = 0;
-    if (!DeviceIoControl(hKeyboard, IOCTL_KEYBOARD_SET_INDICATORS,
-        &InputBuffer, DataLength,
-        NULL, 0, &ReturnedLength, NULL))
-        return GetLastError();
-
-    return 0;
-}
-
-//toggles the specified LED on all attached keyboards
-//possible LEDs:  SC_CAPS, SC_SCRLOCK, SC_NUMLOCK
-bool WINAPI setLED(UINT ledKeySC, bool ledOn)
-{
-    UINT nDevices = 0;
-    PRAWINPUTDEVICELIST pRawInputDeviceList;
-    UINT dlSize = sizeof(RAWINPUTDEVICELIST);
+    ledFlags = ledOn ? ledBitmask | requestedBitmask : ledBitmask & ~requestedBitmask;
 
     //get a list of all hardware devices
     if (GetRawInputDeviceList(NULL, &nDevices, dlSize) != 0)
@@ -101,7 +95,7 @@ bool WINAPI setLED(UINT ledKeySC, bool ledOn)
                 continue;
             }            
 
-            int res = ledSendCommand(hKeyboard, ledKeySC, ledOn);
+            int res = ledSendCommand(hKeyboard, ledFlags);
             if (res != 0)
                 std::cout << std::endl << "Error: cannot set LED state: " << res;
 
