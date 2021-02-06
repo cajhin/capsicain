@@ -38,7 +38,7 @@ bool WINAPI setLED(UINT ledKeySC, bool ledOn)
     UINT dlSize = sizeof(RAWINPUTDEVICELIST);
 
     //check the actual state of all LED keys, because keyboard0 may not have LEDs (always returns 0)
-    int ledBitmask = 0;
+    USHORT ledBitmask = 0;
     if ((GetKeyState(VK_CAPITAL) & 0x0001) != 0)
         ledBitmask |= LED_BITMASK_CAPS;
     if ((GetKeyState(VK_SCROLL) & 0x0001) != 0)
@@ -47,15 +47,17 @@ bool WINAPI setLED(UINT ledKeySC, bool ledOn)
         ledBitmask |= LED_BITMASK_NUMLOCK;
 
     //modify with the requested LED
-    int requestedBitmask = 0;
+    USHORT requestedBitmask = 0;
     if (ledKeySC == SC_CAPS)
         requestedBitmask = LED_BITMASK_CAPS;
     else if (ledKeySC == SC_SCRLOCK)
         requestedBitmask = LED_BITMASK_SCRLOCK;
     else if (ledKeySC == SC_NUMLOCK)
         requestedBitmask = LED_BITMASK_NUMLOCK;
-    else
+    else if ((ledKeySC != SC_NOP)) {
+        std::cout << std::endl << "Error: cannot set LED state for scancode: " << ledKeySC;
         return false;
+    }
 
     // Real mask to be set
     ledFlags = ledOn ? ledBitmask | requestedBitmask : ledBitmask & ~requestedBitmask;
