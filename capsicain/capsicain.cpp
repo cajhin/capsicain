@@ -343,6 +343,7 @@ int main()
                 continue;
             else
             {
+                setLED(SC_NOP, true); // sync LEDs with Windows state.
                 ShowInTaskbar(); //exit
                 break;
             }
