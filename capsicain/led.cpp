@@ -10,43 +10,13 @@
 #include "scancodes.h"
 
 //set the actual LED
-int ledSendCommand(HANDLE hKeyboard, UINT ledKeySC, bool ledOn)
+int ledSendCommand(HANDLE hKeyboard, USHORT ledFlags)
 {
     KEYBOARD_INDICATOR_PARAMETERS InputBuffer;    // Input buffer for DeviceIoControl
     ULONG               DataLength = sizeof(KEYBOARD_INDICATOR_PARAMETERS);
     ULONG               ReturnedLength; // Number of bytes returned in output buffer
 
-    //LED query always returns 0 for UnitId 0 - the HP laptop keyboard has no LED indicators.
-    //// Preserve current indicators' state
-    //KEYBOARD_INDICATOR_PARAMETERS OutputBuffer;   // Output buffer for DeviceIoControl
-    //if (!DeviceIoControl(hKeyboard, IOCTL_KEYBOARD_QUERY_INDICATORS,
-    //    &InputBuffer, DataLength,
-    //    &OutputBuffer, DataLength,
-    //    &ReturnedLength, NULL))
-    //    return GetLastError();
-
-    //check the actual state of all LED keys, because keyboard0 may not have LEDs (always returns 0)
-    int ledBitmask = 0;
-    if ((GetKeyState(VK_CAPITAL) & 0x0001) != 0)
-        ledBitmask |= LED_BITMASK_CAPS;
-    if ((GetKeyState(VK_SCROLL) & 0x0001) != 0)
-        ledBitmask |= LED_BITMASK_SCRLOCK;
-    if ((GetKeyState(VK_NUMLOCK) & 0x0001) != 0)
-        ledBitmask |= LED_BITMASK_NUMLOCK;
-
-    //modify with the requested LED
-    int requestedBitmask = 0;
-    if (ledKeySC == SC_CAPS)
-        requestedBitmask = LED_BITMASK_CAPS;
-    else if (ledKeySC == SC_SCRLOCK)
-        requestedBitmask = LED_BITMASK_SCRLOCK;
-    else if (ledKeySC == SC_NUMLOCK)
-        requestedBitmask = LED_BITMASK_NUMLOCK;
-    else
-        return false;
-
-    // Real mask to be set
-    InputBuffer.LedFlags = ledOn ? ledBitmask | requestedBitmask : ledBitmask & ~requestedBitmask;
+    InputBuffer.LedFlags = ledFlags;
     IFTRACE std::cout << std::endl << "LED out:" << std::hex << InputBuffer.LedFlags;
 
     InputBuffer.UnitId = 0;
@@ -60,11 +30,41 @@ int ledSendCommand(HANDLE hKeyboard, UINT ledKeySC, bool ledOn)
 
 //toggles the specified LED on all attached keyboards
 //possible LEDs:  SC_CAPS, SC_SCRLOCK, SC_NUMLOCK
+//  SC_NOP resets the LEDs to the actual key state
 bool WINAPI setLED(UINT ledKeySC, bool ledOn)
 {
+    USHORT ledFlags = 0;
     UINT nDevices = 0;
     PRAWINPUTDEVICELIST pRawInputDeviceList;
     UINT dlSize = sizeof(RAWINPUTDEVICELIST);
+
+    //check the actual state of all LED keys, because keyboard may not have LEDs (always returns LED state 0)
+    USHORT ledBitmask = 0;
+    if ((GetKeyState(VK_CAPITAL) & 0x0001) != 0)
+        ledBitmask |= LED_BITMASK_CAPS;
+    if ((GetKeyState(VK_SCROLL) & 0x0001) != 0)
+        ledBitmask |= LED_BITMASK_SCRLOCK;
+    if ((GetKeyState(VK_NUMLOCK) & 0x0001) != 0)
+        ledBitmask |= LED_BITMASK_NUMLOCK;
+
+    //modify with the requested LED
+    USHORT requestedBitmask = 0;
+    if (ledKeySC == SC_CAPS)
+        requestedBitmask = LED_BITMASK_CAPS;
+    else if (ledKeySC == SC_SCRLOCK)
+        requestedBitmask = LED_BITMASK_SCRLOCK;
+    else if (ledKeySC == SC_NUMLOCK)
+        requestedBitmask = LED_BITMASK_NUMLOCK;
+    else if ((ledKeySC == SC_NOP)) 
+        requestedBitmask = 0;
+    else
+    {
+        std::cout << std::endl << "Error: cannot set LED state for scancode: " << ledKeySC;
+        return false;
+    }
+
+    // Real mask to be set
+    ledFlags = ledOn ? ledBitmask | requestedBitmask : ledBitmask & ~requestedBitmask;
 
     //get a list of all hardware devices
     if (GetRawInputDeviceList(NULL, &nDevices, dlSize) != 0)
@@ -101,7 +101,7 @@ bool WINAPI setLED(UINT ledKeySC, bool ledOn)
                 continue;
             }            
 
-            int res = ledSendCommand(hKeyboard, ledKeySC, ledOn);
+            int res = ledSendCommand(hKeyboard, ledFlags);
             if (res != 0)
                 std::cout << std::endl << "Error: cannot set LED state: " << res;
 

@@ -196,6 +196,7 @@ v88: fix BOM handling
 
 v89: new release
 
+v90: merged bitoj's pull request #33 : LED reset on exit
 
 
 lic:
