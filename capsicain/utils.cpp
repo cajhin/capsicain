@@ -249,7 +249,7 @@ std::string stringGetRestBehindFirstToken(std::string line)
     line.erase(0, line.find_first_not_of(' '));
     size_t idx = line.find_first_of(" ");
     if (idx == string::npos)
-        return(line);
+        return("");
     line = line.substr(idx);
     line.erase(0, line.find_first_not_of(' '));
     return line;

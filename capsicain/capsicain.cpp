@@ -444,6 +444,25 @@ void betaTest() //ESC+B
 {
     setLED(SC_CAPS, true);
 
+    //test SendInput
+    //{
+    //    // Create a keyboard event structure
+    //    INPUT ip;
+    //    ip.type = INPUT_KEYBOARD;
+    //    ip.ki.time = 0;
+    //    ip.ki.dwExtraInfo = 0;
+
+    //    // Press a unicode "key"
+    //    ip.ki.dwFlags = KEYEVENTF_UNICODE;
+    //    ip.ki.wVk = 0;
+    //    ip.ki.wScan = 0x0E8; // è
+    //    SendInput(1, &ip, sizeof(INPUT));
+
+    //    // Release key
+    //    ip.ki.dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP;
+    //    SendInput(1, &ip, sizeof(INPUT));
+    //}
+
     ////flip icon
     //options.debug = !options.debug;
     //bool res = ShowInTraybar(options.debug, globalState.recordingMacro >= 0, globalState.activeConfig);

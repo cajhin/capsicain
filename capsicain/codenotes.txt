@@ -198,6 +198,7 @@ v89: new release
 
 v90: merged bitoj's pull request #33 : LED reset on exit
 
+v91: fix issue #35 (alpha_from, alpha_to)
 
 lic:
 - any problem is your problem
