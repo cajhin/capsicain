@@ -85,14 +85,14 @@ bool WINAPI setLED(UINT ledKeySC, bool ledOn)
     {
         if (pRawInputDeviceList[devNum].dwType == RIM_TYPEKEYBOARD)
         {
-            std::cout << std::endl << devNum << " = keyboard";
+            IFTRACE std::cout << std::endl << devNum << " = keyboard";
 
             char DeviceName[256] = "";
             unsigned int DeviceNameLength = 256;
 
             GetRawInputDeviceInfo(pRawInputDeviceList[devNum].hDevice, RIDI_DEVICENAME, NULL, &DeviceNameLength);
             GetRawInputDeviceInfo(pRawInputDeviceList[devNum].hDevice, RIDI_DEVICENAME, DeviceName, &DeviceNameLength);
-            std::cout << std::endl << devNum << "-" << DeviceName;
+            IFTRACE std::cout << std::endl << devNum << "-" << DeviceName;
 
             HANDLE hKeyboard = CreateFileA(DeviceName, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
             if (hKeyboard == INVALID_HANDLE_VALUE)

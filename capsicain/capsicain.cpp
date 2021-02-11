@@ -217,8 +217,6 @@ int main()
     else if (globals.startMinimized)
         ShowInTaskbarMinimized();
 
-    resetCapsNumScrollLock();
-
     if (globals.capsicainOnOffKey == SC_NUMLOCK
         || globals.capsicainOnOffKey == SC_SCRLOCK
         || globals.capsicainOnOffKey == SC_CAPS)
@@ -297,7 +295,6 @@ int main()
         {
             getHardwareId();
             cout << endl << "new keyboard: " << (globalState.deviceIsAppleKeyboard ? "Apple keyboard" : "IBM keyboard") << endl;
-            resetCapsNumScrollLock();
             interceptionState.previousInterceptionDevice = interceptionState.interceptionDevice;
         }
 
@@ -845,6 +842,7 @@ bool processCommand()
     {
         cout << endl << endl << "::RESET STATE";
         reset();
+        resetCapsNumScrollLock();
         break;
     }
     case SC_T:
@@ -1463,7 +1461,6 @@ void resetCapsNumScrollLock()
 
 void reset()
 {
-    resetCapsNumScrollLock();
     releaseAllSentKeys();
 
     loopState = defaultLoopState;
@@ -2004,9 +2001,11 @@ void sendVKeyEvent(VKeyEvent keyEvent)
     if (globals.capsicainOnOffKey >0 
         && keyEvent.isDownstroke
         && (globals.capsicainOnOffKey == SC_NUMLOCK || globals.capsicainOnOffKey == SC_SCRLOCK || globals.capsicainOnOffKey == SC_CAPS)
-        && (keyEvent.vcode == SC_NUMLOCK || keyEvent.vcode == SC_SCRLOCK || keyEvent.vcode == SC_CAPS || keyEvent.vcode == SC_ESCAPE)
+        && (keyEvent.vcode == SC_NUMLOCK || keyEvent.vcode == SC_SCRLOCK || keyEvent.vcode == SC_CAPS ) 
+        //does ESC reset ScrLock on some KBs? In that case re-enable ESC check  || keyEvent.vcode == SC_ESCAPE)
         )
     {
+        Sleep(50); //give Windows time to register e.g. NumLock key event, since soon we will query its state
         setLED(globals.capsicainOnOffKey, true);
     }
 }
