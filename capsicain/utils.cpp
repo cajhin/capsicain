@@ -86,7 +86,7 @@ string startProgram(string processName, string dir)
     }
     else
     {
-        ShellExecuteA(NULL, "open", processName.c_str(), NULL, dir.c_str(), SW_SHOWDEFAULT);
+        ShellExecuteA(NULL, "open", path.c_str(), NULL, dir.c_str(), SW_SHOWDEFAULT);
     }
     return ret;
 }
