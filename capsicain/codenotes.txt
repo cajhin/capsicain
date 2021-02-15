@@ -200,10 +200,12 @@ v90: merged bitoj's pull request #33 : LED reset on exit
 
 v91: fix issue #35 (alpha_from, alpha_to)
 
-v92: fix issue #32 (no 'locking key' state reset; LED handling was broken)
+v92: fix issue #32 (no 'locking key' state reset; fix LED handling)
 - only reset the state of (Caps|Scr|Num)Lock on ESC+Backspace; not on startup, shutdown, KB change
 - ESC does *not* reset ScrLock on Cherry, don't set LEDs on Esc (might have been confusion from the LED code)
 - (send NumLock), then (get Windows NumLock state) was too fast for Win to register the change.
+
+v93: merge bitoj's fixes
 
 lic:
 - any problem is your problem
