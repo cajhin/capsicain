@@ -691,6 +691,8 @@ void processRewireScancodeToVirtualcode()
                 if (modBitmask != 0)
                     modifierState.modifierDown &= ~modBitmask; //undo previous key down, e.g. clear internal 'MOD10 is down'
             }
+            //clear deadkey
+            modifierState.activeDeadkey = 0;
             //send ifTapped key
             loopState.vcode = rewtapkey;
             loopState.resultingVKeyEventSequence.push_back({ rewtapkey, true });
