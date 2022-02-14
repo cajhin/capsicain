@@ -1,4 +1,4 @@
-### News: January 2021 - major new versions v79 and v89, get it <a href="https://github.com/cajhin/capsicain/releases">here</a>.
+### News: February 2022 - minor fixes v93, get it <a href="https://github.com/cajhin/capsicain/releases">here</a>.
 
 # capsicain
 
