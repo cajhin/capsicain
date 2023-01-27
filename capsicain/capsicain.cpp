@@ -18,6 +18,12 @@
 
 using namespace std;
 
+
+//try out if we can play doom when we have a TMK style temp layer shift key
+int TESTING_LAYER_SHIFT_KEY = SC_APPS;
+int TESTING_LAYER_SHIFT_TO = 9;     // tmp shift to this layer
+int TESTING_LAYER_SHIFT_FROM = -1;  // original layer. <0 means undefined
+
 string PRETTY_VK_LABELS[MAX_VCODES]; // contains e.g. [SC_ESCAPE]="ESC"; all VKs incl. > 0xFF
 
 vector<string> sanitizedIniContent;  //loaded on startup and reset
@@ -345,6 +351,31 @@ int main()
             }
         }
 
+        //TESTING the layer shift feature
+        if (loopState.vcode == TESTING_LAYER_SHIFT_KEY)
+        {
+            if (loopState.isDownstroke)
+            {
+                if (globalState.activeConfig != TESTING_LAYER_SHIFT_TO)
+                {
+                    TESTING_LAYER_SHIFT_FROM = globalState.activeConfig;
+                    switchConfig(TESTING_LAYER_SHIFT_TO, false);
+                }
+            }
+            else if (TESTING_LAYER_SHIFT_FROM >= 0)
+            {
+                if (TESTING_LAYER_SHIFT_FROM != globalState.activeConfig)
+                {
+                    switchConfig(TESTING_LAYER_SHIFT_FROM, false);
+                }
+
+                TESTING_LAYER_SHIFT_FROM = -1;
+            }
+
+            continue;
+        }
+
+        
         //Config 0: standard keyboard, no further processing, just forward everything
         if (globalState.activeConfig == DISABLED_CONFIG_NUMBER)
         {
