@@ -1,4 +1,4 @@
-### December 2022: Windows 11 update 22H2 breaks *minimize to tray*, see Wiki for a <a href="https://github.com/cajhin/capsicain/wiki/Installation#windows-11-version-22h2-cannot-minimize-to-tray">fix</a>
+### December 2022: Windows 11 update 22H2 breaks *minimize to tray*, see Wiki for a <a href="https://github.com/cajhin/capsicain/wiki/X-doesn't-work#windows-11-version-22h2-cannot-minimize-to-tray">fix</a>
 
 # capsicain
 
