@@ -1,6 +1,7 @@
 Ongoing stream of what I want to remember...
 
 TODO
+- finish v94, what about shiftconfig and fluid key repeat for gaming?
 - timeout for tappings, deadkeys?
 - nicer macro 'language'
 - accented altChars should not ignore CapsLock ON

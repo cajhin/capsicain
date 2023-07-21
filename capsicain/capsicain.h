@@ -26,6 +26,7 @@ void keySequenceAppendMakeBreakKey(unsigned short scancode, std::vector<VKeyEven
 std::string getSymbolForIKStrokeState(unsigned short state);
 
 bool processOnOffKey();
+void InterceptionSendCurrentKeystroke();
 bool processCommand();
 void processModifierState();
 bool processMessyKeys();

@@ -20,9 +20,11 @@ using namespace std;
 
 
 //try out if we can play doom when we have a TMK style temp layer shift key
+/*
 int TESTING_LAYER_SHIFT_KEY = SC_APPS;
 int TESTING_LAYER_SHIFT_TO = 9;     // tmp shift to this layer
 int TESTING_LAYER_SHIFT_FROM = -1;  // original layer. <0 means undefined
+*/
 
 string PRETTY_VK_LABELS[MAX_VCODES]; // contains e.g. [SC_ESCAPE]="ESC"; all VKs incl. > 0xFF
 
@@ -97,6 +99,9 @@ struct GlobalState
     bool realEscapeIsDown = false;
 
     string deviceIdKeyboard = "";
+    string includeDeviceId = "";
+    string excludeDeviceId = "";
+
     bool deviceIsAppleKeyboard = false;
 
     int keysDownSentCounter = 0;  //tracks how many keys are actually down that Windows knows about
@@ -182,6 +187,11 @@ string getPrettyVKLabelPadded(int vcode, int resultLength)
 string getPrettyVKLabel(int vcode)
 {
     return PRETTY_VK_LABELS[vcode];
+}
+
+void InterceptionSendCurrentKeystroke()
+{
+    interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke*)&interceptionState.currentIKstroke, 1);
 }
 
 int main()
@@ -279,7 +289,7 @@ int main()
         //if disabled, just forward
         if (!globalState.capsicainOn)
         {
-            interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke*)&interceptionState.currentIKstroke, 1);
+            InterceptionSendCurrentKeystroke();
             continue;
         }
 
@@ -291,11 +301,11 @@ int main()
             && (interceptionState.previousInterceptionDevice != interceptionState.interceptionDevice))
         {
             IFDEBUG cout << endl << "Ignore 2nd board (" << interceptionState.interceptionDevice << ") scancode: " << interceptionState.currentIKstroke.code;
-            interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke *)&interceptionState.currentIKstroke, 1);
+            InterceptionSendCurrentKeystroke();
             continue;
         }
 
-        //check for Apple Keyboard / device ID
+        //device id changed / check for Apple Keyboard
         if (interceptionState.previousInterceptionDevice == NULL    //startup
             || interceptionState.previousInterceptionDevice != interceptionState.interceptionDevice)  //keyboard changed
         {
@@ -352,6 +362,7 @@ int main()
         }
 
         //TESTING the layer shift feature
+        /*
         if (loopState.vcode == TESTING_LAYER_SHIFT_KEY)
         {
             if (loopState.isDownstroke)
@@ -374,14 +385,32 @@ int main()
 
             continue;
         }
-
+        */
         
         //Config 0: standard keyboard, no further processing, just forward everything
         if (globalState.activeConfig == DISABLED_CONFIG_NUMBER)
         {
-            interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke *)&interceptionState.currentIKstroke, 1);
+            InterceptionSendCurrentKeystroke();
             continue;
         }
+
+        //consider include/exclude deviceID options
+        if (!globalState.includeDeviceId.empty()
+            && globalState.deviceIdKeyboard.find(globalState.includeDeviceId) == string::npos)
+        {
+            IFDEBUG cout << endl << "Ignore board, deviceId is not included with this config";
+            InterceptionSendCurrentKeystroke();
+            continue;
+        }
+        if (!globalState.excludeDeviceId.empty()
+            && globalState.deviceIdKeyboard.find(globalState.excludeDeviceId) != string::npos)
+        {
+            IFDEBUG cout << endl << "Ignore board, deviceId is excluded in this config";
+            InterceptionSendCurrentKeystroke();
+            continue;
+        }
+
+
 
         //flip Win+Alt only for Apple keyboards.
         if (options.flipAltWinOnAppleKeyboards && globalState.deviceIsAppleKeyboard)
@@ -1050,12 +1079,13 @@ void getHardwareId()
         else
             id = "UNKNOWN_ID";
 
+        id = stringToLower(id);
         globalState.deviceIdKeyboard = id;
-        globalState.deviceIsAppleKeyboard = (id.find("VID_05AC") != string::npos) || (id.find("VID&000205ac") != string::npos);
+        globalState.deviceIsAppleKeyboard = (id.find("vid_05ac") != string::npos) || (id.find("vid&000205ac") != string::npos);
 
         IFDEBUG cout << endl << endl << "getHardwareId:" << id << " / Apple keyboard: " << globalState.deviceIsAppleKeyboard;
     }
-}
+ }
 
 
 bool initConsoleWindow()
@@ -1192,6 +1222,16 @@ bool parseIniOptions(std::vector<std::string> assembledIni)
         else if (token == "processonlyfirstkeyboard")
         {
             options.processOnlyFirstKeyboard = true;
+        }
+        else if (token == "includedeviceid")
+        {
+            globalState.includeDeviceId = stringGetRestBehindFirstToken(line);
+            cout << endl << "INFO: this layer is active for devices whose ID contains '" << globalState.includeDeviceId << "'";
+        }
+        else if (token == "excludedeviceid")
+        {
+            globalState.excludeDeviceId = stringGetRestBehindFirstToken(line);
+            cout << endl << "INFO: this layer is active for devices whose ID does NOT contain '" << globalState.excludeDeviceId << "'";
         }
         else if (token == "delayforkeysequencems")
         {
@@ -1510,6 +1550,7 @@ void reset()
 
     GlobalState tmp = globalState; //some settings shall survive the reset
     globalState = defaultGlobalState;
+    globalState.deviceIdKeyboard = tmp.deviceIdKeyboard;
     globalState.activeConfig = tmp.activeConfig;
     globalState.activeConfigName = tmp.activeConfigName;
     globalState.previousConfig = tmp.previousConfig;
@@ -1567,11 +1608,11 @@ void printOptions()
 {
     cout
         << endl << endl << "OPTIONs"
-        << endl << (options.debug ? "ON*:" : "off:    ") << " debug output for each key event"
-        << endl << (options.flipZy ? "ON*:" : "off:    ") << " Z <-> Y"
-        << endl << (options.flipAltWinOnAppleKeyboards ? "ON*:" : "off:    ") << " Alt <-> Win for Apple keyboards"
-        << endl << (options.LControlLWinBlocksAlphaMapping ? "ON*:" : "off:    ") << " Left Control and Win block alpha key mapping ('Ctrl + C is never changed')"
-        << endl << (options.processOnlyFirstKeyboard ? "ON*:" : "off:    ") << " Process only the keyboard that sent the first key"
+        << endl << (options.debug ? "ON :" : "off: --") << " debug output for each key event"
+        << endl << (options.flipZy ? "ON :" : "off: --") << " Z <-> Y"
+        << endl << (options.flipAltWinOnAppleKeyboards ? "ON :" : "off: --") << " Alt <-> Win for Apple keyboards"
+        << endl << (options.LControlLWinBlocksAlphaMapping ? "ON :" : "off: --") << " Left Control and Win block alpha key mapping ('Ctrl + C is never changed')"
+        << endl << (options.processOnlyFirstKeyboard ? "ON :" : "off: --") << " Process only the keyboard that sent the first key"
         << endl
         ;
 }
@@ -1589,7 +1630,7 @@ void printStatus()
         << "ini version: " << globals.iniVersion << endl
         << "active config: " << globalState.activeConfig << " = " << globalState.activeConfigName << endl
         << "Capsicain on/off key: [" << (globals.capsicainOnOffKey >= 0 ? getPrettyVKLabel(globals.capsicainOnOffKey) : "(not defined)") << "]" << endl
-        << "keyboard hardware id: " << globalState.deviceIdKeyboard << endl
+        << "keyboard device id: " << globalState.deviceIdKeyboard << endl
         << "Apple keyboard: " << globalState.deviceIsAppleKeyboard << endl
         << "delay between keys in sequences (ms): " << options.delayForKeySequenceMS << endl
         << "number of keys-down sent: " << dec <<   numMakeSent << endl
