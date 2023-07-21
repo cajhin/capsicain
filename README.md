@@ -1,4 +1,4 @@
-### July 2023: v95 new option to include/exclude specific keyboards, see <a href="https://github.com/cajhin/capsicain/wiki/Keyword%3A-OPTION/_edit#option-includedeviceid-searchstring">IncludeDeviceId</a>
+### July 2023: v95 new option to include/exclude specific keyboards, see <a href="https://github.com/cajhin/capsicain/wiki/Keyword%3A-OPTION#option-includedeviceid-searchstring">IncludeDeviceId</a>
 ### December 2022: Windows 11 update 22H2 breaks *minimize to tray*, see Wiki for a <a href="https://github.com/cajhin/capsicain/wiki/X-doesn't-work#windows-11-version-22h2-cannot-minimize-to-tray">fix</a>
 
 # capsicain
