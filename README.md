@@ -186,7 +186,6 @@ Earlier versions were very focused on my own configuration. Latest versions are 
 
         Musings: Capsicain is a normal userspace app, which means you can simply start and stop it anytime. It also means it cannot talk to the keyboard driver directly, so it needs the Interception driver. This is an unavoidable complication in Windows 10, but I actually see it is a good thing: because it is not that easy, no normal application or game will do this - and this means that Capsicain is always #1 in the keyboard processing chain.  
 
-        But but rootkit keylogger exposing all my sekrits? True that. I didn't see the source, I don't know the guy, but I sniffed around a bit and it all smells legit to me. Well, everytime you run any binary with admin privileges, it can do all this and more.
       </details>
   * ### How do I know this isn't a keylogger?
     1. capsicain is completely open source. It does not write to disk, it does not do any networking.
