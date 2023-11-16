@@ -325,10 +325,10 @@ int main()
             cout << endl
                 << "<" << endl
                 << "new keyboard: " << (globalState.deviceIsAppleKeyboard ? "Apple keyboard" : "IBM keyboard") << endl
-                << "new keyboard count: " << interceptionState.newKeyboardCounter << endl
+                << "new keyboard count: " << ++interceptionState.newKeyboardCounter << endl
                 << "keyboard device id: " << globalState.deviceIdKeyboard << endl
                 << "interceptionDevice: " << interceptionState.interceptionDevice << endl
-                << getTimestamp() << endl
+                << getTimestamp()
                 << ">" << endl;
 
 
