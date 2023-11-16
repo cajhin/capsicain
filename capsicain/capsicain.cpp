@@ -15,9 +15,9 @@
 #include "scancodes.h"
 #include "resource.h"
 #include "led.h"
+#include <chrono>
 
 using namespace std;
-
 
 //try out if we can play doom when we have a TMK style temp layer shift key
 /*
@@ -80,6 +80,7 @@ struct AllMaps
 
 struct InterceptionState
 {
+    int newKeyboardCounter = 0;
     InterceptionContext interceptionContext = NULL;
     InterceptionDevice interceptionDevice = NULL;
     InterceptionDevice previousInterceptionDevice = NULL;
@@ -176,6 +177,16 @@ void error(string txt)
     cout << endl << "ERROR: " << txt << endl;
     errorLog += "\r\n" + txt;
 }
+
+string getTimestamp()
+{
+    auto start = std::chrono::system_clock::now();
+    auto legacyStart = std::chrono::system_clock::to_time_t(start);
+    char tmBuff[30];
+    ctime_s(tmBuff, sizeof(tmBuff), &legacyStart);
+    return tmBuff;
+}
+
 
 string getPrettyVKLabelPadded(int vcode, int resultLength)
 {
@@ -310,7 +321,18 @@ int main()
             || interceptionState.previousInterceptionDevice != interceptionState.interceptionDevice)  //keyboard changed
         {
             getHardwareId();
-            cout << endl << "new keyboard: " << (globalState.deviceIsAppleKeyboard ? "Apple keyboard" : "IBM keyboard") << endl;
+            //detail to debug the "new device after sleep, reboot after 10 new devices"
+            cout << endl
+                << "<" << endl
+                << "new keyboard: " << (globalState.deviceIsAppleKeyboard ? "Apple keyboard" : "IBM keyboard") << endl
+                << "new keyboard count: " << interceptionState.newKeyboardCounter << endl
+                << "keyboard device id: " << globalState.deviceIdKeyboard << endl
+                << "interceptionDevice: " << interceptionState.interceptionDevice << endl
+                << getTimestamp() << endl
+                << ">" << endl;
+
+
+
             interceptionState.previousInterceptionDevice = interceptionState.interceptionDevice;
         }
 
