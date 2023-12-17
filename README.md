@@ -37,7 +37,7 @@ Earlier versions were very focused on my own configuration. Latest versions are 
 - It just works. Everywhere.  
     - Like a hardware programmable keyboard, Capsicain can view and remap key strokes before anyone else does.
 
-- Can remap EVERY key that is sent out by the keyboard. 
+- Can remap every key that is sent out by the keyboard. (Excptions: 'media keys' that are not registered as keypresses, and the ESC key).
 
 - Almost everything is configurable via config file.   
   - Nine separate configs, switch with `ESC` + `<1-9>`.   
