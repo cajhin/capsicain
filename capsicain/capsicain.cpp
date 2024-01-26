@@ -535,7 +535,7 @@ void betaTest() //ESC+B
     //    // Press a unicode "key"
     //    ip.ki.dwFlags = KEYEVENTF_UNICODE;
     //    ip.ki.wVk = 0;
-    //    ip.ki.wScan = 0x0E8; // �
+    //    ip.ki.wScan = 0x0E8; // è
     //    SendInput(1, &ip, sizeof(INPUT));
 
     //    // Release key
