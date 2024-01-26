@@ -2012,8 +2012,6 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
         {
             if(globalState.secretSequencePlayback)
                 sendVKeyEvent({ deObfuscateVKey(keyEvent.vcode) , keyEvent.isDownstroke });
-            else if(vc < 256 && globalState.holdKeys[vc] > 0)
-                sendVKeyEvent({ globalState.holdKeys[vc], keyEvent.isDownstroke });
             else
                 sendVKeyEvent(keyEvent);
             if (vc == AHK_HOTKEY1 || vc == AHK_HOTKEY2)
