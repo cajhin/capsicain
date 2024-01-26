@@ -5,6 +5,7 @@
 #include <iomanip>
 #include <chrono>
 #include <vector>
+#include <set>
 #include <algorithm>
 #include <string>
 #include <Windows.h>  //for Sleep()
@@ -108,7 +109,7 @@ struct GlobalState
     int keysDownSentCounter = 0;  //tracks how many keys are actually down that Windows knows about
     bool keysDownSent[256] = { false };  //Remember all forwarded to Windows. Sent keys must be 8 bit
     bool keysDownTempReleased[256] = { false };  //Remember all keys that were temporarily released, e.g. to send an Alt-Numpad combo
-    int holdKeys[256] = { 0 };  //Remember all replaced hold() keys while the physical key is still down
+    set<int> holdKeys[256];  //Remember all replaced hold() keys while the physical key is still down
 
     bool secretSequenceRecording = false;
     bool secretSequencePlayback = false;
@@ -1960,7 +1961,8 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
             case VK_CPS_HOLDKEY:
             {
                 IFTRACE cout << endl << "vk_cps_holdkey: " << getPrettyVKLabelPadded(loopState.scancode, 0) << " -> " << getPrettyVKLabelPadded(vc, 0);
-                globalState.holdKeys[loopState.scancode] = vc;
+                globalState.holdKeys[loopState.scancode].emplace(vc);
+                sendVKeyEvent(keyEvent, loopState.scancode == vc);
                 break;
             }
             default:
@@ -2028,7 +2030,7 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
 }
 
 
-void sendVKeyEvent(VKeyEvent keyEvent)
+void sendVKeyEvent(VKeyEvent keyEvent, bool hold)
 {
     IFTRACE cout << endl << "sendVkeyEvent(" << keyEvent.vcode << ")";
     if (keyEvent.vcode < 0)
@@ -2047,13 +2049,23 @@ void sendVKeyEvent(VKeyEvent keyEvent)
         return;
     }
 
-    if (globalState.holdKeys[keyEvent.vcode])
+    if (globalState.holdKeys[keyEvent.vcode].size() && hold)
     {
         int code = keyEvent.vcode;
-        IFDEBUG cout << " {" << (keyEvent.isDownstroke ? "holding " : "released ") << PRETTY_VK_LABELS[code] << " -> " << PRETTY_VK_LABELS[globalState.holdKeys[code]] << "}";
-        keyEvent.vcode = globalState.holdKeys[code];
-        if (!keyEvent.isDownstroke)
-            globalState.holdKeys[code] = 0;
+        IFDEBUG cout << " {" << PRETTY_VK_LABELS[code] << (keyEvent.isDownstroke ? " holding " : " released ") << globalState.holdKeys[code].size() << "}";
+        if (keyEvent.isDownstroke)
+        {
+            for (auto it = globalState.holdKeys[code].begin(); it != globalState.holdKeys[code].end(); ++it)
+                sendVKeyEvent({*it, true}, false);
+        }
+        else
+        {
+            for (auto it = globalState.holdKeys[code].rbegin(); it != globalState.holdKeys[code].rend(); ++it)
+                sendVKeyEvent({*it, false}, false);
+            globalState.holdKeys[code].clear();
+        }
+        keyEvent.vcode = 0;
+        return;
     }
 
     unsigned char scancode = (unsigned char) keyEvent.vcode;

@@ -39,7 +39,7 @@ void playKeyEventSequence(std::vector<VKeyEvent> keyEventSequence);
 
 void printOptions();
 
-void sendVKeyEvent(VKeyEvent keyEvent);
+void sendVKeyEvent(VKeyEvent keyEvent, bool hold = true);
 
 void sendResultingKeyOrSequence();
 

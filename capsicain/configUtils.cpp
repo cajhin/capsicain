@@ -480,12 +480,14 @@ bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[5], std
     }
     else if (funcName == "hold")
     {
-        int isc = getVcode(funcParams, scLabels);
-        if (isc < 0)
-            return false;
-        strokeSeq.push_back({ isc, true });
-        strokeSeq.push_back({ VK_CPS_HOLDKEY, true });
-        strokeSeq.push_back({ isc, true });
+        for (auto param : stringSplit(funcParams, '_'))
+        {
+            int isc = getVcode(param, scLabels);
+            if (isc <= 0)
+                continue;
+            strokeSeq.push_back({ VK_CPS_HOLDKEY, true });
+            strokeSeq.push_back({ isc, true });
+        }
     }
     else if (funcName == "combo")
     {
