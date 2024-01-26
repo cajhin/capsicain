@@ -136,7 +136,7 @@ enum ScanCode {
     SC_CALCULATOR = 0xA1, // Calculator
     SC_PLAYPAUSE = 0xA2, // Play / Pause
     SC_MEDIASTOP = 0xA4, // Media Stop
-    SC_E0LSHF = 0xAA, // produced by Print key without modifier. '²' on French AZERTY keyboard (same place as ~ ` on QWERTY)
+    SC_E0LSHF = 0xAA, // produced by Print key without modifier. 'ï¿½' on French AZERTY keyboard (same place as ~ ` on QWERTY)
     SC_VOLUMEDOWN = 0xAE, // Volume -
     SC_VOLUMEUP = 0xB0, // Volume +
     SC_WEBHOME = 0xB2, // Web home
@@ -197,6 +197,7 @@ enum VirtualCode
     VK_CPS_PLAYMACRO = 0x114,
     VK_CPS_OBFUSCATED_SEQUENCE_START = 0x115,
     VK_CPS_PAUSE = 0x116, // not a real scancode; Cherry Pause key sends an escaped key combo E1 LCTRL NUMLOCK
+    VK_CPS_HOLDKEY = 0x117,
 /* testing the VMK style config shift
     VK_SHFCFG0 = 0x117,  //shift config, i.e. shift back when the key is released
     VK_SHFCFG1 = 0x118,

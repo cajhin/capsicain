@@ -108,6 +108,7 @@ struct GlobalState
     int keysDownSentCounter = 0;  //tracks how many keys are actually down that Windows knows about
     bool keysDownSent[256] = { false };  //Remember all forwarded to Windows. Sent keys must be 8 bit
     bool keysDownTempReleased[256] = { false };  //Remember all keys that were temporarily released, e.g. to send an Alt-Numpad combo
+    int holdKeys[256] = { 0 };  //Remember all replaced hold() keys while the physical key is still down
 
     bool secretSequenceRecording = false;
     bool secretSequencePlayback = false;
@@ -534,7 +535,7 @@ void betaTest() //ESC+B
     //    // Press a unicode "key"
     //    ip.ki.dwFlags = KEYEVENTF_UNICODE;
     //    ip.ki.wVk = 0;
-    //    ip.ki.wScan = 0x0E8; // è
+    //    ip.ki.wScan = 0x0E8; // ï¿½
     //    SendInput(1, &ip, sizeof(INPUT));
 
     //    // Release key
@@ -833,7 +834,6 @@ void processRewireScancodeToVirtualcode()
     //update the internal modifier state
     loopState.isModifier = isModifier(loopState.vcode) ? true : false;
 }
-
 
 void processCombos()
 {
@@ -1957,6 +1957,12 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
                 }
                 break;
             }
+            case VK_CPS_HOLDKEY:
+            {
+                IFTRACE cout << endl << "vk_cps_holdkey: " << getPrettyVKLabelPadded(loopState.scancode, 0) << " -> " << getPrettyVKLabelPadded(vc, 0);
+                globalState.holdKeys[loopState.scancode] = vc;
+                break;
+            }
             default:
                 cout << endl << "BUG? unknown expectParamForFuncKey";
             }
@@ -1997,6 +2003,7 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
             || vc == VK_CPS_RECORDMACRO
             || vc == VK_CPS_RECORDSECRETMACRO
             || vc == VK_CPS_PLAYMACRO
+            || vc == VK_CPS_HOLDKEY
             )
         {
             expectParamForFuncKey = vc;
@@ -2005,6 +2012,8 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
         {
             if(globalState.secretSequencePlayback)
                 sendVKeyEvent({ deObfuscateVKey(keyEvent.vcode) , keyEvent.isDownstroke });
+            else if(vc < 256 && globalState.holdKeys[vc] > 0)
+                sendVKeyEvent({ globalState.holdKeys[vc], keyEvent.isDownstroke });
             else
                 sendVKeyEvent(keyEvent);
             if (vc == AHK_HOTKEY1 || vc == AHK_HOTKEY2)
@@ -2038,6 +2047,15 @@ void sendVKeyEvent(VKeyEvent keyEvent)
     {
         sendCapsicainCodeHandler(keyEvent);
         return;
+    }
+
+    if (globalState.holdKeys[keyEvent.vcode])
+    {
+        int code = keyEvent.vcode;
+        IFDEBUG cout << " {" << (keyEvent.isDownstroke ? "holding " : "released ") << PRETTY_VK_LABELS[code] << " -> " << PRETTY_VK_LABELS[globalState.holdKeys[code]] << "}";
+        keyEvent.vcode = globalState.holdKeys[code];
+        if (!keyEvent.isDownstroke)
+            globalState.holdKeys[code] = 0;
     }
 
     unsigned char scancode = (unsigned char) keyEvent.vcode;
