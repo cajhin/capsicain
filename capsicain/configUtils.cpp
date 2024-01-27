@@ -347,7 +347,29 @@ bool parseFunctionCombo(std::string funcParams, std::string * scLabels, std::vec
     return true;
 }
 
-bool parseFunctionModdedkey(std::string funcParams, std::string  scLabels[], std::vector<VKeyEvent> &strokeSeq)
+bool parseFunctionHold(std::string funcParams, std::string * scLabels, std::vector<VKeyEvent> &strokeSeq)
+{
+    //fix 'NP+ + X'
+    bool nppFound = stringReplace(funcParams, "np+", "np@");
+    vector<string> labels = stringSplit(funcParams, '+');
+    if (nppFound)
+        for (int i = 0; i < labels.size(); i++)
+            if (labels[i] == "np@")
+                labels[i] = "np+";
+
+    int isc;
+    for (string label : labels)
+    {
+        isc = getVcode(label, scLabels);
+        if (isc < 0)
+            return false;
+        strokeSeq.push_back({ VK_CPS_HOLDKEY, true });
+        strokeSeq.push_back({ (unsigned char)isc, true });
+    }
+    return true;
+}
+
+bool parseFunctionModdedkey(std::string funcParams, std::string * scLabels, std::vector<VKeyEvent> &strokeSeq)
 {
     //fix 'NP+ + X'
     bool nppFound = stringReplace(funcParams, "np+", "np@");
@@ -480,14 +502,8 @@ bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[5], std
     }
     else if (funcName == "hold")
     {
-        for (auto param : stringSplit(funcParams, '_'))
-        {
-            int isc = getVcode(param, scLabels);
-            if (isc <= 0)
-                continue;
-            strokeSeq.push_back({ VK_CPS_HOLDKEY, true });
-            strokeSeq.push_back({ isc, true });
-        }
+        if (!parseFunctionHold(funcParams, scLabels, strokeSeq))
+            return false;
     }
     else if (funcName == "combo")
     {

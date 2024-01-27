@@ -22,7 +22,9 @@ bool getStringValueForTaggedKey(std::string tag, std::string key, std::string & 
 bool getStringValueForKey(std::string key, std::string & value, std::vector<std::string> sectionLines);
 bool getIntValueForTaggedKey(std::string tag, std::string key, int & value, std::vector<std::string> sectionLines);
 bool getIntValueForKey(std::string key, int & value, std::vector<std::string> sectionLines);
-bool parseFunctionModdedkey(std::string& funcParams, std::string  scLabels[], std::vector<VKeyEvent>& strokeSeq, bool& retflag);
+bool parseFunctionCombo(std::string funcParams, std::string * scLabels, std::vector<VKeyEvent> &strokeSeq);
+bool parseFunctionHold(std::string funcParams, std::string * scLabels, std::vector<VKeyEvent> &strokeSeq);
+bool parseFunctionModdedkey(std::string funcParams, std::string * scLabels, std::vector<VKeyEvent> &strokeSeq);
 bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[5], std::vector<VKeyEvent> &strokeSequence, std::string scLabels[]);
 bool parseKeywordsAlpha_FromTo(std::string mapFromTo, int(&alphamap)[MAX_VCODES], std::string scLabels[]);
 bool parseKeywordRewire(std::string line, int & keyA, int & keyB, int & keyC, int & keyD, std::string scLabels[]);
