@@ -323,9 +323,8 @@ unsigned short parseModString(string modString, char filter)
     return std::stoi(binString, nullptr, 2);
 }
 
-bool parseFunctionCombo(std::string funcParams, std::string * scLabels, std::vector<VKeyEvent> &strokeSeq)
+bool parseComboParams(string funcParams, vector<int> &vcodes, string * scLabels)
 {
-    //fix 'NP+ + X'
     bool nppFound = stringReplace(funcParams, "np+", "np@");
     vector<string> labels = stringSplit(funcParams, '+');
     if (nppFound)
@@ -333,31 +332,7 @@ bool parseFunctionCombo(std::string funcParams, std::string * scLabels, std::vec
             if (labels[i] == "np@")
                 labels[i] = "np+";
 
-    int isc;
-    for (string label : labels)
-    {
-        isc = getVcode(label, scLabels);
-        if (isc < 0)
-            return false;
-        strokeSeq.push_back({ (unsigned char)isc, true });
-    }
-    size_t len = strokeSeq.size();
-    for (size_t i = len; i > 0; i--)	//copy upstrokes in reverse order
-        strokeSeq.push_back({ strokeSeq.at(i - 1).vcode,false });
-    return true;
-}
-
-bool parseFunctionHold(std::string funcParams, std::string * scLabels, std::vector<VKeyEvent> &strokeSeq)
-{
-    //fix 'NP+ + X'
-    bool nppFound = stringReplace(funcParams, "np+", "np@");
-    vector<string> labels = stringSplit(funcParams, '+');
-    if (nppFound)
-        for (int i = 0; i < labels.size(); i++)
-            if (labels[i] == "np@")
-                labels[i] = "np+";
-
-    // support both ..&. and labeled modifiers
+    // support both ..&. and labeled modifiers, but always put modstring modifiers first
     for (auto it = labels.begin(); it != labels.end();) {
         int modsPress = parseModString(*it, '&');
         if (!modsPress)
@@ -370,9 +345,7 @@ bool parseFunctionHold(std::string funcParams, std::string * scLabels, std::vect
             {
                 int currentMod = modsPress & (1 << i);
                 if (currentMod > 0) {
-                    int mod = getModifierForBitmask(currentMod);
-                    strokeSeq.push_back({VK_CPS_HOLDKEY, true});
-                    strokeSeq.push_back({mod, true});
+                    vcodes.push_back(getModifierForBitmask(currentMod));
                 }
             }
             it = labels.erase(it);
@@ -385,64 +358,43 @@ bool parseFunctionHold(std::string funcParams, std::string * scLabels, std::vect
         isc = getVcode(label, scLabels);
         if (isc < 0)
             return false;
-        strokeSeq.push_back({ VK_CPS_HOLDKEY, true });
-        strokeSeq.push_back({ (unsigned char)isc, true });
+        vcodes.push_back((unsigned char)isc);
     }
     return true;
 }
 
-bool parseFunctionModdedkey(std::string funcParams, std::string * scLabels, std::vector<VKeyEvent> &strokeSeq)
+bool parseFunctionCombo(std::string funcParams, std::string * scLabels, std::vector<VKeyEvent> &strokeSeq, bool releaseTemp)
 {
-    //fix 'NP+ + X'
-    bool nppFound = stringReplace(funcParams, "np+", "np@");
-
-    vector<string> modKeyParams = stringSplit(funcParams, '+');
-    if (modKeyParams.size() != 2)
+    vector<int> keys;
+    if (!parseComboParams(funcParams, keys, scLabels))
         return false;
+    if (releaseTemp)
+        strokeSeq.push_back({ VK_CPS_TEMPRELEASEKEYS, true });
+    for (auto it = keys.begin(); it != keys.end(); ++it)
+    {
+        strokeSeq.push_back({ *it, true });
+    }
+    for (auto it = keys.rbegin(); it != keys.rend(); ++it)
+    {
+        strokeSeq.push_back({ *it, false });
+    }
+    if (releaseTemp)
+        strokeSeq.push_back({ VK_CPS_TEMPRESTOREKEYS, true });
+    return true;
+}
 
-    string param0 = modKeyParams[0];
-    if (nppFound)
-        param0 = "np+";
-    int vkey = getVcode(param0, scLabels);
-    if (vkey < 0)
+bool parseFunctionHold(std::string funcParams, std::string * scLabels, std::vector<VKeyEvent> &strokeSeq, bool releaseAll)
+{
+    vector<int> keys;
+    if (!parseComboParams(funcParams, keys, scLabels))
         return false;
-
-    strokeSeq.push_back({ VK_CPS_TEMPRELEASEKEYS, true });
-
-    int modsPress = parseModString(modKeyParams[1], '&'); //and (press if up)
-                                                          //now disabling the ^ character. All mods are always released
-    unsigned short testObsoleteReleaseChar = parseModString(modKeyParams[1], '^'); //not (release if down)
-    if (testObsoleteReleaseChar > 0)
+    if (releaseAll)
+        strokeSeq.push_back({ VK_CPS_RELEASEKEYS, true });
+    for (auto it = keys.begin(); it != keys.end(); ++it)
     {
-        cout << endl << "WARNING: the '^' release key symbol is now ignored in moddedKey(). All modifiers are always released for moddedKey()";
+        strokeSeq.push_back({ VK_CPS_HOLDKEY, true });
+        strokeSeq.push_back({ *it, true });
     }
-
-    //send all "&" modifier down 
-    for (int i = 0; i<8; i++)
-    {
-        int currentMod = modsPress & (1 << i);
-        if (currentMod > 0)
-        {
-            int mod = getModifierForBitmask(currentMod);
-            strokeSeq.push_back({ mod, true });
-        }
-    }
-
-    strokeSeq.push_back({ (unsigned char)vkey, true });
-    strokeSeq.push_back({ (unsigned char)vkey, false });
-
-    //send all "&" modifier up
-    for (int i = 0; i < 8; i++)
-    {
-        int currentMod = modsPress & (1 << i);
-        if (currentMod > 0)
-        {
-            int mod = getModifierForBitmask(currentMod);
-            strokeSeq.push_back({ mod, false });
-        }
-    }
-
-    strokeSeq.push_back({ VK_CPS_TEMPRESTOREKEYS, false });
     return true;
 }
 
@@ -514,13 +466,10 @@ bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[5], std
 
     //translate 'function' into a key sequence
     vector<VKeyEvent> strokeSeq;
-    if (funcName == "key")
+    if (funcName == "key" || funcName == "combo")
     {
-        int isc = getVcode(funcParams, scLabels);
-        if (isc < 0)
+        if (!parseFunctionCombo(funcParams, scLabels, strokeSeq))
             return false;
-        strokeSeq.push_back({ isc, true });
-        strokeSeq.push_back({ isc, false });
     }
     else if (funcName == "hold")
     {
@@ -529,13 +478,7 @@ bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[5], std
     }
     else if (funcName == "moddedhold")
     {
-        strokeSeq.push_back({ VK_CPS_RELEASEKEYS, true });
-        if (!parseFunctionHold(funcParams, scLabels, strokeSeq))
-            return false;
-    }
-    else if (funcName == "combo")
-    {
-        if (!parseFunctionCombo(funcParams, scLabels, strokeSeq))
+        if (!parseFunctionHold(funcParams, scLabels, strokeSeq, true))
             return false;
     }
     else if (funcName == "combontimes")
@@ -584,7 +527,7 @@ bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[5], std
     }
     else if (funcName == "moddedkey")
     {
-        if (!parseFunctionModdedkey(funcParams, scLabels, strokeSeq))
+        if (!parseFunctionCombo(funcParams, scLabels, strokeSeq, true))
             return false;
     }
     else if (funcName == "sequence")
