@@ -505,6 +505,12 @@ bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[5], std
         if (!parseFunctionHold(funcParams, scLabels, strokeSeq))
             return false;
     }
+    else if (funcName == "moddedhold")
+    {
+        strokeSeq.push_back({ VK_CPS_RELEASEKEYS, true });
+        if (!parseFunctionHold(funcParams, scLabels, strokeSeq))
+            return false;
+    }
     else if (funcName == "combo")
     {
         if (!parseFunctionCombo(funcParams, scLabels, strokeSeq))

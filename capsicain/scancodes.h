@@ -198,6 +198,7 @@ enum VirtualCode
     VK_CPS_OBFUSCATED_SEQUENCE_START = 0x115,
     VK_CPS_PAUSE = 0x116, // not a real scancode; Cherry Pause key sends an escaped key combo E1 LCTRL NUMLOCK
     VK_CPS_HOLDKEY = 0x117,
+    VK_CPS_RELEASEKEYS = 0x118,
 /* testing the VMK style config shift
     VK_SHFCFG0 = 0x117,  //shift config, i.e. shift back when the key is released
     VK_SHFCFG1 = 0x118,

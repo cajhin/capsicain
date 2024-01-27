@@ -1998,6 +1998,12 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
                 }
             }
         }
+        else if (vc == VK_CPS_RELEASEKEYS) //release all keys that are physically down
+        {
+            for (int i = 0; i <= 255; i++)
+                if (globalState.keysDownSent[i])
+                    sendVKeyEvent({ i, false }, false);
+        }
         //func key with param; wait for next key which is the param
         else if (vc == VK_CPS_SLEEP
             || vc == VK_CPS_DEADKEY
@@ -2029,6 +2035,15 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
         error("BUG: func key with param: " + getPrettyVKLabel(expectParamForFuncKey) + "is unfinished");
 }
 
+int getKeyHolding(int vcode)
+{
+    for (int i = 0; i <= 255; i++)
+    {
+        if (globalState.holdKeys[i].find(vcode) != globalState.holdKeys[i].end())
+            return i;
+    }
+    return 0;
+}
 
 void sendVKeyEvent(VKeyEvent keyEvent, bool hold)
 {
@@ -2060,9 +2075,12 @@ void sendVKeyEvent(VKeyEvent keyEvent, bool hold)
         }
         else
         {
+            vector<int> release;
             for (auto it = globalState.holdKeys[code].rbegin(); it != globalState.holdKeys[code].rend(); ++it)
-                sendVKeyEvent({*it, false}, false);
+                release.push_back(*it);
             globalState.holdKeys[code].clear();
+            for (auto key : release)
+                sendVKeyEvent({key, false}, false);
         }
         keyEvent.vcode = 0;
         return;
@@ -2076,6 +2094,13 @@ void sendVKeyEvent(VKeyEvent keyEvent, bool hold)
     if (!keyEvent.isDownstroke &&  !globalState.keysDownSent[scancode])  //ignore up when key is already up
     {
         IFDEBUG cout << " {blocked " << PRETTY_VK_LABELS[scancode] << " UP: was not down}";
+        return;
+    }
+
+    auto holdingkey = getKeyHolding(scancode);
+    if (!keyEvent.isDownstroke && holdingkey)  //ignore up when other key is holding it
+    {
+        IFDEBUG cout << " {blocked " << PRETTY_VK_LABELS[scancode] << " UP: " << PRETTY_VK_LABELS[holdingkey] << " is holding}";
         return;
     }
 
