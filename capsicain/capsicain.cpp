@@ -54,6 +54,7 @@ struct Options
     bool flipAltWinOnAppleKeyboards = false;
     bool LControlLWinBlocksAlphaMapping = false;
     bool processOnlyFirstKeyboard = false;
+    bool holdRepeatsAllKeys = false;
 } options;
 static const struct Options defaultOptions;
 
@@ -1267,6 +1268,10 @@ bool parseIniOptions(std::vector<std::string> assembledIni)
                 << endl << "    COMBO  LSHF   [& ....] > key(CAPSOFF)"
                 << endl << "    COMBO  RSHF[.&] > key(CAPSON)" << endl;
         }
+        else if (token == "holdrepeatsallkeys")
+        {
+            options.holdRepeatsAllKeys = true;
+        }
         else
         {
             cout << endl << "WARNING: ignoring unknown OPTION " << line << endl;
@@ -2070,8 +2075,15 @@ void sendVKeyEvent(VKeyEvent keyEvent, bool hold)
         IFDEBUG cout << " {" << PRETTY_VK_LABELS[code] << (keyEvent.isDownstroke ? " holding " : " released ") << globalState.holdKeys[code].size() << "}";
         if (keyEvent.isDownstroke)
         {
-            for (auto it = globalState.holdKeys[code].begin(); it != globalState.holdKeys[code].end(); ++it)
-                sendVKeyEvent({*it, true}, false);
+            if (options.holdRepeatsAllKeys)
+            {
+                for (auto it = globalState.holdKeys[code].begin(); it != globalState.holdKeys[code].end(); ++it)
+                    sendVKeyEvent({*it, true}, false);
+            }
+            else
+            {
+                sendVKeyEvent({*globalState.holdKeys[code].rbegin(), true}, false);
+            }
         }
         else
         {
