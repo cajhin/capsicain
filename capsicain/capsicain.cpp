@@ -1965,9 +1965,10 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
             }
             case VK_CPS_HOLDKEY:
             {
-                IFTRACE cout << endl << "vk_cps_holdkey: " << getPrettyVKLabelPadded(loopState.scancode, 0) << " -> " << getPrettyVKLabelPadded(vc, 0);
-                globalState.holdKeys[loopState.scancode].emplace(vc);
-                sendVKeyEvent(keyEvent, loopState.scancode == vc);
+                int code = loopState.vcode;
+                IFTRACE cout << endl << "vk_cps_holdkey: " << getPrettyVKLabelPadded(loopState.vcode, 0) << " -> " << getPrettyVKLabelPadded(vc, 0);
+                globalState.holdKeys[loopState.vcode].emplace(vc);
+                sendVKeyEvent(keyEvent, false);
                 break;
             }
             default:
