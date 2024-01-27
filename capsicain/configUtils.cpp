@@ -403,7 +403,7 @@ bool parseFunctionHold(std::string funcParams, std::string * scLabels, std::vect
 //parse {deadkey-x} keyLabel  [&|^t ....] > function(param)
 //returns false if the rule is not valid.
 //this translates functions() in the .ini to key sequences (usually with special VK_CPS keys)
-bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[5], std::vector<VKeyEvent> &strokeSequence, std::string scLabels[])
+bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[6], std::vector<VKeyEvent> &strokeSequence, std::string scLabels[])
 {
     string strkey = stringCutFirstToken(line);
     if (strkey.length() < 1)
@@ -442,6 +442,9 @@ bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[5], std
     mods[2] = parseModString(mod, '|'); //or
     mods[3] = parseModString(mod, '^'); //not 
     mods[4] = parseModString(mod, 't'); //tap
+    mods[5] = parseModString(mod, '/'); //tap OR hold, but doesn't need separate COMBOs for t and &
+    mods[1] |= parseModString(mod, '*'); //tap AND hold, but doesn't need a TapAndHold rewrite
+    mods[4] |= parseModString(mod, '*');
 
     //extract function name + param
     size_t funcIdx1 = line.find_first_of('>') + 1;

@@ -66,6 +66,7 @@ struct ModifierCombo
     unsigned short modOr = 0;
     unsigned short modNot = 0;
     unsigned short modTap = 0;
+    unsigned short modTapAnd = 0;
     vector<VKeyEvent> keyEventSequence;
 };
 
@@ -851,7 +852,9 @@ void processCombos()
                 (modifierState.modifierDown & modcombo.modAnd) == modcombo.modAnd &&
                 (modcombo.modOr == 0 || (modifierState.modifierDown & modcombo.modOr) > 0) &&
                 (modifierState.modifierDown & modcombo.modNot) == 0 &&
-                ((modifierState.modifierTapped & modcombo.modTap) == modcombo.modTap)
+                (modifierState.modifierTapped & modcombo.modTap) == modcombo.modTap &&
+                ((modifierState.modifierTapped & modcombo.modTapAnd) == modcombo.modTapAnd ||
+                 (modifierState.modifierDown & modcombo.modTapAnd) == modcombo.modTapAnd)
                 )
             {
                 loopState.resultingVKeyEventSequence = modcombo.keyEventSequence;
@@ -1324,7 +1327,7 @@ bool parseIniCombos(std::vector<std::string> assembledIni)
     if (sectLines.size() == 0)
         return false;
 
-    unsigned short mods[5] = { 0 }; //deadkey, and, or, not, tap
+    unsigned short mods[6] = { 0 }; //deadkey, and, or, not, tap, tap/and
     vector<VKeyEvent> keyEventSequence;
 
     for (string line : sectLines)
@@ -1336,7 +1339,7 @@ bool parseIniCombos(std::vector<std::string> assembledIni)
             for (ModifierCombo testcombo : allMaps.modCombos)
             {
                 if (key == testcombo.vkey && mods[0] == testcombo.deadkey && mods[1] == testcombo.modAnd
-                    && mods[2] == testcombo.modOr && mods[3] == testcombo.modNot && mods[4] == testcombo.modTap)
+                    && mods[2] == testcombo.modOr && mods[3] == testcombo.modNot && mods[4] == testcombo.modTap && mods[5] == testcombo.modTapAnd)
                 {
                     //warn only if the combos are different
                     bool redefined = false;
@@ -1363,7 +1366,7 @@ bool parseIniCombos(std::vector<std::string> assembledIni)
                 }
             }
             if(!isDuplicate)
-                allMaps.modCombos.push_back({ key, (unsigned char) mods[0], mods[1], mods[2], mods[3], mods[4], keyEventSequence });
+                allMaps.modCombos.push_back({ key, (unsigned char) mods[0], mods[1], mods[2], mods[3], mods[4], mods[5], keyEventSequence });
         }
         else
             error("Cannot parse combo rule: " + line);
