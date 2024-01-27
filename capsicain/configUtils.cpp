@@ -357,6 +357,28 @@ bool parseFunctionHold(std::string funcParams, std::string * scLabels, std::vect
             if (labels[i] == "np@")
                 labels[i] = "np+";
 
+    // support both ..&. and labeled modifiers
+    for (auto it = labels.begin(); it != labels.end();) {
+        int modsPress = parseModString(*it, '&');
+        if (!modsPress)
+        {
+            ++it;
+        }
+        else
+        {
+            for (int i = 0; i < 8; i++)
+            {
+                int currentMod = modsPress & (1 << i);
+                if (currentMod > 0) {
+                    int mod = getModifierForBitmask(currentMod);
+                    strokeSeq.push_back({VK_CPS_HOLDKEY, true});
+                    strokeSeq.push_back({mod, true});
+                }
+            }
+            it = labels.erase(it);
+        }
+    }
+
     int isc;
     for (string label : labels)
     {
