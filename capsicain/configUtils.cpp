@@ -323,8 +323,10 @@ unsigned short parseModString(string modString, char filter)
     return std::stoi(binString, nullptr, 2);
 }
 
+// parses + separated combo that can also include a modstring to keycodes
 bool parseComboParams(string funcParams, vector<int> &vcodes, string * scLabels)
 {
+    size_t count = vcodes.size();
     bool nppFound = stringReplace(funcParams, "np+", "np@");
     vector<string> labels = stringSplit(funcParams, '+');
     if (nppFound)
@@ -357,10 +359,10 @@ bool parseComboParams(string funcParams, vector<int> &vcodes, string * scLabels)
     {
         isc = getVcode(label, scLabels);
         if (isc < 0)
-            return false;
+            continue;
         vcodes.push_back((unsigned char)isc);
     }
-    return true;
+    return vcodes.size() > count;
 }
 
 bool parseFunctionCombo(std::string funcParams, std::string * scLabels, std::vector<VKeyEvent> &strokeSeq, bool releaseTemp)
