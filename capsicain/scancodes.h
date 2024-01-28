@@ -201,6 +201,9 @@ enum VirtualCode
     VK_CPS_HOLDMOD = 0x118,
     VK_CPS_RELEASEKEYS = 0x119,
     VK_CPS_DELAY = 0x120,
+    VK_CPS_KEYDOWN = 0x121,
+    VK_CPS_KEYUP = 0x122,
+    VK_CPS_KEYTOGGLE = 0x123,
     VK_MAX
 /* testing the VMK style config shift
     VK_SHFCFG0 = 0x117,  //shift config, i.e. shift back when the key is released

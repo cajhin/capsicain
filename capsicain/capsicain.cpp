@@ -6,6 +6,7 @@
 #include <chrono>
 #include <vector>
 #include <set>
+#include <map>
 #include <algorithm>
 #include <string>
 #include <Windows.h>  //for Sleep()
@@ -76,7 +77,12 @@ struct AllMaps
     //-1 = undefined key
     int rewiremap[REWIRE_ROWS][REWIRE_COLS] = { }; //MUST initialize this manually to -1 !!
 
-    vector<ModifierCombo> modCombos;// = new vector<ModifierCombo>();
+    map<string, vector<ModifierCombo> > modCombos{
+        { INI_TAG_COMBOS, {} },
+        { INI_TAG_UPCOMBOS, {} },
+        { INI_TAG_TAPCOMBOS, {} },
+        { INI_TAG_SLOWCOMBOS, {} }
+    };
 
     int alphamap[MAX_VCODES] = { }; //MUST initialize this manually to 1 1, 2 2, 3 3, ...
 } allMaps;
@@ -125,6 +131,7 @@ struct ModifierState
     unsigned char activeDeadkey = 0;  //it's not really a modifier though...
     unsigned short modifierDown = 0;
     unsigned short modifierTapped = 0;
+    unsigned short modifierForceDown = 0;
     vector<VKeyEvent> modsTempAltered;
     int tapAndHoldKey = -1; //remember the tap-and-hold key as long as it is down
 } modifierState;
@@ -743,6 +750,8 @@ void processModifierState()
     //Tapped mod key sets tapped bitmask. You can combine mod-taps (like tap-Ctrl then tap-Alt).
     if (loopState.tapped)
         modifierState.modifierTapped |= modBitmask;
+
+    modifierState.modifierDown |= modifierState.modifierForceDown;
 }
 
 //handle all REWIRE configs. Rewire to new vcode; check for Tapped rules
@@ -840,10 +849,17 @@ void processRewireScancodeToVirtualcode()
 
 void processCombos()
 {
-    if (!loopState.isDownstroke)  //this check breaks 'x []' : // || (modifierState.modifierDown == 0 && modifierState.modifierTapped == 0 && modifierState.activeDeadkey == 0))
-        return;
+    vector<ModifierCombo>* combos;
+    if (loopState.isDownstroke)
+        combos = &allMaps.modCombos[INI_TAG_COMBOS];
+    else if (loopState.tappedSlow)
+        combos = &allMaps.modCombos[INI_TAG_SLOWCOMBOS];
+    else if (loopState.tapped)
+        combos = &allMaps.modCombos[INI_TAG_TAPCOMBOS];
+    else
+        combos = &allMaps.modCombos[INI_TAG_UPCOMBOS];
 
-    for (ModifierCombo modcombo : allMaps.modCombos)
+    for (ModifierCombo modcombo : *combos)
     {
         if (modcombo.vkey == loopState.vcode)
         {
@@ -1322,56 +1338,61 @@ void parseIniRewires(std::vector<std::string> assembledIni)
 
 bool parseIniCombos(std::vector<std::string> assembledIni)
 {
-    allMaps.modCombos.clear();
-    vector<string> sectLines = getTaggedLinesFromIni(INI_TAG_COMBOS, assembledIni);
-    if (sectLines.size() == 0)
-        return false;
-
-    unsigned short mods[6] = { 0 }; //deadkey, and, or, not, tap, tap/and
-    vector<VKeyEvent> keyEventSequence;
-
-    for (string line : sectLines)
-    {
-        int key;
-        if (parseKeywordCombo(line, key, mods, keyEventSequence, PRETTY_VK_LABELS))
+    auto parseSect = [](vector<string>& sectLines, vector<ModifierCombo> &combos) {
+        combos.clear();
+        unsigned short mods[6] = { 0 }; //deadkey, and, or, not, tap, tap/and
+        vector<VKeyEvent> keyEventSequence;
+        for (string line : sectLines)
         {
-            bool isDuplicate = false;
-            for (ModifierCombo testcombo : allMaps.modCombos)
+            int key;
+            if (parseKeywordCombo(line, key, mods, keyEventSequence, PRETTY_VK_LABELS))
             {
-                if (key == testcombo.vkey && mods[0] == testcombo.deadkey && mods[1] == testcombo.modAnd
-                    && mods[2] == testcombo.modOr && mods[3] == testcombo.modNot && mods[4] == testcombo.modTap && mods[5] == testcombo.modTapAnd)
+                bool isDuplicate = false;
+                for (ModifierCombo testcombo : combos)
                 {
-                    //warn only if the combos are different
-                    bool redefined = false;
-                    if (testcombo.keyEventSequence.size() == keyEventSequence.size())
+                    if (key == testcombo.vkey && mods[0] == testcombo.deadkey && mods[1] == testcombo.modAnd
+                        && mods[2] == testcombo.modOr && mods[3] == testcombo.modNot && mods[4] == testcombo.modTap && mods[5] == testcombo.modTapAnd)
                     {
-                        for (int i = 0; i < keyEventSequence.size(); i++)
+                        //warn only if the combos are different
+                        bool redefined = false;
+                        if (testcombo.keyEventSequence.size() == keyEventSequence.size())
                         {
-                            if (keyEventSequence[i].vcode != testcombo.keyEventSequence[i].vcode
-                                || keyEventSequence[i].isDownstroke != testcombo.keyEventSequence[i].isDownstroke)
+                            for (int i = 0; i < keyEventSequence.size(); i++)
                             {
-                                redefined = true;
-                                break;
+                                if (keyEventSequence[i].vcode != testcombo.keyEventSequence[i].vcode
+                                    || keyEventSequence[i].isDownstroke != testcombo.keyEventSequence[i].isDownstroke)
+                                {
+                                    redefined = true;
+                                    break;
+                                }
                             }
                         }
+                        else
+                            redefined = true;
+
+                        if(redefined)
+                            cout << endl << "WARNING: Ignoring redefinition of Combo: " << line;
+
+                        isDuplicate = true;
+                        break;
                     }
-                    else
-                        redefined = true;
-
-                    if(redefined)
-                        cout << endl << "WARNING: Ignoring redefinition of Combo: " << line;
-
-                    isDuplicate = true;
-                    break;
                 }
+                if(!isDuplicate)
+                    combos.push_back({ key, (unsigned char) mods[0], mods[1], mods[2], mods[3], mods[4], mods[5], keyEventSequence });
             }
-            if(!isDuplicate)
-                allMaps.modCombos.push_back({ key, (unsigned char) mods[0], mods[1], mods[2], mods[3], mods[4], mods[5], keyEventSequence });
+            else
+                error("Cannot parse combo rule: " + line);
         }
-        else
-            error("Cannot parse combo rule: " + line);
+        return sectLines.size();
+    };
+
+    size_t totalLines = 0;
+    for (auto& kv : allMaps.modCombos)
+    {
+        auto lines = getTaggedLinesFromIni(kv.first, assembledIni);
+        totalLines += parseSect(lines, kv.second);
     }
-    return true;
+    return totalLines > 0;
 }
 
 bool parseIniAlphaLayout(std::vector<std::string> assembledIni)
@@ -1456,7 +1477,8 @@ std::vector<std::string> assembleConfig(int config)
 
 void initializeAllMaps()
 {
-    allMaps.modCombos.clear();
+    for (auto kv : allMaps.modCombos)
+        kv.second.clear();
 
     //resetAlphamap()
     {
@@ -1498,7 +1520,10 @@ bool parseProcessIniConfig(int config)
     parseIniRewires(assembledConfig);
 
     parseIniCombos(assembledConfig);
-    IFDEBUG cout << endl << "Combo  Definitions: " << dec << allMaps.modCombos.size();
+    IFDEBUG cout << endl << "Combo  Definitions: " << dec << allMaps.modCombos[INI_TAG_COMBOS].size();
+    IFDEBUG cout << endl << "Up     Definitions: " << dec << allMaps.modCombos[INI_TAG_UPCOMBOS].size();
+    IFDEBUG cout << endl << "Tap    Definitions: " << dec << allMaps.modCombos[INI_TAG_TAPCOMBOS].size();
+    IFDEBUG cout << endl << "Slow   Definitions: " << dec << allMaps.modCombos[INI_TAG_SLOWCOMBOS].size();
 
     parseIniAlphaLayout(assembledConfig);
     IFDEBUG
@@ -2001,6 +2026,37 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
                 IFTRACE cout << endl << "vk_cps_delay: " << vc;
                 options.delayForKeySequenceMS = vc;
                 break;
+            case VK_CPS_KEYDOWN:
+                sendVKeyEvent({vc, true});
+                if (isModifier(vc))
+                {
+                    modifierState.modifierForceDown |= getModifierBitmaskForVcode(vc);
+                    modifierState.modifierDown |= modifierState.modifierForceDown;
+                }
+                break;
+            case VK_CPS_KEYUP:
+                sendVKeyEvent({vc, false});
+                if (isModifier(vc))
+                {
+                    modifierState.modifierForceDown &= ~getModifierBitmaskForVcode(vc);
+                    modifierState.modifierDown &= modifierState.modifierForceDown;
+                }
+                break;
+            case VK_CPS_KEYTOGGLE:
+                bool state;
+                if (isModifier(vc))
+                {
+                    auto mask = getModifierBitmaskForVcode(vc);
+                    state = modifierState.modifierForceDown & mask;
+                    modifierState.modifierForceDown ^= mask;
+                    modifierState.modifierDown &= modifierState.modifierForceDown;
+                }
+                else
+                {
+                    state = globalState.keysDownSent[vc & 0xFF];
+                }
+                sendVKeyEvent({vc, !state});
+                break;
             default:
                 cout << endl << "BUG? unknown expectParamForFuncKey";
             }
@@ -2050,6 +2106,9 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
             || vc == VK_CPS_HOLDKEY
             || vc == VK_CPS_HOLDMOD
             || vc == VK_CPS_DELAY
+            || vc == VK_CPS_KEYDOWN
+            || vc == VK_CPS_KEYUP
+            || vc == VK_CPS_KEYTOGGLE
             )
         {
             expectParamForFuncKey = vc;

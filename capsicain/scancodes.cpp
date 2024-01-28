@@ -245,6 +245,9 @@ void defineAllPrettyVKLabels(string arr[])
     checkAddLabel(VK_CPS_HOLDMOD, "HOLDMOD", arr);
     checkAddLabel(VK_CPS_RELEASEKEYS, "RELEASEKEYS", arr);
     checkAddLabel(VK_CPS_DELAY, "DELAY", arr);
+    checkAddLabel(VK_CPS_KEYDOWN, "KEYDOWN", arr);
+    checkAddLabel(VK_CPS_KEYUP, "KEYUP", arr);
+    checkAddLabel(VK_CPS_KEYTOGGLE, "KEYTOGGLE", arr);
 /* testing the VMK style config shift
     checkAddLabel(VK_SHFCFG0, "SHFCFG0", arr);
     checkAddLabel(VK_SHFCFG1, "SHFCFG1", arr);

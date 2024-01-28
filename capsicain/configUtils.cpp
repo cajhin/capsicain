@@ -60,6 +60,9 @@ int checkSyntax(std::vector<string> iniLines)
             stringStartsWith(*t, "include") ||
             stringStartsWith(*t, "rewire") ||
             stringStartsWith(*t, "combo") ||
+            stringStartsWith(*t, "up") ||
+            stringStartsWith(*t, "tap") ||
+            stringStartsWith(*t, "slow") ||
             stringStartsWith(*t, "option")
             )
             continue;
@@ -624,7 +627,7 @@ bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[6], std
                 }
                 if (stringStartsWith(param, DELAY_TAG))
                 {
-                    string sleeptime = param.substr(SLEEP_TAG.length());
+                    string sleeptime = param.substr(DELAY_TAG.length());
                     int stime;
                     if (stringToInt(sleeptime, stime) && stime >= 0 && stime <= 1000)
                     {
@@ -745,6 +748,24 @@ bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[6], std
         else if (funcName == "nop")
         {
             strokeSeq.push_back({ SC_NOP, true });
+        }
+        else if (funcName == "down")
+        {
+            int isc = getVcode(funcParams, scLabels);
+            strokeSeq.push_back({ VK_CPS_KEYDOWN, true });
+            strokeSeq.push_back({ isc, true });
+        }
+        else if (funcName == "up")
+        {
+            int isc = getVcode(funcParams, scLabels);
+            strokeSeq.push_back({ VK_CPS_KEYUP, true });
+            strokeSeq.push_back({ isc, true });
+        }
+        else if (funcName == "toggle")
+        {
+            int isc = getVcode(funcParams, scLabels);
+            strokeSeq.push_back({ VK_CPS_KEYTOGGLE, true });
+            strokeSeq.push_back({ isc, true });
         }
         else
         { 
