@@ -849,35 +849,39 @@ void processRewireScancodeToVirtualcode()
 
 void processCombos()
 {
-    vector<ModifierCombo>* combos;
-    if (loopState.isDownstroke)
-        combos = &allMaps.modCombos[INI_TAG_COMBOS];
-    else if (loopState.tappedSlow)
-        combos = &allMaps.modCombos[INI_TAG_SLOWCOMBOS];
-    else if (loopState.tapped)
-        combos = &allMaps.modCombos[INI_TAG_TAPCOMBOS];
-    else
-        combos = &allMaps.modCombos[INI_TAG_UPCOMBOS];
-
-    for (ModifierCombo modcombo : *combos)
-    {
-        if (modcombo.vkey == loopState.vcode)
+    auto process = [](vector<ModifierCombo> &combos, bool clearTapped = false){
+        for (ModifierCombo modcombo : combos)
         {
-            if (
-                (modifierState.activeDeadkey == modcombo.deadkey) &&
-                (modifierState.modifierDown & modcombo.modAnd) == modcombo.modAnd &&
-                (modcombo.modOr == 0 || (modifierState.modifierDown & modcombo.modOr) > 0) &&
-                (modifierState.modifierDown & modcombo.modNot) == 0 &&
-                (modifierState.modifierTapped & modcombo.modTap) == modcombo.modTap &&
-                ((modifierState.modifierTapped & modcombo.modTapAnd) == modcombo.modTapAnd ||
-                 (modifierState.modifierDown & modcombo.modTapAnd) == modcombo.modTapAnd)
-                )
+            if (modcombo.vkey == loopState.vcode)
             {
-                loopState.resultingVKeyEventSequence = modcombo.keyEventSequence;
-                modifierState.modifierTapped = 0;
-                break;
+                if (
+                    (modifierState.activeDeadkey == modcombo.deadkey) &&
+                    (modifierState.modifierDown & modcombo.modAnd) == modcombo.modAnd &&
+                    (modcombo.modOr == 0 || (modifierState.modifierDown & modcombo.modOr) > 0) &&
+                    (modifierState.modifierDown & modcombo.modNot) == 0 &&
+                    (modifierState.modifierTapped & modcombo.modTap) == modcombo.modTap &&
+                    ((modifierState.modifierTapped & modcombo.modTapAnd) == modcombo.modTapAnd ||
+                    (modifierState.modifierDown & modcombo.modTapAnd) == modcombo.modTapAnd)
+                    )
+                {
+                    loopState.resultingVKeyEventSequence = modcombo.keyEventSequence;
+                    if (clearTapped)
+                        modifierState.modifierTapped = 0;
+                    break;
+                }
             }
         }
+    };
+
+    if (loopState.isDownstroke)
+        process(allMaps.modCombos[INI_TAG_COMBOS], true);
+    else
+    {
+        process(allMaps.modCombos[INI_TAG_UPCOMBOS]);
+        if (loopState.tappedSlow)
+            process(allMaps.modCombos[INI_TAG_SLOWCOMBOS]);
+        if (loopState.tapped)
+            process(allMaps.modCombos[INI_TAG_TAPCOMBOS]);
     }
     if(!loopState.isModifier)
         modifierState.activeDeadkey = 0;
@@ -2027,19 +2031,20 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
                 options.delayForKeySequenceMS = vc;
                 break;
             case VK_CPS_KEYDOWN:
-                sendVKeyEvent({vc, true});
+                if (vc < 0xFF)
+                    sendVKeyEvent(keyEvent);
                 if (isModifier(vc))
                 {
-                    modifierState.modifierForceDown |= getModifierBitmaskForVcode(vc);
-                    modifierState.modifierDown |= modifierState.modifierForceDown;
-                }
-                break;
-            case VK_CPS_KEYUP:
-                sendVKeyEvent({vc, false});
-                if (isModifier(vc))
-                {
-                    modifierState.modifierForceDown &= ~getModifierBitmaskForVcode(vc);
-                    modifierState.modifierDown &= modifierState.modifierForceDown;
+                    if (keyEvent.isDownstroke)
+                    {
+                        modifierState.modifierForceDown |= getModifierBitmaskForVcode(vc);
+                        modifierState.modifierDown |= modifierState.modifierForceDown;
+                    }
+                    else
+                    {
+                        modifierState.modifierForceDown &= ~getModifierBitmaskForVcode(vc);
+                        modifierState.modifierDown &= modifierState.modifierForceDown;
+                    }
                 }
                 break;
             case VK_CPS_KEYTOGGLE:
@@ -2055,7 +2060,16 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
                 {
                     state = globalState.keysDownSent[vc & 0xFF];
                 }
-                sendVKeyEvent({vc, !state});
+                if (vc < 0xFF)
+                    sendVKeyEvent({vc, !state});
+                break;
+            case VK_CPS_KEYTAP:
+                if (!isModifier(vc))
+                    break;
+                if (keyEvent.isDownstroke)
+                    modifierState.modifierTapped |= getModifierBitmaskForVcode(vc);
+                else
+                    modifierState.modifierTapped &= ~getModifierBitmaskForVcode(vc);
                 break;
             default:
                 cout << endl << "BUG? unknown expectParamForFuncKey";
@@ -2107,8 +2121,8 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
             || vc == VK_CPS_HOLDMOD
             || vc == VK_CPS_DELAY
             || vc == VK_CPS_KEYDOWN
-            || vc == VK_CPS_KEYUP
             || vc == VK_CPS_KEYTOGGLE
+            || vc == VK_CPS_KEYTAP
             )
         {
             expectParamForFuncKey = vc;

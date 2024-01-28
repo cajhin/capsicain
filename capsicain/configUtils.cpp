@@ -758,14 +758,26 @@ bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[6], std
         else if (funcName == "up")
         {
             int isc = getVcode(funcParams, scLabels);
-            strokeSeq.push_back({ VK_CPS_KEYUP, true });
-            strokeSeq.push_back({ isc, true });
+            strokeSeq.push_back({ VK_CPS_KEYDOWN, true });
+            strokeSeq.push_back({ isc, false });
         }
         else if (funcName == "toggle")
         {
             int isc = getVcode(funcParams, scLabels);
             strokeSeq.push_back({ VK_CPS_KEYTOGGLE, true });
             strokeSeq.push_back({ isc, true });
+        }
+        else if (funcName == "tap")
+        {
+            int isc = getVcode(funcParams, scLabels);
+            strokeSeq.push_back({ VK_CPS_KEYTAP, true });
+            strokeSeq.push_back({ isc, true });
+        }
+        else if (funcName == "untap")
+        {
+            int isc = getVcode(funcParams, scLabels);
+            strokeSeq.push_back({ VK_CPS_KEYTAP, true });
+            strokeSeq.push_back({ isc, false });
         }
         else
         { 
