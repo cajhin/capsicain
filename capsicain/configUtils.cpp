@@ -494,230 +494,230 @@ bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[6], std
         cout << endl << "ERROR in ini: missing '>' in: " << line;
         return false;
     }
-    size_t funcIdx2 = line.find_first_of('(');
-    if (funcIdx2 == string::npos || funcIdx2 < funcIdx1 + 2)
-    {
-        cout << endl << "ERROR in ini: missing '(' in: " << line;
-        return false;
-    }
-    size_t funcIdx3 = line.find_first_of(')');
-    if (funcIdx3 == string::npos || funcIdx3 < funcIdx2 + 1)
-    {
-        cout << endl << "ERROR in ini: missing ')' in: " << line;
-        return false;
-    }
-    string funcName = line.substr(funcIdx1, funcIdx2 - funcIdx1);
-    funcIdx2++;
-    string funcParams = line.substr(funcIdx2, funcIdx3 - funcIdx2);
 
-    //translate 'function' into a key sequence
+    stringstream funcss(line.substr(funcIdx1));
+    string funcstr;
+    vector<string> funcs;
+    while(getline(funcss, funcstr, ')'))
+        funcs.push_back(funcstr);
     vector<VKeyEvent> strokeSeq;
-    if (funcName == "key")
+    for (auto func : funcs)
     {
-        if (!parseFunctionKey(funcParams, scLabels, strokeSeq))
-            return false;
-    }
-    else if (funcName == "combo")
-    {
-        if (!parseFunctionCombo(funcParams, scLabels, strokeSeq))
-            return false;
-    }
-    else if (funcName == "hold")
-    {
-        if (!parseFunctionHold(funcParams, scLabels, strokeSeq))
-            return false;
-    }
-    else if (funcName == "moddedhold")
-    {
-        if (!parseFunctionHold(funcParams, scLabels, strokeSeq, true))
-            return false;
-    }
-    else if (funcName == "holdmods")
-    {
-        if (!parseFunctionHold(funcParams, scLabels, strokeSeq, false, true))
-            return false;
-    }
-    else if (funcName == "moddedholdmods")
-    {
-        if (!parseFunctionHold(funcParams, scLabels, strokeSeq, true, true))
-            return false;
-    }
-    else if (funcName == "combontimes")
-    {
-        size_t idx = (int)funcParams.rfind(',');
-        if (idx == string::npos)
-            return false;
-        string combo = funcParams.substr(0, idx);
-        string stime = funcParams.substr(idx + 1);
-        if (!parseFunctionCombo(combo, scLabels, strokeSeq, false, stoi(stime)))
-            return false;
-    }
-    else if (funcName == "altchar")
-    {
-        strokeSeq.push_back({ VK_CPS_TEMPRELEASEKEYS, true }); //temp release LSHIFT if it is currently down
-        strokeSeq.push_back({ SC_LALT , true });
-        for (int i = 0; i < funcParams.length(); i++)
-        {
-            char c = funcParams[i];
-            string altkey="NP";
-            if (c >= '0' && c <= '9')
-                altkey.push_back(c);
-            else if (c == '+')
-                altkey = "NP+";
-            else if (c >= 'a' && c <= 'f')
-            {
-                altkey = "";
-                altkey.push_back(c);
-            }
-            else
-                return false;
+        size_t sep = func.find_first_of('(');
+        if (sep == string::npos)
+            break;
+        string funcName = func.substr(0, sep);
+        sep++;
+        string funcParams = func.substr(sep, string::npos);
 
-            int isc = getVcode(altkey, scLabels);
-            if (isc < 0)
+        //translate 'function' into a key sequence
+        if (funcName == "key")
+        {
+            if (!parseFunctionKey(funcParams, scLabels, strokeSeq))
                 return false;
-            strokeSeq.push_back({ (unsigned char)isc, true });
-            strokeSeq.push_back({ (unsigned char)isc, false });
         }
-        strokeSeq.push_back({ SC_LALT , false });
-        strokeSeq.push_back({ VK_CPS_TEMPRESTOREKEYS, false });
-    }
-    else if (funcName == "moddedkey")
-    {
-        if (!parseFunctionCombo(funcParams, scLabels, strokeSeq, true))
-            return false;
-    }
-    else if (funcName == "sequence")
-    {
-        vector<string> params = stringSplit(funcParams, '_');
-        bool downkeys[256] = { 0 };
-        const string SLEEP_TAG = "sleep:";
-        const string CONFIGSWITCH_TAG = "configswitch:";
-
-        for (string param : params)
+        else if (funcName == "combo")
         {
-            // &key is down, ^key is up, key is both.
-            bool downstroke = true;
-            bool upstroke = true;
-            if (param.at(0) == '&')
-                upstroke = false;
-            else if (param.at(0) == '^')
-                downstroke = false;
-            if (!downstroke || !upstroke)
-                param = param.substr(1);
-
-            if (stringStartsWith(param, "pause:"))
-            {
-                cout << endl << "WARNING: '_pause:10_' is now written as '_sleep:1000_'." << endl << "Ignoring " << param;
-                continue;
-            }
-            //handle the "sleep:10" items
-            if (stringStartsWith(param, SLEEP_TAG))
-            {
-                string sleeptime = param.substr(SLEEP_TAG.length());
-                int stime = stoi(sleeptime);
-                if (stime > 30000)
-                {
-                    cout << endl << "Sequence() defines sleep: > 30000 Reducing to 30000 (30 seconds)";
-                    stime = 30000;
-                }
-                if (stime <= 0)
-                {
-                    cout << endl << "Sequence() defines sleep: <=0. Ignoring the pause.";
-                    continue;
-                }
-                strokeSeq.push_back({ VK_CPS_SLEEP, true });
-                strokeSeq.push_back({ stime, true });
-                continue;
-            }
-            //handle the "configswitch:2" items
-            if (stringStartsWith(param, CONFIGSWITCH_TAG)) {
-                string configParam = param.substr(CONFIGSWITCH_TAG.length());
-                int configuration = stoi(configParam);
-                if (configuration > 9) {
-                    cout << endl << "Sequence() defines configswitch: > 9. Not switching.";
-                    continue;
-                }
-                if (configuration < 0) {
-                    cout << endl << "Sequence() defines configswitch: < 0. Not switching.";
-                    continue;
-                }
-                strokeSeq.push_back({VK_CPS_CONFIGSWITCH, true});
-                strokeSeq.push_back({configuration, true});
-                continue;
-            }
-            int isc = getVcode(param, scLabels);
-            if (isc < 0)
-            {
-                cout << endl << "WARNING: Unknown key label in sequence(): " << param;
+            if (!parseFunctionCombo(funcParams, scLabels, strokeSeq))
                 return false;
-            }
-
-            if (downstroke)
+        }
+        else if (funcName == "hold")
+        {
+            if (!parseFunctionHold(funcParams, scLabels, strokeSeq))
+                return false;
+        }
+        else if (funcName == "moddedhold")
+        {
+            if (!parseFunctionHold(funcParams, scLabels, strokeSeq, true))
+                return false;
+        }
+        else if (funcName == "holdmods")
+        {
+            if (!parseFunctionHold(funcParams, scLabels, strokeSeq, false, true))
+                return false;
+        }
+        else if (funcName == "moddedholdmods")
+        {
+            if (!parseFunctionHold(funcParams, scLabels, strokeSeq, true, true))
+                return false;
+        }
+        else if (funcName == "combontimes")
+        {
+            size_t idx = (int)funcParams.rfind(',');
+            if (idx == string::npos)
+                return false;
+            string combo = funcParams.substr(0, idx);
+            string stime = funcParams.substr(idx + 1);
+            if (!parseFunctionCombo(combo, scLabels, strokeSeq, false, stoi(stime)))
+                return false;
+        }
+        else if (funcName == "altchar")
+        {
+            strokeSeq.push_back({ VK_CPS_TEMPRELEASEKEYS, true }); //temp release LSHIFT if it is currently down
+            strokeSeq.push_back({ SC_LALT , true });
+            for (int i = 0; i < funcParams.length(); i++)
             {
+                char c = funcParams[i];
+                string altkey="NP";
+                if (c >= '0' && c <= '9')
+                    altkey.push_back(c);
+                else if (c == '+')
+                    altkey = "NP+";
+                else if (c >= 'a' && c <= 'f')
+                {
+                    altkey = "";
+                    altkey.push_back(c);
+                }
+                else
+                    return false;
+
+                int isc = getVcode(altkey, scLabels);
+                if (isc < 0)
+                    return false;
                 strokeSeq.push_back({ (unsigned char)isc, true });
-                downkeys[(unsigned char)isc] = true;
-            }
-            if (upstroke)
-            {
                 strokeSeq.push_back({ (unsigned char)isc, false });
-                downkeys[(unsigned char)isc] = false;
+            }
+            strokeSeq.push_back({ SC_LALT , false });
+            strokeSeq.push_back({ VK_CPS_TEMPRESTOREKEYS, false });
+        }
+        else if (funcName == "moddedkey")
+        {
+            if (!parseFunctionCombo(funcParams, scLabels, strokeSeq, true))
+                return false;
+        }
+        else if (funcName == "sequence")
+        {
+            vector<string> params = stringSplit(funcParams, '_');
+            bool downkeys[256] = { 0 };
+            const string SLEEP_TAG = "sleep:";
+            const string CONFIGSWITCH_TAG = "configswitch:";
+
+            for (string param : params)
+            {
+                // &key is down, ^key is up, key is both.
+                bool downstroke = true;
+                bool upstroke = true;
+                if (param.at(0) == '&')
+                    upstroke = false;
+                else if (param.at(0) == '^')
+                    downstroke = false;
+                if (!downstroke || !upstroke)
+                    param = param.substr(1);
+
+                if (stringStartsWith(param, "pause:"))
+                {
+                    cout << endl << "WARNING: '_pause:10_' is now written as '_sleep:1000_'." << endl << "Ignoring " << param;
+                    continue;
+                }
+                //handle the "sleep:10" items
+                if (stringStartsWith(param, SLEEP_TAG))
+                {
+                    string sleeptime = param.substr(SLEEP_TAG.length());
+                    int stime = stoi(sleeptime);
+                    if (stime > 30000)
+                    {
+                        cout << endl << "Sequence() defines sleep: > 30000 Reducing to 30000 (30 seconds)";
+                        stime = 30000;
+                    }
+                    if (stime <= 0)
+                    {
+                        cout << endl << "Sequence() defines sleep: <=0. Ignoring the pause.";
+                        continue;
+                    }
+                    strokeSeq.push_back({ VK_CPS_SLEEP, true });
+                    strokeSeq.push_back({ stime, true });
+                    continue;
+                }
+                //handle the "configswitch:2" items
+                if (stringStartsWith(param, CONFIGSWITCH_TAG)) {
+                    string configParam = param.substr(CONFIGSWITCH_TAG.length());
+                    int configuration = stoi(configParam);
+                    if (configuration > 9) {
+                        cout << endl << "Sequence() defines configswitch: > 9. Not switching.";
+                        continue;
+                    }
+                    if (configuration < 0) {
+                        cout << endl << "Sequence() defines configswitch: < 0. Not switching.";
+                        continue;
+                    }
+                    strokeSeq.push_back({VK_CPS_CONFIGSWITCH, true});
+                    strokeSeq.push_back({configuration, true});
+                    continue;
+                }
+                int isc = getVcode(param, scLabels);
+                if (isc < 0)
+                {
+                    cout << endl << "WARNING: Unknown key label in sequence(): " << param;
+                    return false;
+                }
+
+                if (downstroke)
+                {
+                    strokeSeq.push_back({ (unsigned char)isc, true });
+                    downkeys[(unsigned char)isc] = true;
+                }
+                if (upstroke)
+                {
+                    strokeSeq.push_back({ (unsigned char)isc, false });
+                    downkeys[(unsigned char)isc] = false;
+                }
+            }
+            //check if all keys were released
+            for (int i = 0; i < 256; i++)
+            {
+                if (downkeys[i])
+                {
+                    cout << endl << "Sequence() does not release key: " << scLabels[i] << " (discarding this rule)";
+                    return false;
+                }
             }
         }
-        //check if all keys were released
-        for (int i = 0; i < 256; i++)
+        else if (funcName == "deadkey")
         {
-            if (downkeys[i])
+            int isc = getVcode(funcParams, scLabels);
+            if (isc < 0 || isc > 255)
+                return false;
+            strokeSeq.push_back({ VK_CPS_DEADKEY, true });
+            strokeSeq.push_back({ isc, true });
+        }
+        else if ( ((funcName == "configswitch")) || (funcName == "layerswitch"))
+        {
+            int isc;
+            bool valid = stringToInt(funcParams, isc);
+            if (!valid || isc < 0 || isc > 10)
             {
-                cout << endl << "Sequence() does not release key: " << scLabels[i] << " (discarding this rule)";
+                cout << endl << "Invalid config switch to: " << funcParams;
                 return false;
             }
+            strokeSeq.push_back({ VK_CPS_CONFIGSWITCH, true });
+            strokeSeq.push_back({ isc, true });
         }
-    }
-    else if (funcName == "deadkey")
-    {
-        int isc = getVcode(funcParams, scLabels);
-        if (isc < 0 || isc > 255)
-            return false;
-        strokeSeq.push_back({ VK_CPS_DEADKEY, true });
-        strokeSeq.push_back({ isc, true });
-    }
-    else if ( ((funcName == "configswitch")) || (funcName == "layerswitch"))
-    {
-        int isc;
-        bool valid = stringToInt(funcParams, isc);
-        if (!valid || isc < 0 || isc > 10)
+        else if ((funcName == "configprevious") || (funcName == "layerprevious"))
         {
-            cout << endl << "Invalid config switch to: " << funcParams;
-            return false;
+            strokeSeq.push_back({ VK_CPS_CONFIGPREVIOUS, true });
         }
-        strokeSeq.push_back({ VK_CPS_CONFIGSWITCH, true });
-        strokeSeq.push_back({ isc, true });
-    }
-    else if ((funcName == "configprevious") || (funcName == "layerprevious"))
-    {
-        strokeSeq.push_back({ VK_CPS_CONFIGPREVIOUS, true });
-    }
-    else if (funcName == "recordmacro" || funcName == "recordsecretmacro" || funcName == "playmacro")
-    {
-        int macroNum;
-        bool valid = stringToInt(funcParams, macroNum);
-        if (!valid || macroNum < 1 || macroNum >= MAX_NUM_MACROS)
+        else if (funcName == "recordmacro" || funcName == "recordsecretmacro" || funcName == "playmacro")
         {
-            cout << endl <<  "Invalid macro number : " << funcParams << " (must be 1.."<< MAX_NUM_MACROS-1 <<")";
-            return false;
+            int macroNum;
+            bool valid = stringToInt(funcParams, macroNum);
+            if (!valid || macroNum < 1 || macroNum >= MAX_NUM_MACROS)
+            {
+                cout << endl <<  "Invalid macro number : " << funcParams << " (must be 1.."<< MAX_NUM_MACROS-1 <<")";
+                return false;
+            }
+
+            if(funcName == "recordmacro")
+                strokeSeq.push_back({ VK_CPS_RECORDMACRO, true });
+            else if (funcName == "recordsecretmacro")
+                strokeSeq.push_back({ VK_CPS_RECORDSECRETMACRO, true });
+            else if (funcName == "playmacro")
+                strokeSeq.push_back({ VK_CPS_PLAYMACRO, true });
+
+            strokeSeq.push_back({ macroNum, true });
         }
-
-        if(funcName == "recordmacro")
-            strokeSeq.push_back({ VK_CPS_RECORDMACRO, true });
-        else if (funcName == "recordsecretmacro")
-            strokeSeq.push_back({ VK_CPS_RECORDSECRETMACRO, true });
-        else if (funcName == "playmacro")
-            strokeSeq.push_back({ VK_CPS_PLAYMACRO, true });
-
-        strokeSeq.push_back({ macroNum, true });
+        else 
+            return false;
     }
-    else 
-        return false;
 
     strokeSequence = strokeSeq;
     return true;
