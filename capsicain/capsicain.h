@@ -73,3 +73,4 @@ void resetCapsNumScrollLock();
 int obfuscateVKey(int vk);
 int deObfuscateVKey(int vk);
 
+int getKeyHolding(int vcode);

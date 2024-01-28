@@ -23,7 +23,7 @@ bool getStringValueForKey(std::string key, std::string & value, std::vector<std:
 bool getIntValueForTaggedKey(std::string tag, std::string key, int & value, std::vector<std::string> sectionLines);
 bool getIntValueForKey(std::string key, int & value, std::vector<std::string> sectionLines);
 bool parseFunctionCombo(std::string funcParams, std::string * scLabels, std::vector<VKeyEvent> &strokeSeq, bool releaseTemp = false);
-bool parseFunctionHold(std::string funcParams, std::string *scLabels, std::vector<VKeyEvent> &strokeSeq, bool releaseAll = false);
+bool parseFunctionHold(std::string funcParams, std::string *scLabels, std::vector<VKeyEvent> &strokeSeq, bool releaseAll = false, bool holdMods = false);
 bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[6], std::vector<VKeyEvent> &strokeSequence, std::string scLabels[]);
 bool parseKeywordsAlpha_FromTo(std::string mapFromTo, int(&alphamap)[MAX_VCODES], std::string scLabels[]);
 bool parseKeywordRewire(std::string line, int & keyA, int & keyB, int & keyC, int & keyD, std::string scLabels[]);

@@ -242,6 +242,7 @@ void defineAllPrettyVKLabels(string arr[])
     checkAddLabel(VK_CPS_OBFUSCATED_SEQUENCE_START, "OBFUSEQSTART", arr);
     checkAddLabel(VK_CPS_PAUSE, "PAUSE", arr);  //this is not a real scancode, used to map the PAUSE combo E1 LCTRL SCRLCK
     checkAddLabel(VK_CPS_HOLDKEY, "HOLDKEY", arr);
+    checkAddLabel(VK_CPS_HOLDMOD, "HOLDMOD", arr);
     checkAddLabel(VK_CPS_RELEASEKEYS, "RELEASEKEYS", arr);
 /* testing the VMK style config shift
     checkAddLabel(VK_SHFCFG0, "SHFCFG0", arr);

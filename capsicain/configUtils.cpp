@@ -385,17 +385,31 @@ bool parseFunctionCombo(std::string funcParams, std::string * scLabels, std::vec
     return true;
 }
 
-bool parseFunctionHold(std::string funcParams, std::string * scLabels, std::vector<VKeyEvent> &strokeSeq, bool releaseAll)
+bool parseFunctionHold(std::string funcParams, std::string * scLabels, std::vector<VKeyEvent> &strokeSeq, bool releaseAll, bool holdMods)
 {
     vector<int> keys;
     if (!parseComboParams(funcParams, keys, scLabels))
         return false;
     if (releaseAll)
         strokeSeq.push_back({ VK_CPS_RELEASEKEYS, true });
-    for (auto it = keys.begin(); it != keys.end(); ++it)
+    if (holdMods)
     {
-        strokeSeq.push_back({ VK_CPS_HOLDKEY, true });
-        strokeSeq.push_back({ *it, true });
+        for (auto it = keys.begin(); it != keys.end(); ++it)
+        {
+            if (isModifier(*it))
+                strokeSeq.push_back({ VK_CPS_HOLDMOD, true });
+            else
+                strokeSeq.push_back({ VK_CPS_HOLDKEY, true });
+            strokeSeq.push_back({ *it, true });
+        }
+    }
+    else
+    {
+        for (auto it = keys.begin(); it != keys.end(); ++it)
+        {
+            strokeSeq.push_back({ VK_CPS_HOLDKEY, true });
+            strokeSeq.push_back({ *it, true });
+        }
     }
     return true;
 }
@@ -484,6 +498,16 @@ bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[6], std
     else if (funcName == "moddedhold")
     {
         if (!parseFunctionHold(funcParams, scLabels, strokeSeq, true))
+            return false;
+    }
+    else if (funcName == "holdmods")
+    {
+        if (!parseFunctionHold(funcParams, scLabels, strokeSeq, false, true))
+            return false;
+    }
+    else if (funcName == "moddedholdmods")
+    {
+        if (!parseFunctionHold(funcParams, scLabels, strokeSeq, true, true))
             return false;
     }
     else if (funcName == "combontimes")

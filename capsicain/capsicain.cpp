@@ -111,7 +111,7 @@ struct GlobalState
     int keysDownSentCounter = 0;  //tracks how many keys are actually down that Windows knows about
     bool keysDownSent[256] = { false };  //Remember all forwarded to Windows. Sent keys must be 8 bit
     bool keysDownTempReleased[256] = { false };  //Remember all keys that were temporarily released, e.g. to send an Alt-Numpad combo
-    set<int> holdKeys[256];  //Remember all replaced hold() keys while the physical key is still down
+    set<int> holdKeys[VK_MAX];  //Remember all replaced hold() keys while the physical key is still down
 
     bool secretSequenceRecording = false;
     bool secretSequencePlayback = false;
@@ -1968,10 +1968,30 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
             }
             case VK_CPS_HOLDKEY:
             {
-                int code = loopState.vcode;
                 IFTRACE cout << endl << "vk_cps_holdkey: " << getPrettyVKLabelPadded(loopState.vcode, 0) << " -> " << getPrettyVKLabelPadded(vc, 0);
-                globalState.holdKeys[loopState.vcode].emplace(vc);
-                sendVKeyEvent(keyEvent, false);
+                if (!getKeyHolding(vc))
+                {
+                    globalState.holdKeys[loopState.vcode].emplace(vc);
+                    sendVKeyEvent(keyEvent, false);
+                }
+                break;
+            }
+            case VK_CPS_HOLDMOD:
+            {
+                if (!getKeyHolding(vc))
+                {
+                    for (int i = 0; i < NUMBER_OF_MODIFIERS; i++)
+                    {
+                        unsigned short mask = 1 << i;
+                        if (modifierState.modifierDown & mask)
+                        {
+                            int mod = getModifierForBitmask(mask);
+                            IFTRACE cout << endl << "vk_cps_holdmod: " << getPrettyVKLabelPadded(mod, 0) << " -> " << getPrettyVKLabelPadded(vc, 0);
+                            globalState.holdKeys[mod].emplace(vc);
+                        }
+                    }
+                    sendVKeyEvent(keyEvent, false);
+                }
                 break;
             }
             default:
@@ -2021,6 +2041,7 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
             || vc == VK_CPS_RECORDSECRETMACRO
             || vc == VK_CPS_PLAYMACRO
             || vc == VK_CPS_HOLDKEY
+            || vc == VK_CPS_HOLDMOD
             )
         {
             expectParamForFuncKey = vc;
@@ -2046,7 +2067,7 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
 
 int getKeyHolding(int vcode)
 {
-    for (int i = 0; i <= 255; i++)
+    for (int i = 0; i < VK_MAX; i++)
     {
         if (globalState.holdKeys[i].find(vcode) != globalState.holdKeys[i].end())
             return i;
@@ -2062,14 +2083,10 @@ void sendVKeyEvent(VKeyEvent keyEvent, bool hold)
         cout << endl << "BUG: vcode<0";
         return;
     }
+
     if (keyEvent.vcode == 0)
     {
         cout << endl << "{blocked NOP}";
-        return;
-    }
-    if (keyEvent.vcode > 0xFF || keyEvent.vcode == VK_CPS_PAUSE)
-    {
-        sendCapsicainCodeHandler(keyEvent);
         return;
     }
 
@@ -2099,6 +2116,12 @@ void sendVKeyEvent(VKeyEvent keyEvent, bool hold)
                 sendVKeyEvent({key, false}, false);
         }
         keyEvent.vcode = 0;
+        return;
+    }
+
+    if (keyEvent.vcode > 0xFF || keyEvent.vcode == VK_CPS_PAUSE)
+    {
+        sendCapsicainCodeHandler(keyEvent);
         return;
     }
 
