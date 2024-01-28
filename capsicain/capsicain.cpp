@@ -1988,6 +1988,7 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
                             int mod = getModifierForBitmask(mask);
                             IFTRACE cout << endl << "vk_cps_holdmod: " << getPrettyVKLabelPadded(mod, 0) << " -> " << getPrettyVKLabelPadded(vc, 0);
                             globalState.holdKeys[mod].emplace(vc);
+                            break;
                         }
                     }
                     sendVKeyEvent(keyEvent, false);
@@ -2115,8 +2116,8 @@ void sendVKeyEvent(VKeyEvent keyEvent, bool hold)
             for (auto key : release)
                 sendVKeyEvent({key, false}, false);
         }
-        keyEvent.vcode = 0;
-        return;
+        if (getKeyHolding(keyEvent.vcode))
+            return;
     }
 
     if (keyEvent.vcode > 0xFF || keyEvent.vcode == VK_CPS_PAUSE)

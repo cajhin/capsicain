@@ -365,20 +365,47 @@ bool parseComboParams(string funcParams, vector<int> &vcodes, string * scLabels)
     return vcodes.size() > count;
 }
 
-bool parseFunctionCombo(std::string funcParams, std::string * scLabels, std::vector<VKeyEvent> &strokeSeq, bool releaseTemp)
+// omni function to call the others based on modifiers
+bool parseFunctionKey(std::string funcParams, std::string * scLabels, std::vector<VKeyEvent> &strokeSeq)
+{
+    size_t idx_comma = (int)funcParams.rfind(',');
+    size_t idx_plus = (int)funcParams.rfind('+');
+    if (idx_comma == string::npos || idx_comma == funcParams.size() - 1 || (idx_plus != string::npos && idx_plus > idx_comma))
+        return parseFunctionCombo(funcParams, scLabels, strokeSeq);
+    string combo = funcParams.substr(0, idx_comma);
+    string type = funcParams.substr(idx_comma + 1);
+    bool hold = type.find('h') != string::npos;
+    bool release = type.find('r') != string::npos;
+    bool holdmods = type.find('m') != string::npos;
+    int times = strtol(type.c_str(), nullptr, 10);
+    if (times <= 0)
+        times = 1;
+
+    if (hold || holdmods)
+        return parseFunctionHold(combo, scLabels, strokeSeq, release, holdmods);
+    else
+        return parseFunctionCombo(combo, scLabels, strokeSeq, release, times);
+
+    return false;
+}
+
+bool parseFunctionCombo(std::string funcParams, std::string * scLabels, std::vector<VKeyEvent> &strokeSeq, bool releaseTemp, int times)
 {
     vector<int> keys;
     if (!parseComboParams(funcParams, keys, scLabels))
         return false;
     if (releaseTemp)
         strokeSeq.push_back({ VK_CPS_TEMPRELEASEKEYS, true });
-    for (auto it = keys.begin(); it != keys.end(); ++it)
+    for (int i = 0; i < times; ++i)
     {
-        strokeSeq.push_back({ *it, true });
-    }
-    for (auto it = keys.rbegin(); it != keys.rend(); ++it)
-    {
-        strokeSeq.push_back({ *it, false });
+        for (auto it = keys.begin(); it != keys.end(); ++it)
+        {
+            strokeSeq.push_back({ *it, true });
+        }
+        for (auto it = keys.rbegin(); it != keys.rend(); ++it)
+        {
+            strokeSeq.push_back({ *it, false });
+        }
     }
     if (releaseTemp)
         strokeSeq.push_back({ VK_CPS_TEMPRESTOREKEYS, true });
@@ -485,7 +512,12 @@ bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[6], std
 
     //translate 'function' into a key sequence
     vector<VKeyEvent> strokeSeq;
-    if (funcName == "key" || funcName == "combo")
+    if (funcName == "key")
+    {
+        if (!parseFunctionKey(funcParams, scLabels, strokeSeq))
+            return false;
+    }
+    else if (funcName == "combo")
     {
         if (!parseFunctionCombo(funcParams, scLabels, strokeSeq))
             return false;
@@ -517,13 +549,8 @@ bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[6], std
             return false;
         string combo = funcParams.substr(0, idx);
         string stime = funcParams.substr(idx + 1);
-        if (!parseFunctionCombo(combo, scLabels, strokeSeq))
+        if (!parseFunctionCombo(combo, scLabels, strokeSeq, false, stoi(stime)))
             return false;
-        int times = stoi(stime);
-        auto len = strokeSeq.size();
-        for (int j = 1; j < times; j++)
-            for (int i = 0; i < len; i++)
-                strokeSeq.push_back(strokeSeq.at(i));
     }
     else if (funcName == "altchar")
     {
