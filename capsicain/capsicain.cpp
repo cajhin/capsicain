@@ -1898,6 +1898,8 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
 
     for (VKeyEvent keyEvent : keyEventSequence)
     {
+        // can be changed during key sequence by delay()
+        delayBetweenKeyEventsMS = options.delayForKeySequenceMS;
         int vc = keyEvent.vcode;
         if (globalState.secretSequencePlayback)
             vc = deObfuscateVKey(vc);
@@ -1995,6 +1997,10 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
                 }
                 break;
             }
+            case VK_CPS_DELAY:
+                IFTRACE cout << endl << "vk_cps_delay: " << vc;
+                options.delayForKeySequenceMS = vc;
+                break;
             default:
                 cout << endl << "BUG? unknown expectParamForFuncKey";
             }
@@ -2043,6 +2049,7 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
             || vc == VK_CPS_PLAYMACRO
             || vc == VK_CPS_HOLDKEY
             || vc == VK_CPS_HOLDMOD
+            || vc == VK_CPS_DELAY
             )
         {
             expectParamForFuncKey = vc;

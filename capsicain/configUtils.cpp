@@ -590,6 +590,7 @@ bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[6], std
             vector<string> params = stringSplit(funcParams, '_');
             bool downkeys[256] = { 0 };
             const string SLEEP_TAG = "sleep:";
+            const string DELAY_TAG = "delay:";
             const string CONFIGSWITCH_TAG = "configswitch:";
 
             for (string param : params)
@@ -613,19 +614,23 @@ bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[6], std
                 if (stringStartsWith(param, SLEEP_TAG))
                 {
                     string sleeptime = param.substr(SLEEP_TAG.length());
-                    int stime = stoi(sleeptime);
-                    if (stime > 30000)
+                    int stime;
+                    if (stringToInt(sleeptime, stime) && stime > 0 && stime <= 30000)
                     {
-                        cout << endl << "Sequence() defines sleep: > 30000 Reducing to 30000 (30 seconds)";
-                        stime = 30000;
+                        strokeSeq.push_back({ VK_CPS_DELAY, true });
+                        strokeSeq.push_back({ stime, true });
                     }
-                    if (stime <= 0)
+                    continue;
+                }
+                if (stringStartsWith(param, DELAY_TAG))
+                {
+                    string sleeptime = param.substr(SLEEP_TAG.length());
+                    int stime;
+                    if (stringToInt(sleeptime, stime) && stime >= 0 && stime <= 1000)
                     {
-                        cout << endl << "Sequence() defines sleep: <=0. Ignoring the pause.";
-                        continue;
+                        strokeSeq.push_back({ VK_CPS_DELAY, true });
+                        strokeSeq.push_back({ stime, true });
                     }
-                    strokeSeq.push_back({ VK_CPS_SLEEP, true });
-                    strokeSeq.push_back({ stime, true });
                     continue;
                 }
                 //handle the "configswitch:2" items
@@ -715,8 +720,32 @@ bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[6], std
 
             strokeSeq.push_back({ macroNum, true });
         }
-        else 
+        else if (funcName == "sleep")
+        {
+            int stime;
+            if (stringToInt(funcParams, stime))
+            {
+                strokeSeq.push_back({ VK_CPS_SLEEP, true });
+                strokeSeq.push_back({ stime, true });
+            }
+        }
+        else if (funcName == "delay")
+        {
+            int stime;
+            if (stringToInt(funcParams, stime))
+            {
+                strokeSeq.push_back({ VK_CPS_DELAY, true });
+                strokeSeq.push_back({ stime, true });
+            }
+        }
+        else if (funcName == "release")
+        {
+            strokeSeq.push_back({ VK_CPS_RELEASEKEYS, true });
+        }
+        else
+        { 
             return false;
+        }
     }
 
     strokeSequence = strokeSeq;
