@@ -617,7 +617,7 @@ bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[6], std
                     int stime;
                     if (stringToInt(sleeptime, stime) && stime > 0 && stime <= 30000)
                     {
-                        strokeSeq.push_back({ VK_CPS_DELAY, true });
+                        strokeSeq.push_back({ VK_CPS_SLEEP, true });
                         strokeSeq.push_back({ stime, true });
                     }
                     continue;
@@ -741,6 +741,10 @@ bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[6], std
         else if (funcName == "release")
         {
             strokeSeq.push_back({ VK_CPS_RELEASEKEYS, true });
+        }
+        else if (funcName == "nop")
+        {
+            strokeSeq.push_back({ SC_NOP, true });
         }
         else
         { 

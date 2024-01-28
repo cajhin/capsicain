@@ -2094,7 +2094,7 @@ void sendVKeyEvent(VKeyEvent keyEvent, bool hold)
 
     if (keyEvent.vcode == 0)
     {
-        cout << endl << "{blocked NOP}";
+        IFDEBUG cout << endl << "{blocked NOP}";
         return;
     }
 
