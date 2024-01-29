@@ -206,6 +206,7 @@ enum VirtualCode
     VK_CPS_KEYTOGGLE = 0x12C,
     VK_CPS_KEYTAP = 0x12D,
     VK_CPS_EXECUTE = 0x12E,
+    VK_CPS_KILL = 0x12F,
     VK_MAX
 /* testing the VMK style config shift
     VK_SHFCFG0 = 0x117,  //shift config, i.e. shift back when the key is released

@@ -793,6 +793,18 @@ bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[6], std
             strokeSeq.push_back({ VK_CPS_EXECUTE, true });
             strokeSeq.push_back({ exeNum, true });
         }
+        else if (funcName == "kill")
+        {
+            int exeNum;
+            bool valid = stringToInt(funcParams, exeNum);
+            if (!valid)
+            {
+                cout << endl <<  "Invalid executable : " << funcParams;
+                return false;
+            }
+            strokeSeq.push_back({ VK_CPS_KILL, true });
+            strokeSeq.push_back({ exeNum, true });
+        }
         else
         { 
             return false;

@@ -74,10 +74,13 @@ struct ModifierCombo
 
 struct Executable
 {
-    string exe;
+    string verb;
+    string path;
     string args;
     string dir;
     int mode;
+    HANDLE proc;
+    DWORD pid;
 };
 
 struct AllMaps
@@ -1519,24 +1522,29 @@ void parseIniExecutables(std::vector<std::string> assembledIni)
         string param;
         vector<string> params;
         while(getline(paramss, param, ','))
+        {
+            ltrim(param);
+            rtrim(param);
             params.push_back(param);
-        if (params.size() < 1)
+        }
+        if (params.size() < 2)
         {
             error("Invalid EXE: " + line);
             continue;
         }
-        string path = params[0];
+        string verb = params[0];
+        string path = params[1];
         string args;
         string dir;
         int mode = SW_SHOWDEFAULT;
-        if (params.size() > 1)
-            args = params[1];
         if (params.size() > 2)
-            dir = params[2];
+            args = params[2];
         if (params.size() > 3)
-            stringToInt(params[3], mode);
+            dir = params[3];
+        if (params.size() > 4)
+            stringToInt(params[4], mode);
 
-        allMaps.executables[id] = {path, args, dir, mode};
+        allMaps.executables[id] = {verb, path, args, dir, mode, NULL};
         tagCounter++;
     }
     IFDEBUG cout << endl << "Exe    Definitions: " << dec << tagCounter;
@@ -1969,6 +1977,56 @@ void sendResultingKeyOrSequence()
     }
 }
 
+bool runExecutable(Executable &exe)
+{
+    SHELLEXECUTEINFOA info = {0};
+    info.cbSize = sizeof(SHELLEXECUTEINFO);
+    info.fMask = SEE_MASK_NO_CONSOLE | SEE_MASK_NOCLOSEPROCESS;
+    info.lpVerb = exe.verb.c_str();
+    info.lpFile = exe.path.c_str();
+    info.lpParameters = exe.args.c_str();
+    info.lpDirectory = exe.dir.c_str();
+    info.nShow = exe.mode;
+    ShellExecuteExA(&info);
+    exe.proc = info.hProcess;
+    exe.pid = GetProcessId(exe.proc);
+    auto ret = (INT_PTR)info.hInstApp > 32;
+    if (ret)
+        IFDEBUG cout << endl
+                     << "Launched process " << exe.pid << " " << exe.path;
+    else
+        cout << endl << "Error: " << GetLastError();
+    return ret;
+}
+
+void killExecutableByPath(string path) {
+    auto slash = path.find_last_of("\\/");
+    if (slash != string::npos)
+        path = path.substr(slash + 1);
+    string ext = ".exe";
+    if (!std::equal(ext.rbegin(), ext.rend(), path.rbegin()))
+        path = path + ext;
+    closeOrKillProgram(path);
+}
+
+void killExecutable(Executable &exe)
+{
+    if (exe.pid && GetProcessId(exe.proc) == exe.pid)
+    {
+        HANDLE hProc = OpenProcess(SYNCHRONIZE | PROCESS_TERMINATE, FALSE, exe.pid);
+        EnumWindows((WNDENUMPROC)TerminateAppEnum, (LPARAM)exe.pid);
+        int result = 1; // 0=fail; 1=close; 2=kill
+        if (WaitForSingleObject(hProc, 1000) != WAIT_OBJECT_0)
+            result = (TerminateProcess(hProc, 0) ? 2 : 0);
+        CloseHandle(hProc);
+        exe.proc = NULL;
+    }
+    else
+    {
+        killExecutableByPath(exe.path);
+    }
+}
+
 //Send out all keys in a sequence
 //Sequences are created for anything that requires more than one key event, like AltChar(123)
 //Catch and process CPS virtual keys that have a value following in the next key
@@ -2144,8 +2202,17 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
                     IFDEBUG cout << "Can't find executable " << vc << endl;
                     break;
                 }
-                run(allMaps.executables[vc].exe, allMaps.executables[vc].args,
-                    allMaps.executables[vc].dir, allMaps.executables[vc].mode);
+                runExecutable(allMaps.executables[vc]);
+                break;
+            }
+            case VK_CPS_KILL:
+            {
+                if (allMaps.executables.find(vc) == allMaps.executables.end())
+                {
+                    IFDEBUG cout << "Can't find executable " << vc << endl;
+                    break;
+                }
+                killExecutable(allMaps.executables[vc]);
                 break;
             }
             default:
@@ -2201,6 +2268,7 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
             || vc == VK_CPS_KEYTOGGLE
             || vc == VK_CPS_KEYTAP
             || vc == VK_CPS_EXECUTE
+            || vc == VK_CPS_KILL
             )
         {
             expectParamForFuncKey = vc;

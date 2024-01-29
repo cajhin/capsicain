@@ -7,6 +7,8 @@
 #include <windows.h>
 #include <tlhelp32.h>
 #include <algorithm>
+#include <cctype>
+#include <locale>
 #include "utils.h"
 
 
@@ -69,15 +71,6 @@ DWORD FindProcessId(string processName)
 
     CloseHandle(processesSnapshot);
     return 0;
-}
-
-bool run(string path, string args, string dir, int mode)
-{
-    auto ret = (INT_PTR)ShellExecuteA(NULL, "open", path.c_str(), args.c_str(),
-                             dir.c_str(), mode);
-    if (ret <= 32)
-        cout << "exec error: " << GetLastError() << endl;
-    return ret > 32;
 }
 
 string startProgram(string processName, string dir)

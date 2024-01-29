@@ -250,6 +250,7 @@ void defineAllPrettyVKLabels(string arr[])
     checkAddLabel(VK_CPS_KEYTOGGLE, "KEYTOGGLE", arr);
     checkAddLabel(VK_CPS_KEYTAP, "KEYTAP", arr);
     checkAddLabel(VK_CPS_EXECUTE, "EXECUTE", arr);
+    checkAddLabel(VK_CPS_KILL, "KILL", arr);
 /* testing the VMK style config shift
     checkAddLabel(VK_SHFCFG0, "SHFCFG0", arr);
     checkAddLabel(VK_SHFCFG1, "SHFCFG1", arr);
