@@ -2162,6 +2162,19 @@ int getKeyHolding(int vcode)
     return 0;
 }
 
+std::string getHoldKeyString(std::set<int> &v, std::string delim)
+{
+    std::string out;
+    for (auto it = v.rbegin(); it != v.rend(); ++it)
+    {
+        out += PRETTY_VK_LABELS[*it];
+        out += delim;
+    }
+    for (int i = 0; i < delim.size(); ++i)
+        out.pop_back();
+    return out;
+}
+
 void sendVKeyEvent(VKeyEvent keyEvent, bool hold)
 {
     IFTRACE cout << endl << "sendVkeyEvent(" << keyEvent.vcode << ")";
@@ -2180,7 +2193,8 @@ void sendVKeyEvent(VKeyEvent keyEvent, bool hold)
     if (globalState.holdKeys[keyEvent.vcode].size() && hold)
     {
         int code = keyEvent.vcode;
-        IFDEBUG cout << " {" << PRETTY_VK_LABELS[code] << (keyEvent.isDownstroke ? " holding " : " released ") << globalState.holdKeys[code].size() << "}";
+        set<int> release;
+        IFDEBUG cout << " {" << PRETTY_VK_LABELS[code] << (keyEvent.isDownstroke ? " holding " : " released ") << globalState.holdKeys[code].size() << ": " << getHoldKeyString(globalState.holdKeys[code], "+") << "}";
         if (keyEvent.isDownstroke)
         {
             if (options.holdRepeatsAllKeys)
@@ -2190,20 +2204,20 @@ void sendVKeyEvent(VKeyEvent keyEvent, bool hold)
             }
             else
             {
-                sendVKeyEvent({*globalState.holdKeys[code].rbegin(), true}, false);
+                sendVKeyEvent({*globalState.holdKeys[code].begin(), true}, false);
             }
+            return;
         }
         else
         {
-            vector<int> release;
             for (auto it = globalState.holdKeys[code].rbegin(); it != globalState.holdKeys[code].rend(); ++it)
-                release.push_back(*it);
+                release.emplace(*it);
             globalState.holdKeys[code].clear();
             for (auto key : release)
                 sendVKeyEvent({key, false}, false);
+            if (release.find(keyEvent.vcode) != release.end())
+                return;
         }
-        if (getKeyHolding(keyEvent.vcode))
-            return;
     }
 
     if (keyEvent.vcode > 0xFF || keyEvent.vcode == VK_CPS_PAUSE)
