@@ -116,6 +116,7 @@ enum ScanCode {
     SC_LANG2 = 0x71, // (Korean 'Hanja key' according to Firefox spec)
     SC_LANG1 = 0x72, // (Korean 'Han/Yeong key' according to Firefox spec)
     SC_ABNT_C1 = 0x73, // / ? on Portugese (Brazilian) keyboards
+    SC_F24 = 0x76,
     SC_CONVERT = 0x79, // (Japanese keyboard)
     SC_NOCONVERT = 0x7B, // (Japanese keyboard)
     SC_YEN = 0x7D, // (Japanese keyboard)
