@@ -71,6 +71,14 @@ DWORD FindProcessId(string processName)
     return 0;
 }
 
+bool run(string path, string args, string dir, int mode)
+{
+    auto ret = (INT_PTR)ShellExecuteA(NULL, "open", path.c_str(), args.c_str(),
+                             dir.c_str(), mode);
+    if (ret <= 32)
+        cout << "exec error: " << GetLastError() << endl;
+    return ret > 32;
+}
 
 string startProgram(string processName, string dir)
 {

@@ -64,7 +64,8 @@ int checkSyntax(std::vector<string> iniLines)
             stringStartsWith(*t, "up") ||
             stringStartsWith(*t, "tap") ||
             stringStartsWith(*t, "slow") ||
-            stringStartsWith(*t, "option")
+            stringStartsWith(*t, "option") ||
+            stringStartsWith(*t, "exe")
             )
             continue;
 
@@ -779,6 +780,18 @@ bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[6], std
             int isc = getVcode(funcParams, scLabels);
             strokeSeq.push_back({ VK_CPS_KEYTAP, true });
             strokeSeq.push_back({ isc, false });
+        }
+        else if (funcName == "exe")
+        {
+            int exeNum;
+            bool valid = stringToInt(funcParams, exeNum);
+            if (!valid)
+            {
+                cout << endl <<  "Invalid executable : " << funcParams;
+                return false;
+            }
+            strokeSeq.push_back({ VK_CPS_EXECUTE, true });
+            strokeSeq.push_back({ exeNum, true });
         }
         else
         { 

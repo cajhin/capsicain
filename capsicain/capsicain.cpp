@@ -9,6 +9,7 @@
 #include <map>
 #include <algorithm>
 #include <string>
+#include <sstream>
 #include <Windows.h>  //for Sleep()
 
 #include "capsicain.h"
@@ -71,6 +72,14 @@ struct ModifierCombo
     vector<VKeyEvent> keyEventSequence;
 };
 
+struct Executable
+{
+    string exe;
+    string args;
+    string dir;
+    int mode;
+};
+
 struct AllMaps
 {
     //inkey outkey (tapped)
@@ -85,6 +94,8 @@ struct AllMaps
     };
 
     int alphamap[MAX_VCODES] = { }; //MUST initialize this manually to 1 1, 2 2, 3 3, ...
+
+    map<int, Executable> executables;
 } allMaps;
 
 struct InterceptionState
@@ -1485,6 +1496,53 @@ std::vector<std::string> assembleConfig(int config)
     return assembledIni;
 }
 
+void parseIniExecutables(std::vector<std::string> assembledIni)
+{
+    allMaps.executables.clear();
+    vector<string> sectLines = getTaggedLinesFromIni(INI_TAG_EXE, assembledIni);
+    int tagCounter = 0;
+    for (string line : sectLines)
+    {
+        size_t idIdx = line.find_first_of(' ');
+        if (idIdx == string::npos)
+        {
+            error("Invalid EXE: " + line);
+            continue;
+        }
+        int id;
+        if (!stringToInt(line.substr(0, idIdx), id))
+        {
+            error("Invalid EXE: " + line);
+            continue;
+        }
+        stringstream paramss(line.substr(idIdx + 1));
+        string param;
+        vector<string> params;
+        while(getline(paramss, param, ','))
+            params.push_back(param);
+        if (params.size() < 1)
+        {
+            error("Invalid EXE: " + line);
+            continue;
+        }
+        string path = params[0];
+        string args;
+        string dir;
+        int mode = SW_SHOWDEFAULT;
+        if (params.size() > 1)
+            args = params[1];
+        if (params.size() > 2)
+            dir = params[2];
+        if (params.size() > 3)
+            stringToInt(params[3], mode);
+
+        allMaps.executables[id] = {path, args, dir, mode};
+        tagCounter++;
+    }
+    IFDEBUG cout << endl << "Exe    Definitions: " << dec << tagCounter;
+}
+
+
 void initializeAllMaps()
 {
     for (auto kv : allMaps.modCombos)
@@ -1528,6 +1586,8 @@ bool parseProcessIniConfig(int config)
     parseIniOptions(assembledConfig);
 
     parseIniRewires(assembledConfig);
+
+    parseIniExecutables(assembledConfig);
 
     parseIniCombos(assembledConfig);
     IFDEBUG cout << endl << "Down   Definitions: " << dec << allMaps.modCombos[INI_TAG_COMBOS].size();
@@ -2077,6 +2137,17 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
                 else
                     modifierState.modifierTapped &= ~getModifierBitmaskForVcode(vc);
                 break;
+            case VK_CPS_EXECUTE:
+            {
+                if (allMaps.executables.find(vc) == allMaps.executables.end())
+                {
+                    IFDEBUG cout << "Can't find executable " << vc << endl;
+                    break;
+                }
+                run(allMaps.executables[vc].exe, allMaps.executables[vc].args,
+                    allMaps.executables[vc].dir, allMaps.executables[vc].mode);
+                break;
+            }
             default:
                 cout << endl << "BUG? unknown expectParamForFuncKey";
             }
@@ -2129,6 +2200,7 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
             || vc == VK_CPS_KEYDOWN
             || vc == VK_CPS_KEYTOGGLE
             || vc == VK_CPS_KEYTAP
+            || vc == VK_CPS_EXECUTE
             )
         {
             expectParamForFuncKey = vc;
