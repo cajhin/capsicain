@@ -1984,23 +1984,28 @@ void sendResultingKeyOrSequence()
 
 bool runExecutable(Executable &exe)
 {
+    char path[MAX_PATH];
+    char args[MAX_PATH];
+    char dir[MAX_PATH];
+    ZeroMemory(path, MAX_PATH);
+    ZeroMemory(args, MAX_PATH);
+    ZeroMemory(dir, MAX_PATH);
+    ExpandEnvironmentStringsA(exe.path.c_str(), path, MAX_PATH);
+    ExpandEnvironmentStringsA(exe.args.c_str(), args, MAX_PATH);
+    ExpandEnvironmentStringsA(exe.dir.c_str(), dir, MAX_PATH);
+
     SHELLEXECUTEINFOA info = {0};
     info.cbSize = sizeof(SHELLEXECUTEINFO);
     info.fMask = SEE_MASK_NO_CONSOLE | SEE_MASK_NOCLOSEPROCESS;
     info.lpVerb = exe.verb.c_str();
-    info.lpFile = exe.path.c_str();
-    info.lpParameters = exe.args.c_str();
-    info.lpDirectory = exe.dir.c_str();
+    info.lpFile = path;
+    info.lpParameters = args;
+    info.lpDirectory = dir;
     info.nShow = exe.mode;
     ShellExecuteExA(&info);
     exe.proc = info.hProcess;
     exe.pid = GetProcessId(exe.proc);
     auto ret = (INT_PTR)info.hInstApp > 32;
-    if (ret)
-        IFDEBUG cout << endl
-                     << "Launched process " << exe.pid << " " << exe.path;
-    else
-        cout << endl << "Error: " << GetLastError();
     return ret;
 }
 
