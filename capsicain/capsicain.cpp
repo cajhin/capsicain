@@ -57,6 +57,7 @@ struct Options
     bool LControlLWinBlocksAlphaMapping = false;
     bool processOnlyFirstKeyboard = false;
     bool holdRepeatsAllKeys = false;
+    bool disableAHKDelay = false;
 } options;
 static const struct Options defaultOptions;
 
@@ -64,11 +65,11 @@ struct ModifierCombo
 {
     int vkey = SC_NOP;
     unsigned char deadkey = 0;
-    unsigned short modAnd = 0;
-    unsigned short modOr = 0;
-    unsigned short modNot = 0;
-    unsigned short modTap = 0;
-    unsigned short modTapAnd = 0;
+    MOD modAnd = 0;
+    MOD modOr = 0;
+    MOD modNot = 0;
+    MOD modTap = 0;
+    MOD modTapAnd = 0;
     vector<VKeyEvent> keyEventSequence;
 };
 
@@ -143,9 +144,9 @@ static const struct GlobalState defaultGlobalState;
 struct ModifierState
 {
     unsigned char activeDeadkey = 0;  //it's not really a modifier though...
-    unsigned short modifierDown = 0;
-    unsigned short modifierTapped = 0;
-    unsigned short modifierForceDown = 0;
+    MOD modifierDown = 0;
+    MOD modifierTapped = 0;
+    MOD modifierForceDown = 0;
     vector<VKeyEvent> modsTempAltered;
     int tapAndHoldKey = -1; //remember the tap-and-hold key as long as it is down
 } modifierState;
@@ -752,7 +753,7 @@ void detectTapping()
 
 void processModifierState()
 {
-    unsigned short modBitmask = getModifierBitmaskForVcode(loopState.vcode);
+    MOD modBitmask = getModifierBitmaskForVcode(loopState.vcode);
 
     //set internal modifier state
     if (loopState.isDownstroke)
@@ -796,7 +797,7 @@ void processRewireScancodeToVirtualcode()
             //clear the 'modifier down' state for preceding "to mod" def
             if (isModifier(loopState.vcode))
             {
-                unsigned short modBitmask = getModifierBitmaskForVcode(loopState.vcode);
+                MOD modBitmask = getModifierBitmaskForVcode(loopState.vcode);
                 if (modBitmask != 0)
                     modifierState.modifierDown &= ~modBitmask; //undo previous key down, e.g. clear internal 'MOD10 is down'
             }
@@ -822,11 +823,11 @@ void processRewireScancodeToVirtualcode()
                     //clear the preceding tapped state(s)
                     int rewtappedkey = allMaps.rewiremap[loopState.scancode][REWIRE_TAP];
                     //1. Tap&Hold of a key rewired to modifier always first triggers the generic "modifier tapped"
-                    unsigned short modBitmask1 = getModifierBitmaskForVcode(rewoutkey);
+                    MOD modBitmask1 = getModifierBitmaskForVcode(rewoutkey);
                     if (modBitmask1 != 0)
                         modifierState.modifierTapped &= ~modBitmask1;
                     //2. Explicit "Rewire in out ifTapped" (should probably never combine ifTapped with ifTappedAndHold, but not sure)
-                    unsigned short modBitmask2 = getModifierBitmaskForVcode(rewtappedkey);
+                    MOD modBitmask2 = getModifierBitmaskForVcode(rewtappedkey);
                     if (modBitmask2 != 0)
                         modifierState.modifierTapped &= ~modBitmask2;
 
@@ -1309,6 +1310,10 @@ bool parseIniOptions(std::vector<std::string> assembledIni)
         {
             options.holdRepeatsAllKeys = true;
         }
+        else if (token == "disableahkdelay")
+        {
+            options.disableAHKDelay = true;
+        }
         else
         {
             cout << endl << "WARNING: ignoring unknown OPTION " << line << endl;
@@ -1357,7 +1362,7 @@ void parseIniRewires(std::vector<std::string> assembledIni)
 bool parseIniCombos(std::vector<std::string> assembledIni)
 {
     auto parseSect = [](vector<string>& sectLines, vector<ModifierCombo> &combos) {
-        unsigned short mods[6] = { 0 }; //deadkey, and, or, not, tap, tap/and
+        MOD mods[6] = { 0 }; //deadkey, and, or, not, tap, tap/and
         vector<VKeyEvent> keyEventSequence;
         for (string line : sectLines)
         {
@@ -1804,8 +1809,8 @@ void printLoopState2Modifier()
 {
     string mdown = modifierState.modifierDown > 0 ? stringIntToHex(modifierState.modifierDown,0) : "";
     string mtapp = modifierState.modifierTapped > 0 ? stringIntToHex(modifierState.modifierTapped,0) : "";
-    cout << "[M:" << setw(4) << mdown
-         << " T:" << setw(4) << mtapp
+    cout << "[M:" << setw(8) << mdown
+         << " T:" << setw(8) << mtapp
          << " D:" << setw(6) << (modifierState.activeDeadkey > 0 ? getPrettyVKLabel(modifierState.activeDeadkey): "")
          << "] ";
 }
@@ -2137,7 +2142,7 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
                 {
                     for (int i = 0; i < NUMBER_OF_MODIFIERS; i++)
                     {
-                        unsigned short mask = 1 << i;
+                        MOD mask = 1 << i;
                         if (modifierState.modifierDown & mask)
                         {
                             int mod = getModifierForBitmask(mask);
@@ -2279,7 +2284,7 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
                 sendVKeyEvent({ deObfuscateVKey(keyEvent.vcode) , keyEvent.isDownstroke });
             else
                 sendVKeyEvent(keyEvent);
-            if (vc == AHK_HOTKEY1 || vc == AHK_HOTKEY2)
+            if (!options.disableAHKDelay && (vc == AHK_HOTKEY1 || vc == AHK_HOTKEY2))
                 Sleep(DEFAULT_DELAY_FOR_AHK_MS);
             else
                 Sleep(delayBetweenKeyEventsMS);

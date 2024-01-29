@@ -315,7 +315,7 @@ bool parseKeywordRewire(std::string line, int &keyA, int &keyB, int &keyC, int &
 }
 
 //convert ("xyz_&.", '&') to 000010
-unsigned short parseModString(string modString, char filter)
+MOD parseModString(string modString, char filter)
 {
     string binString = "0";
     for (int i = 0; i < modString.length(); i++)
@@ -449,7 +449,7 @@ bool parseFunctionHold(std::string funcParams, std::string * scLabels, std::vect
 //parse {deadkey-x} keyLabel  [&|^t ....] > function(param)
 //returns false if the rule is not valid.
 //this translates functions() in the .ini to key sequences (usually with special VK_CPS keys)
-bool parseKeywordCombo(std::string line, int &key, unsigned short(&mods)[6], std::vector<VKeyEvent> &strokeSequence, std::string scLabels[])
+bool parseKeywordCombo(std::string line, int &key, MOD(&mods)[6], std::vector<VKeyEvent> &strokeSequence, std::string scLabels[])
 {
     string strkey = stringCutFirstToken(line);
     if (strkey.length() < 1)
