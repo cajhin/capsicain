@@ -1343,7 +1343,6 @@ void parseIniRewires(std::vector<std::string> assembledIni)
 bool parseIniCombos(std::vector<std::string> assembledIni)
 {
     auto parseSect = [](vector<string>& sectLines, vector<ModifierCombo> &combos) {
-        combos.clear();
         unsigned short mods[6] = { 0 }; //deadkey, and, or, not, tap, tap/and
         vector<VKeyEvent> keyEventSequence;
         for (string line : sectLines)
@@ -1390,7 +1389,14 @@ bool parseIniCombos(std::vector<std::string> assembledIni)
         return sectLines.size();
     };
 
+    for (auto& kv : allMaps.modCombos)
+        kv.second.clear();
+
     size_t totalLines = 0;
+    {
+        auto combolines = getTaggedLinesFromIni("COMBO", assembledIni);
+        totalLines += parseSect(combolines, allMaps.modCombos[INI_TAG_COMBOS]);
+    }
     for (auto& kv : allMaps.modCombos)
     {
         auto lines = getTaggedLinesFromIni(kv.first, assembledIni);
@@ -1524,7 +1530,7 @@ bool parseProcessIniConfig(int config)
     parseIniRewires(assembledConfig);
 
     parseIniCombos(assembledConfig);
-    IFDEBUG cout << endl << "Combo  Definitions: " << dec << allMaps.modCombos[INI_TAG_COMBOS].size();
+    IFDEBUG cout << endl << "Down   Definitions: " << dec << allMaps.modCombos[INI_TAG_COMBOS].size();
     IFDEBUG cout << endl << "Up     Definitions: " << dec << allMaps.modCombos[INI_TAG_UPCOMBOS].size();
     IFDEBUG cout << endl << "Tap    Definitions: " << dec << allMaps.modCombos[INI_TAG_TAPCOMBOS].size();
     IFDEBUG cout << endl << "Slow   Definitions: " << dec << allMaps.modCombos[INI_TAG_SLOWCOMBOS].size();

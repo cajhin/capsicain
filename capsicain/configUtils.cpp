@@ -60,6 +60,7 @@ int checkSyntax(std::vector<string> iniLines)
             stringStartsWith(*t, "include") ||
             stringStartsWith(*t, "rewire") ||
             stringStartsWith(*t, "combo") ||
+            stringStartsWith(*t, "down") ||
             stringStartsWith(*t, "up") ||
             stringStartsWith(*t, "tap") ||
             stringStartsWith(*t, "slow") ||
