@@ -317,15 +317,12 @@ bool parseKeywordRewire(std::string line, int &keyA, int &keyB, int &keyC, int &
 //convert ("xyz_&.", '&') to 000010
 MOD parseModString(string modString, char filter)
 {
-    string binString = "0";
-    for (int i = 0; i < modString.length(); i++)
-    {
-        if (modString[i] == filter)
-            binString += '1';
-        else
-            binString += '0';
-    }
-    return std::stoi(binString, nullptr, 2);
+    modString.erase(std::remove(modString.begin(), modString.end(), ' '), modString.end());
+    MOD mask = 0;
+    for (int i = 0; i < min(modString.size(), 32); ++i)
+        if (modString[modString.size() - i - 1] == filter)
+            mask |= 1 << i;
+    return mask;
 }
 
 // parses + separated combo that can also include a modstring to keycodes
@@ -477,7 +474,7 @@ bool parseKeywordCombo(std::string line, int &key, MOD(&mods)[6], std::vector<VK
 
     line.erase(std::remove(line.begin(), line.end(), ' '), line.end());
 
-    size_t modIdx1 = line.find_first_of('[');
+    size_t modIdx1 = line.find_first_of('[') + 1;
     size_t modIdx2 = line.find_first_of(']');
     if (modIdx1 < 0 || modIdx1 > modIdx2 || modIdx1 == string::npos || modIdx2 == string::npos)
         return false;

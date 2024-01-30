@@ -1672,6 +1672,8 @@ void resetCapsNumScrollLock()
 void reset()
 {
     releaseAllSentKeys();
+    for (size_t i = 0; i < VK_MAX; ++i)
+        globalState.holdKeys[i].clear();
 
     loopState = defaultLoopState;
     modifierState = defaultModifierState;
