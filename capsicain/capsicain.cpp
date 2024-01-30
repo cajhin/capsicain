@@ -402,19 +402,16 @@ int main()
         }
         else if (globalState.realEscapeIsDown && loopState.isDownstroke)
         {
+            if (globals.forwardEscKey.find(loopState.scancode) == globals.forwardEscKey.end())
+                continue;
+        }
+        else if (globalState.realEscapeIsDown && !loopState.isDownstroke)
+        {
             if (globals.disableEscKey.find(loopState.scancode) == globals.disableEscKey.end())
             {
-                if (loopState.scancode == SC_R && globals.forwardEscKey.find(loopState.scancode) != globals.forwardEscKey.end())
-                {
-                    IFDEBUG cout << endl << "Esc+" + PRETTY_VK_LABELS[loopState.scancode] + " is forwarded, sending keystroke before reload";
-                    InterceptionSendCurrentKeystroke();
-                }
                 if (processCommand())
                 {
-                    if (loopState.scancode != SC_R && globals.forwardEscKey.find(loopState.scancode) != globals.forwardEscKey.end())
-                        IFDEBUG cout << endl << "Esc+" + PRETTY_VK_LABELS[loopState.scancode] + " is forwarded, passing to default handler after Esc action";
-                    else
-                        continue;
+                    continue;
                 }
                 else
                 {
@@ -423,7 +420,8 @@ int main()
                     break;
                 }
             }
-            else IFDEBUG cout << endl << "Esc+" + PRETTY_VK_LABELS[loopState.scancode] + " is disabled, passing to default handler";
+            if (globals.forwardEscKey.find(loopState.scancode) == globals.forwardEscKey.end())
+                continue;
         }
 
         //TESTING the layer shift feature
@@ -1711,12 +1709,10 @@ void resetCapsNumScrollLock()
 void reset()
 {
     releaseAllSentKeys();
-    for (size_t i = 0; i < VK_MAX; ++i)
-        globalState.holdKeys[i].clear();
 
     loopState = defaultLoopState;
     modifierState = defaultModifierState;
-    
+
     IFPROF
     {
         chrono::steady_clock::time_point tps = profiler.timepointStopwatch;
@@ -1755,7 +1751,8 @@ void reload()
 void releaseAllSentKeys()
 {
     IFDEBUG cout << endl << "Resetting all sent DOWN keys to UP: " << endl;
-    for (int i = 0; i < 255; i++)
+    // release backwards to release modifiers and esc last
+    for (int i = 255; i >= 0; --i)
     {
         if (globalState.keysDownSent[i])
         {
@@ -2180,25 +2177,36 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
                     globalState.holdKeys[loopState.vcode].emplace(vc);
                     sendVKeyEvent(keyEvent, false);
                 }
+                else
+                    sendVKeyEvent(keyEvent);
                 break;
             }
             case VK_CPS_HOLDMOD:
             {
                 if (!getKeyHolding(vc))
                 {
-                    for (int i = 0; i < NUMBER_OF_MODIFIERS; i++)
+                    if (modifierState.modifierDown)
                     {
-                        MOD mask = 1 << i;
-                        if (modifierState.modifierDown & mask)
+                        for (int i = 0; i < NUMBER_OF_MODIFIERS; i++)
                         {
-                            int mod = getModifierForBitmask(mask);
-                            IFTRACE cout << endl << "vk_cps_holdmod: " << getPrettyVKLabelPadded(mod, 0) << " -> " << getPrettyVKLabelPadded(vc, 0);
-                            globalState.holdKeys[mod].emplace(vc);
-                            break;
+                            MOD mask = 1 << i;
+                            if (modifierState.modifierDown & mask)
+                            {
+                                int mod = getModifierForBitmask(mask);
+                                IFTRACE cout << endl << "vk_cps_holdmod: " << getPrettyVKLabelPadded(mod, 0) << " -> " << getPrettyVKLabelPadded(vc, 0);
+                                globalState.holdKeys[mod].emplace(vc);
+                                break;
+                            }
                         }
+                    }
+                    else
+                    {
+                        globalState.holdKeys[loopState.vcode].emplace(vc);
                     }
                     sendVKeyEvent(keyEvent, false);
                 }
+                else
+                    sendVKeyEvent(keyEvent);
                 break;
             }
             case VK_CPS_DELAY:
