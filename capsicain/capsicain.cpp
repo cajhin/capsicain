@@ -1,4 +1,4 @@
-#pragma once;
+#pragma once
 
 #include "pch.h"
 #include <iostream>
@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <string>
 #include <sstream>
+#include <chrono>
 #include <Windows.h>  //for Sleep()
 
 #include "capsicain.h"
@@ -18,7 +19,6 @@
 #include "scancodes.h"
 #include "resource.h"
 #include "led.h"
-#include <chrono>
 
 using namespace std;
 
@@ -58,6 +58,7 @@ struct Options
     bool processOnlyFirstKeyboard = false;
     bool holdRepeatsAllKeys = false;
     bool disableAHKDelay = false;
+    string defaultFunction = "key(%s, m)";
 } options;
 static const struct Options defaultOptions;
 
@@ -1314,6 +1315,10 @@ bool parseIniOptions(std::vector<std::string> assembledIni)
         {
             options.disableAHKDelay = true;
         }
+        else if (token == "defaultfunction")
+        {
+            options.defaultFunction = stringGetRestBehindFirstToken(line);
+        }
         else
         {
             cout << endl << "WARNING: ignoring unknown OPTION " << line << endl;
@@ -1367,7 +1372,7 @@ bool parseIniCombos(std::vector<std::string> assembledIni)
         for (string line : sectLines)
         {
             int key;
-            if (parseKeywordCombo(line, key, mods, keyEventSequence, PRETTY_VK_LABELS))
+            if (parseKeywordCombo(line, key, mods, keyEventSequence, PRETTY_VK_LABELS, options.defaultFunction))
             {
                 bool isDuplicate = false;
                 for (ModifierCombo testcombo : combos)

@@ -8,7 +8,6 @@
 #define IFTRACE if(false)
 #define IFPROF if(false) //measuring time takes some time
 
-
 enum KEYSTATE
 {
     KEYSTATE_DOWN = 0,

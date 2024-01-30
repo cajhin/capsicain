@@ -1,4 +1,4 @@
-#pragma oncce
+#pragma once
 #include "pch.h"
 #include <string>
 #include <filesystem>
@@ -446,7 +446,7 @@ bool parseFunctionHold(std::string funcParams, std::string * scLabels, std::vect
 //parse {deadkey-x} keyLabel  [&|^t ....] > function(param)
 //returns false if the rule is not valid.
 //this translates functions() in the .ini to key sequences (usually with special VK_CPS keys)
-bool parseKeywordCombo(std::string line, int &key, MOD(&mods)[6], std::vector<VKeyEvent> &strokeSequence, std::string scLabels[])
+bool parseKeywordCombo(std::string line, int &key, MOD(&mods)[6], std::vector<VKeyEvent> &strokeSequence, std::string scLabels[], std::string defaultFunction)
 {
     string strkey = stringCutFirstToken(line);
     if (strkey.length() < 1)
@@ -511,12 +511,29 @@ bool parseKeywordCombo(std::string line, int &key, MOD(&mods)[6], std::vector<VK
     vector<VKeyEvent> strokeSeq;
     for (auto func : funcs)
     {
+        string funcName;
+        string funcParams;
         size_t sep = func.find_first_of('(');
         if (sep == string::npos)
-            break;
-        string funcName = func.substr(0, sep);
-        sep++;
-        string funcParams = func.substr(sep, string::npos);
+        {
+            char str[255];
+            sprintf_s(str, 255, defaultFunction.c_str(), func.c_str());
+            func = string(str);
+            func.erase(func.find_last_not_of(')') + 1);
+            sep = func.find_first_of('(');
+            size_t end = func.find_last_of(')');
+            if (sep == string::npos)
+                return false;
+            funcName = func.substr(0, sep);
+            sep++;
+            funcParams = func.substr(sep, string::npos);
+        }
+        else
+        {
+            funcName = func.substr(0, sep);
+            sep++;
+            funcParams = func.substr(sep, string::npos);
+        }
 
         //translate 'function' into a key sequence
         if (funcName == "key")
