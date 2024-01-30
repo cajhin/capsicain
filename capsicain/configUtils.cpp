@@ -472,26 +472,32 @@ bool parseKeywordCombo(std::string line, int &key, MOD(&mods)[6], std::vector<VK
         return false;
     key = itmpKey;
 
+    mods[0] = (unsigned char) deadKey;
+
     line.erase(std::remove(line.begin(), line.end(), ' '), line.end());
 
-    size_t modIdx1 = line.find_first_of('[') + 1;
-    size_t modIdx2 = line.find_first_of(']');
-    if (modIdx1 < 0 || modIdx1 > modIdx2 || modIdx1 == string::npos || modIdx2 == string::npos)
-        return false;
-    string mod = line.substr(modIdx1, modIdx2 - modIdx1);
+    string mod;
 
-    mods[0] = (unsigned char) deadKey;
-    mods[1] = parseModString(mod, '&'); //and 
-    mods[2] = parseModString(mod, '|'); //or
-    mods[3] = parseModString(mod, '^'); //not 
-    mods[4] = parseModString(mod, 't'); //tap
-    mods[5] = parseModString(mod, '/'); //tap OR hold, but doesn't need separate COMBOs for t and &
-    mods[1] |= parseModString(mod, '*'); //tap AND hold, but doesn't need a TapAndHold rewrite
-    mods[4] |= parseModString(mod, '*');
+    size_t modIdx1 = line.find_first_of('[');
+    size_t modIdx2 = line.find_first_of(']');
+    if (modIdx1 > modIdx2 || (modIdx1 == string::npos) != (modIdx2 == string::npos))
+        return false;
+    if (modIdx1 != string::npos && modIdx2 != string::npos)
+    {
+        modIdx1++;
+        mod = line.substr(modIdx1, modIdx2 - modIdx1);
+        mods[1] = parseModString(mod, '&'); //and 
+        mods[2] = parseModString(mod, '|'); //or
+        mods[3] = parseModString(mod, '^'); //not 
+        mods[4] = parseModString(mod, 't'); //tap
+        mods[5] = parseModString(mod, '/'); //tap OR hold, but doesn't need separate COMBOs for t and &
+        mods[1] |= parseModString(mod, '*'); //tap AND hold, but doesn't need a TapAndHold rewrite
+        mods[4] |= parseModString(mod, '*');
+    }
 
     //extract function name + param
     size_t funcIdx1 = line.find_first_of('>') + 1;
-    if (funcIdx1 == string::npos || funcIdx1 < 2)
+    if (funcIdx1 == string::npos || (modIdx2 != string::npos && funcIdx1 < modIdx2))
     {
         cout << endl << "ERROR in ini: missing '>' in: " << line;
         return false;
