@@ -44,6 +44,8 @@ struct Globals
     int capsicainOnOffKey = -1;
     bool protectConsole = true; //drop Pause and Break signals when console is foreground
     bool translateMessyKeys = true; //translate various DOS keys (e.g. Ctrl+Pause=SC_Break -> SC_Pause, Alt+Print=SC_altprint -> sc_print)
+    set<int> disableEscKey;
+    set<int> forwardEscKey;
 } globals;
 static const struct Globals defaultGlobals;
 
@@ -400,14 +402,28 @@ int main()
         }
         else if (globalState.realEscapeIsDown && loopState.isDownstroke)
         {
-            if (processCommand())
-                continue;
-            else
+            if (globals.disableEscKey.find(loopState.scancode) == globals.disableEscKey.end())
             {
-                setLED(SC_NOP, true); // sync LEDs with Windows state.
-                ShowInTaskbar(); //exit
-                break;
+                if (loopState.scancode == SC_R && globals.forwardEscKey.find(loopState.scancode) != globals.forwardEscKey.end())
+                {
+                    IFDEBUG cout << endl << "Esc+" + PRETTY_VK_LABELS[loopState.scancode] + " is forwarded, sending keystroke before reload";
+                    InterceptionSendCurrentKeystroke();
+                }
+                if (processCommand())
+                {
+                    if (loopState.scancode != SC_R && globals.forwardEscKey.find(loopState.scancode) != globals.forwardEscKey.end())
+                        IFDEBUG cout << endl << "Esc+" + PRETTY_VK_LABELS[loopState.scancode] + " is forwarded, passing to default handler after Esc action";
+                    else
+                        continue;
+                }
+                else
+                {
+                    setLED(SC_NOP, true); // sync LEDs with Windows state.
+                    ShowInTaskbar(); //exit
+                    break;
+                }
             }
+            else IFDEBUG cout << endl << "Esc+" + PRETTY_VK_LABELS[loopState.scancode] + " is disabled, passing to default handler";
         }
 
         //TESTING the layer shift feature
@@ -1225,6 +1241,24 @@ void parseIniGlobals()
             globals.protectConsole = false;
         else if ((token == "activeconfigonstartup") || (token == "activelayeronstartup"))
             cout << endl;
+        else if (token == "disableesckey")
+        {
+            auto keys = stringSplit(stringGetRestBehindFirstToken(line), ' ');
+            for (auto s : keys)
+            {
+                int key = getVcode(s, PRETTY_VK_LABELS);
+                globals.disableEscKey.insert(key);
+            }
+        }
+        else if (token == "forwardesckey")
+        {
+            auto keys = stringSplit(stringGetRestBehindFirstToken(line), ' ');
+            for (auto s : keys)
+            {
+                int key = getVcode(s, PRETTY_VK_LABELS);
+                globals.forwardEscKey.insert(key);
+            }
+        }
         else
             cout << endl << "WARNING: unknown GLOBAL " << token;
     }
