@@ -270,3 +270,46 @@ std::string stringIntToHex(const unsigned int i, unsigned int minLength)
     s << setfill('0') << setw(minLength) << std::hex << i;
     return s.str();
 }
+
+size_t GetSizeOfFile(const std::wstring& path)
+{
+    struct _stat fileinfo;
+    _wstat(path.c_str(), &fileinfo);
+    return fileinfo.st_size;
+}
+
+std::wstring LoadUtf8FileToString(const std::wstring& filename)
+{
+    std::wstring buffer;            // stores file contents
+    FILE *f;
+    _wfopen_s(&f, filename.c_str(), L"rtS, ccs=UTF-8");
+
+    // Failed to open file
+    if (f == NULL)
+    {
+        // ...handle some error...
+        return buffer;
+    }
+
+    size_t filesize = GetSizeOfFile(filename);
+
+    // Read entire file contents in to memory
+    if (filesize > 0)
+    {
+        buffer.resize(filesize);
+        size_t wchars_read = fread(&(buffer.front()), sizeof(wchar_t), filesize, f);
+        buffer.resize(wchars_read);
+        buffer.shrink_to_fit();
+    }
+
+    fclose(f);
+
+    return buffer;
+}
+
+std::wstring widen(const std::string& s)
+{
+    std::wstring temp(s.length(),L' ');
+    std::copy(s.begin(), s.end(), temp.begin());
+    return temp; 
+}

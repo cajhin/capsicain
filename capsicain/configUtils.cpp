@@ -98,6 +98,8 @@ bool readSanitizeIniFile(std::vector<string> &iniLines)
         normalizeLine(line);
         if (line == "")
             continue;
+        if (stringStartsWith(line, "[ahk]"))
+            break;
         if (stringStartsWith(line, "[reference"))
             inReferenceSection = true;
         else if (stringStartsWith(line, "[") && ! stringStartsWith(line, "[ "))
@@ -832,6 +834,11 @@ bool parseKeywordCombo(std::string line, int &key, MOD(&mods)[6], std::vector<VK
             }
             strokeSeq.push_back({ VK_CPS_EXECUTE, true });
             strokeSeq.push_back({ exeNum, true });
+        }
+        else if (funcName == "ahk")
+        {
+            strokeSeq.push_back({ VK_CPS_SENDAHK, true });
+            strokeSeq.push_back({ getAHKid(funcParams), true });
         }
         else if (funcName == "kill")
         {

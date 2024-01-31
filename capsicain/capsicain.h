@@ -1,4 +1,5 @@
-#define PROGRAM_NAME_AHK "autohotkey.exe"
+#include <string>
+
 #include "interception.h"
 #include "utils.h"
 #include "configUtils.h"
@@ -7,6 +8,18 @@
 #define IFDEBUG if(options.debug && !globalState.secretSequenceRecording)
 #define IFTRACE if(false)
 #define IFPROF if(false) //measuring time takes some time
+
+struct Executable
+{
+    std::string verb;
+    std::string path;
+    std::string args;
+    std::string dir;
+    int mode;
+    HANDLE proc;
+    DWORD pid;
+    HWND hwnd;
+};
 
 enum KEYSTATE
 {
@@ -73,3 +86,10 @@ int obfuscateVKey(int vk);
 int deObfuscateVKey(int vk);
 
 int getKeyHolding(int vcode);
+bool runExecutable(Executable &exe);
+void killExecutable(Executable &exe);
+void killExecutableByPath(std::string path);
+
+void loadAHK();
+void unloadAHK();
+void sendAHK(std::string msg);

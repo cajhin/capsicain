@@ -8,6 +8,7 @@ void copyToClipBoard(std::string text);
 std::string startProgram(std::string processname, std::string dir);
 std::string startProgramSameFolder(std::string path);
 void closeOrKillProgram(std::string processName);
+DWORD FindProcessId(std::string processName);
 
 unsigned long timeSinceTimepointMS(std::chrono::steady_clock::time_point timepoint);
 unsigned long timeSinceTimepointUS(std::chrono::steady_clock::time_point timepoint);
@@ -38,3 +39,7 @@ inline void rtrim(std::string &s) {
         return !std::isspace(ch);
     }).base(), s.end());
 }
+
+size_t GetSizeOfFile(const std::wstring &path);
+std::wstring LoadUtf8FileToString(const std::wstring &filename);
+std::wstring widen(const std::string &s);

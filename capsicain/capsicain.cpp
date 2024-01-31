@@ -19,6 +19,26 @@
 #include "scancodes.h"
 #include "resource.h"
 #include "led.h"
+#include "utils.h"
+
+typedef int (*AHKTHREAD)(const wchar_t* aScript, const wchar_t* aCmdLine, const wchar_t* aTitle);
+typedef int (*AHKREADY)(int threadid);
+typedef int (*AHKADDSCRIPT)(const wchar_t * script, int waitexecute, int threadid);
+typedef int (*AHKEXEC)(const wchar_t *, int threadid);
+typedef const wchar_t * (*AHKFINDFUNC)(const wchar_t *, int threadid);
+typedef const wchar_t * (*AHKFUNCTION)(const wchar_t* func, const wchar_t * param1, const wchar_t * param2, const wchar_t * param3, const wchar_t * param4, const wchar_t * param5, const wchar_t * param6, const wchar_t * param7, const wchar_t * param8, const wchar_t * param9, const wchar_t * param10, int threadid);
+struct Ahk
+{
+    HMODULE handle;
+    int threadid;
+    AHKTHREAD thread;
+    AHKREADY ready;
+    AHKADDSCRIPT addScript;
+    AHKEXEC exec;
+    AHKFINDFUNC findFunc;
+    AHKFUNCTION function;
+    AHKFUNCTION postFunction;
+} ahk;
 
 using namespace std;
 
@@ -74,17 +94,6 @@ struct ModifierCombo
     MOD modTap = 0;
     MOD modTapAnd = 0;
     vector<VKeyEvent> keyEventSequence;
-};
-
-struct Executable
-{
-    string verb;
-    string path;
-    string args;
-    string dir;
-    int mode;
-    HANDLE proc;
-    DWORD pid;
 };
 
 struct AllMaps
@@ -234,6 +243,62 @@ void InterceptionSendCurrentKeystroke()
     interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke*)&interceptionState.currentIKstroke, 1);
 }
 
+void loadAHK()
+{
+    if (ahk.handle)
+        unloadAHK();
+    ahk.handle = LoadLibrary(TEXT("AutoHotkey64.dll"));
+    if (!ahk.handle)
+        ahk.handle = LoadLibrary(TEXT("AutoHotkey.dll"));
+    if (!ahk.handle)
+    {
+        cout << endl << "AHK: No AutoHotkey64.dll found. Get one from https://github.com/thqby/AutoHotkey_H";
+    }
+    else
+    {
+        ahk.thread = (AHKTHREAD)GetProcAddress(ahk.handle, "NewThread");
+        ahk.ready = (AHKREADY)GetProcAddress(ahk.handle, "ahkReady");
+        ahk.addScript = (AHKADDSCRIPT)GetProcAddress(ahk.handle, "addScript");
+        ahk.exec = (AHKEXEC)GetProcAddress(ahk.handle, "ahkExec");
+        ahk.findFunc = (AHKFINDFUNC)GetProcAddress(ahk.handle, "ahkFindFunc");
+        ahk.function = (AHKFUNCTION)GetProcAddress(ahk.handle, "ahkFunction");
+        ahk.postFunction = (AHKFUNCTION)GetProcAddress(ahk.handle, "ahkPostFunction");
+
+        auto script = LoadUtf8FileToString(L"capsicain.ini");
+        auto idx = script.find(L"[ahk]");
+        if (idx == string::npos)
+            idx = script.find(L"[AHK]");
+        if (idx == string::npos)
+        {
+            cout << endl << "AHK: INI has no [ahk] section...";
+            unloadAHK();
+            return;
+        }
+        script = script.substr(idx + 6);
+        if (script.find(L"ersistent") == string::npos && script.find(L"::") == string::npos)
+            cout << endl << "AHK: You should add \"Persistent\" to your AHK script if it doesn't have hotkeys...";
+        wcout << script;
+        if (script != L"")
+        {
+            ahk.threadid = ahk.thread(script.c_str(), L"", L"");
+            if (ahk.threadid)
+                cout << endl << "AHK: Loaded [ahk] to AutoHotkey64.dll";
+            else
+                cout << endl << "AHK: Failed to load [ahk] to AutoHotkey64.dll";
+        }
+    }
+}
+
+void unloadAHK()
+{
+    if (ahk.threadid)
+        ahk.exec(L"ExitApp", ahk.threadid);
+    if (ahk.handle)
+        FreeLibrary(ahk.handle);
+    ahk.handle = 0;
+    ahk.threadid = 0;
+}
+
 int main()
 {
     if (!initConsoleWindow())
@@ -257,14 +322,12 @@ int main()
     }
 
     parseIniGlobals();
-    switchConfig(globals.activeConfigOnStartup, true);
 
     if (globals.startAHK)
-    {
-        string msg = startProgramSameFolder(PROGRAM_NAME_AHK);
-        cout << endl << endl << "starting AHK... ";
-        cout << (msg == "" ? "OK" : "Not. '" + msg + "'");
-    }
+        loadAHK();
+
+    switchConfig(globals.activeConfigOnStartup, true);
+
     cout << endl << endl << "[ESC] + [X] to stop." << endl << "[ESC] + [H] for Help";
     cout << endl << endl << "capsicain running.... ";
 
@@ -1022,7 +1085,7 @@ bool processCommand()
         break;
     case SC_Y:
         cout << "Stop AHK";
-        closeOrKillProgram("autohotkey.exe");
+        unloadAHK();
         break;
     case SC_I:
     {
@@ -1035,9 +1098,7 @@ bool processCommand()
     case SC_A:
     {
         cout << "Start AHK";
-        string msg = startProgramSameFolder("autohotkey.exe");
-        if (msg != "")
-            cout << endl << "Cannot start: " << msg;
+        loadAHK();
         break;
     }
     case SC_S:
@@ -1744,6 +1805,12 @@ void reload()
     readSanitizeIniFile(sanitizedIniContent);
 
     parseIniGlobals();
+
+    if (globals.startAHK)
+        loadAHK();
+    else
+        unloadAHK();
+
     switchConfig(globalState.activeConfig, true);
 }
 
@@ -2043,11 +2110,38 @@ bool runExecutable(Executable &exe)
     ShellExecuteExA(&info);
     exe.proc = info.hProcess;
     exe.pid = GetProcessId(exe.proc);
+    exe.proc = OpenProcess(SYNCHRONIZE | PROCESS_TERMINATE, FALSE, exe.pid);
     auto ret = (INT_PTR)info.hInstApp > 32;
     return ret;
 }
 
-void killExecutableByPath(string path) {
+void sendAHK(std::string msg)
+{
+    if (!ahk.handle)
+    {
+        IFDEBUG error("AHK dll not found");
+        return;
+    }
+    if (!ahk.threadid)
+    {
+        IFDEBUG error("AHK thread not started");
+        return;
+    }
+    auto args = stringSplit(msg, ',');
+    std::vector<std::wstring> wargs;
+    for (int i = 0; i <= 10; ++i)
+    {
+        if (i < args.size())
+            wargs.push_back(widen(args[i]));
+        else
+            wargs.push_back(L"");
+    }
+    auto wmsg = widen(msg);
+    ahk.postFunction(wargs[0].c_str(), wargs[1].c_str(), wargs[2].c_str(), wargs[3].c_str(), wargs[4].c_str(), wargs[5].c_str(), wargs[6].c_str(), wargs[7].c_str(), wargs[8].c_str(), wargs[9].c_str(), wargs[10].c_str(), ahk.threadid);
+}
+
+void killExecutableByPath(string path)
+{
     auto slash = path.find_last_of("\\/");
     if (slash != string::npos)
         path = path.substr(slash + 1);
@@ -2067,12 +2161,14 @@ void killExecutable(Executable &exe)
         if (WaitForSingleObject(hProc, 1000) != WAIT_OBJECT_0)
             result = (TerminateProcess(hProc, 0) ? 2 : 0);
         CloseHandle(hProc);
-        exe.proc = NULL;
     }
     else
     {
         killExecutableByPath(exe.path);
     }
+    exe.proc = 0;
+    exe.pid = 0;
+    exe.hwnd = 0;
 }
 
 //Send out all keys in a sequence
@@ -2274,6 +2370,13 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
                 killExecutable(allMaps.executables[vc]);
                 break;
             }
+            case VK_CPS_SENDAHK:
+            {
+                auto msg = getAHKmsg(vc);
+                if (msg != "")
+                    sendAHK(msg);
+                break;
+            }
             default:
                 cout << endl << "BUG? unknown expectParamForFuncKey";
             }
@@ -2328,6 +2431,7 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
             || vc == VK_CPS_KEYTAP
             || vc == VK_CPS_EXECUTE
             || vc == VK_CPS_KILL
+            || vc == VK_CPS_SENDAHK
             )
         {
             expectParamForFuncKey = vc;

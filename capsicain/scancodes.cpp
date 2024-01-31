@@ -1,6 +1,7 @@
 #pragma once
 #include "pch.h"
 #include <iostream>
+#include <map>
 #include <Windows.h>  //for Sleep()
 
 #include "scancodes.h"
@@ -268,6 +269,7 @@ void defineAllPrettyVKLabels(string arr[])
     checkAddLabel(VK_CPS_KEYTAP, "KEYTAP", arr);
     checkAddLabel(VK_CPS_EXECUTE, "EXECUTE", arr);
     checkAddLabel(VK_CPS_KILL, "KILL", arr);
+    checkAddLabel(VK_CPS_SENDAHK, "SENDAHK", arr);
 /* testing the VMK style config shift
     checkAddLabel(VK_SHFCFG0, "SHFCFG0", arr);
     checkAddLabel(VK_SHFCFG1, "SHFCFG1", arr);
@@ -281,4 +283,22 @@ void defineAllPrettyVKLabels(string arr[])
     checkAddLabel(VK_SHFCFG9, "SHFCFG9", arr);
 */
 
+}
+
+std::vector<std::string> AHKids;
+int getAHKid(std::string msg)
+{
+    for (int i = 0; i < AHKids.size(); ++i) {
+        if (AHKids[i] == msg)
+            return i + 1;
+    }
+    AHKids.push_back(msg);
+    return (int)AHKids.size();
+}
+
+std::string getAHKmsg(int id)
+{
+    if (AHKids.size() >= id)
+        return AHKids[id - 1];
+    return "";
 }

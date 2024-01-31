@@ -224,6 +224,7 @@ enum VirtualCode
     VK_CPS_KEYTAP,
     VK_CPS_EXECUTE,
     VK_CPS_KILL,
+    VK_CPS_SENDAHK,
     VK_MAX
 /* testing the VMK style config shift
     VK_SHFCFG0 = 0x117,  //shift config, i.e. shift back when the key is released
@@ -238,3 +239,6 @@ enum VirtualCode
     VK_SHFCFG9 = 0x120,
 */
 };
+
+int getAHKid(std::string msg);
+std::string getAHKmsg(int id);
