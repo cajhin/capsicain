@@ -97,6 +97,12 @@ struct ModifierCombo
     vector<VKeyEvent> keyEventSequence;
 };
 
+struct Device {
+    string id;
+    bool keyboard;
+    bool apple;
+};
+
 struct AllMaps
 {
     //inkey outkey (tapped)
@@ -113,6 +119,7 @@ struct AllMaps
     int alphamap[MAX_VCODES] = { }; //MUST initialize this manually to 1 1, 2 2, 3 3, ...
 
     map<int, Executable> executables;
+    map<uint8_t, Device> devices;
 } allMaps;
 
 struct InterceptionState
@@ -124,6 +131,9 @@ struct InterceptionState
     InterceptionKeyStroke currentIKstroke = { SC_NOP, 0 };
     InterceptionKeyStroke previousIKstroke1 = { SC_NOP, 0 }; //remember history
     InterceptionKeyStroke previousIKstroke2 = { SC_NOP, 0 };
+    InterceptionMouseStroke currentIMstroke = { 0 };
+    InterceptionDevice lastMouse = NULL;
+    InterceptionDevice lastKeyboard = NULL;
 } interceptionState;
 
 struct GlobalState
@@ -299,6 +309,49 @@ void unloadAHK()
     ahk.threadid = 0;
 }
 
+map<int, int> MOUSE_TO_KEY{
+    { INTERCEPTION_MOUSE_LEFT_BUTTON_DOWN, VM_LEFT },
+    { INTERCEPTION_MOUSE_RIGHT_BUTTON_DOWN, VM_RIGHT },
+    { INTERCEPTION_MOUSE_MIDDLE_BUTTON_DOWN, VM_MIDDLE },
+    { INTERCEPTION_MOUSE_BUTTON_4_DOWN, VM_BUTTON4 },
+    { INTERCEPTION_MOUSE_BUTTON_5_DOWN, VM_BUTTON5 },
+    { INTERCEPTION_MOUSE_LEFT_BUTTON_UP, VM_LEFT },
+    { INTERCEPTION_MOUSE_RIGHT_BUTTON_UP, VM_RIGHT },
+    { INTERCEPTION_MOUSE_MIDDLE_BUTTON_UP, VM_MIDDLE },
+    { INTERCEPTION_MOUSE_BUTTON_4_UP, VM_BUTTON4 },
+    { INTERCEPTION_MOUSE_BUTTON_5_UP, VM_BUTTON5 },
+};
+
+bool mousetoKey(InterceptionMouseStroke &mstroke, InterceptionKeyStroke &kstroke)
+{
+    unsigned short code;
+    unsigned short state;
+    if (mstroke.state < INTERCEPTION_MOUSE_WHEEL && MOUSE_TO_KEY.find(mstroke.state) != MOUSE_TO_KEY.end())
+    {
+        code = MOUSE_TO_KEY[mstroke.state];
+        state = (int)(bool)(mstroke.state & 0xAAAA);
+    }
+    else if(mstroke.state == INTERCEPTION_MOUSE_WHEEL || mstroke.state == INTERCEPTION_MOUSE_HWHEEL)
+    {
+        state = 0;
+        if (mstroke.rolling > 0)
+            code = VM_WHEEL_UP;
+        else if (mstroke.rolling < 0)
+            code = VM_WHEEL_DOWN;
+        else if (mstroke.rolling < 0)
+            code = VM_WHEEL_LEFT;
+        else if (mstroke.rolling > 0)
+            code = VM_WHEEL_RIGHT;
+    }
+    if (code >= VM_LEFT)
+    {
+        kstroke.code = code;
+        kstroke.state = state;
+        return true;
+    }
+    return false;
+}
+
 int main()
 {
     if (!initConsoleWindow())
@@ -349,18 +402,44 @@ int main()
 
     interceptionState.interceptionContext = interception_create_context();
     interception_set_filter(interceptionState.interceptionContext, interception_is_keyboard, INTERCEPTION_FILTER_KEY_ALL);
+    interception_set_filter(interceptionState.interceptionContext, interception_is_mouse, INTERCEPTION_FILTER_MOUSE_ALL & ~INTERCEPTION_FILTER_MOUSE_MOVE);
+
+    InterceptionDevice device;
+    InterceptionStroke stroke;
 
     //CORE LOOP
     while (true)
     {
+        //wait for the next key from Interception
+        interception_receive(interceptionState.interceptionContext,
+            device = interception_wait(interceptionState.interceptionContext),
+            &stroke, 1);
+
+        if (interception_is_mouse(device))
+        {
+            interceptionState.lastMouse = device;
+            InterceptionMouseStroke &mstroke = *(InterceptionMouseStroke *) &stroke;
+            InterceptionKeyStroke &kstroke = *(InterceptionKeyStroke *) &stroke;
+            mousetoKey(mstroke, kstroke);
+            interceptionState.currentIMstroke = *(InterceptionMouseStroke *)stroke;
+        }
+        else
+        {
+            interceptionState.lastKeyboard = device;
+        }
+
+        if (allMaps.devices.find(device) == allMaps.devices.end())
+            getHardwareId();
+
+        globalState.deviceIdKeyboard = allMaps.devices[device].id;
+        globalState.deviceIsAppleKeyboard = allMaps.devices[device].apple;
+
         //remember previous two keys to detect tapping and Pause sequence
         interceptionState.previousIKstroke2 = interceptionState.previousIKstroke1;
         interceptionState.previousIKstroke1 = interceptionState.currentIKstroke;
 
-        //wait for the next key from Interception
-        (interception_receive(interceptionState.interceptionContext,
-            interceptionState.interceptionDevice = interception_wait(interceptionState.interceptionContext),
-            (InterceptionStroke*)&interceptionState.currentIKstroke, 1) > 0);
+        interceptionState.interceptionDevice = device;
+        interceptionState.currentIKstroke = *(InterceptionKeyStroke *)stroke;
 
         IFPROF
         {
@@ -414,7 +493,7 @@ int main()
         {
             getHardwareId();
             //detail to debug the "new device after sleep, reboot after 10 new devices"
-            cout << endl
+            IFTRACE cout << endl
                 << "<" << endl
                 << "new keyboard: " << (globalState.deviceIsAppleKeyboard ? "Apple keyboard" : "IBM keyboard") << endl
                 << "new keyboard count: " << ++interceptionState.newKeyboardCounter << endl
@@ -429,7 +508,7 @@ int main()
         }
 
         //sanity check
-        if (interceptionState.currentIKstroke.code >= 0x80)
+        if (interceptionState.currentIKstroke.code >= 0x80 && interceptionState.currentIKstroke.code < VM_LEFT)
         {
             error("Received unexpected extended Interception Key Stroke code > 0x79: " + to_string(interceptionState.currentIKstroke.code));
             cout << endl << "Please open a ticket on github";
@@ -1199,10 +1278,12 @@ bool processCommand()
 
 void getHardwareId()
 {
+    allMaps.devices.clear();
+    for (int i = 0; i <= INTERCEPTION_MAX_DEVICE; ++i)
     {
-        wchar_t  hardware_id[500] = { 0 };
+        wchar_t hardware_id[500] = { 0 };
         string id;
-        size_t length = interception_get_hardware_id(interceptionState.interceptionContext, interceptionState.interceptionDevice, hardware_id, sizeof(hardware_id));
+        size_t length = interception_get_hardware_id(interceptionState.interceptionContext, i, hardware_id, sizeof(hardware_id));
         if (length > 0 && length < sizeof(hardware_id))
         {
             //forced conversion will replace special characters > 127 with "?"
@@ -1217,15 +1298,11 @@ void getHardwareId()
             }
         } 
         else
-            id = "UNKNOWN_ID";
-
+            continue;
         id = stringToLower(id);
-        globalState.deviceIdKeyboard = id;
-        globalState.deviceIsAppleKeyboard = (id.find("vid_05ac") != string::npos) || (id.find("vid&000205ac") != string::npos);
-
-        IFDEBUG cout << endl << endl << "getHardwareId:" << id << " / Apple keyboard: " << globalState.deviceIsAppleKeyboard;
+        allMaps.devices[i] = { id, (bool)interception_is_keyboard(i), (id.find("vid_05ac") != string::npos) || (id.find("vid&000205ac") != string::npos) };
     }
- }
+}
 
 
 bool initConsoleWindow()
@@ -1892,6 +1969,19 @@ void printStatus()
         << endl << "Worst sending time: " << profiler.worstSendingTimeUS
         ;
 
+    IFDEBUG {
+        cout << endl << endl << "Interception keyboards:";
+        for (int i = 1; i <= INTERCEPTION_MAX_DEVICE; ++i)
+        {
+            if (allMaps.devices.find(i) != allMaps.devices.end())
+            {
+                if (i == 11)
+                    cout << endl << "Interception mice:";
+                cout << endl << i << ": " << allMaps.devices[i].id;
+            }
+        }
+    }
+
     printOptions();
 }
 
@@ -2481,6 +2571,73 @@ std::string getHoldKeyString(std::set<int> &v, std::string delim)
     return out;
 }
 
+map<int, int> KEY_TO_MOUSE{
+    { VM_LEFT, INTERCEPTION_MOUSE_LEFT_BUTTON_DOWN },
+    { VM_RIGHT, INTERCEPTION_MOUSE_RIGHT_BUTTON_DOWN },
+    { VM_MIDDLE, INTERCEPTION_MOUSE_MIDDLE_BUTTON_DOWN },
+    { VM_BUTTON4, INTERCEPTION_MOUSE_BUTTON_4_DOWN },
+    { VM_BUTTON5, INTERCEPTION_MOUSE_BUTTON_5_DOWN },
+};
+bool vkeyToMouse(VKeyEvent keyEvent)
+{
+    if (keyEvent.vcode < VM_LEFT || keyEvent.vcode > VM_WHEEL_RIGHT)
+        return false;
+
+    InterceptionMouseStroke mstroke{0};
+
+    if (keyEvent.vcode >= VM_LEFT && keyEvent.vcode <= VM_BUTTON5)
+    {
+        mstroke.state = KEY_TO_MOUSE[keyEvent.vcode];
+        if (!keyEvent.isDownstroke)
+            mstroke.state = mstroke.state << 1;
+    }
+    else if (keyEvent.vcode == VM_WHEEL_UP)
+    {
+        mstroke.state = INTERCEPTION_MOUSE_WHEEL;
+        mstroke.rolling = 120; //FIXME
+    }
+    else if (keyEvent.vcode == VM_WHEEL_DOWN)
+    {
+        mstroke.state = INTERCEPTION_MOUSE_WHEEL;
+        mstroke.rolling = -120; //FIXME
+    }
+    else if (keyEvent.vcode == VM_WHEEL_LEFT)
+    {
+        mstroke.state = INTERCEPTION_MOUSE_HWHEEL;
+        mstroke.rolling = -120; //FIXME
+    }
+    else if (keyEvent.vcode == VM_WHEEL_RIGHT)
+    {
+        mstroke.state = INTERCEPTION_MOUSE_HWHEEL;
+        mstroke.rolling = 120; //FIXME
+    }
+    else
+    {
+        return false;
+    }
+
+    if (mstroke.rolling && !keyEvent.isDownstroke)
+        return true;
+
+    int dev;
+    if (interception_is_mouse(interceptionState.interceptionDevice))
+    {
+        dev = interceptionState.interceptionDevice;
+    }
+    else if(interceptionState.lastMouse)
+    {
+        dev = interceptionState.lastMouse;
+    }
+    else
+    {
+        cout << endl << "Error: Don't know which mouse to send this to, use one!";
+        return false;
+    }
+
+    interception_send(interceptionState.interceptionContext, dev, (InterceptionStroke *)&mstroke, 1);
+    return true;
+}
+
 void sendVKeyEvent(VKeyEvent keyEvent, bool hold)
 {
     IFTRACE cout << endl << "sendVkeyEvent(" << keyEvent.vcode << ")";
@@ -2525,6 +2682,9 @@ void sendVKeyEvent(VKeyEvent keyEvent, bool hold)
                 return;
         }
     }
+
+    if (vkeyToMouse(keyEvent))
+        return;
 
     if (keyEvent.vcode > 0xFF || keyEvent.vcode == VK_CPS_PAUSE)
     {
@@ -2581,14 +2741,29 @@ void sendVKeyEvent(VKeyEvent keyEvent, bool hold)
             }
         }
     }
-    
+
     InterceptionKeyStroke iks = convertVkeyEvent2ikstroke(keyEvent);
     //hide secret macro recording?
     IFDEBUG
         if(!globalState.secretSequencePlayback)
             cout << " {" << PRETTY_VK_LABELS[keyEvent.vcode] << (keyEvent.isDownstroke ? "v" : "^") << " #" << globalState.keysDownSentCounter << "}";
 
-    interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke *)&iks, 1);
+    int dev;
+    if (interception_is_keyboard(interceptionState.interceptionDevice))
+    {
+        dev = interceptionState.interceptionDevice;
+    }
+    else if(interceptionState.lastKeyboard)
+    {
+        dev = interceptionState.lastKeyboard;
+    }
+    else
+    {
+        cout << endl << "Don't know which keyboard to send this to, use one!";
+        return;
+    }
+
+    interception_send(interceptionState.interceptionContext, dev, (InterceptionStroke *)&iks, 1);
 
     //restore LEDs for ON/OFF indication?
     if (globals.capsicainOnOffKey >0 

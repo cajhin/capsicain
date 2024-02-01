@@ -176,6 +176,15 @@ enum ScanCode {
 //defined by capsicain, non standard
 enum VirtualCode
 {
+    VM_LEFT = 0xF1,
+    VM_RIGHT,
+    VM_MIDDLE,
+    VM_BUTTON4,
+    VM_BUTTON5,
+    VM_WHEEL_UP,
+    VM_WHEEL_DOWN,
+    VM_WHEEL_LEFT,
+    VM_WHEEL_RIGHT,
     //special escape code for Capsicain key sequences
     //VK_CPS_ESC = 0x100,
     VK_CPS_TEMPRELEASEKEYS = 0x101,

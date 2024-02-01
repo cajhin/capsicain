@@ -211,7 +211,7 @@ void defineAllPrettyVKLabels(string arr[])
 
     //fill all undefined scancodes with "SC_0XNN" so they can be referenced in ini
     char buffer[9];
-    for (int i = 0; i <= 255; i++)
+    for (int i = 0; i <= 0xf0; i++)
     {
         if (arr[i] == "")
         {
@@ -270,6 +270,16 @@ void defineAllPrettyVKLabels(string arr[])
     checkAddLabel(VK_CPS_EXECUTE, "EXECUTE", arr);
     checkAddLabel(VK_CPS_KILL, "KILL", arr);
     checkAddLabel(VK_CPS_SENDAHK, "SENDAHK", arr);
+
+    checkAddLabel(VM_LEFT, "MOUSE1", arr);
+    checkAddLabel(VM_RIGHT, "MOUSE2", arr);
+    checkAddLabel(VM_MIDDLE, "MOUSE3", arr);
+    checkAddLabel(VM_BUTTON4, "MOUSE4", arr);
+    checkAddLabel(VM_BUTTON5, "MOUSE5", arr);
+    checkAddLabel(VM_WHEEL_UP, "MWUP", arr);
+    checkAddLabel(VM_WHEEL_DOWN, "MWDOWN", arr);
+    checkAddLabel(VM_WHEEL_LEFT, "MWLEFT", arr);
+    checkAddLabel(VM_WHEEL_RIGHT, "MWRIGHT", arr);
 /* testing the VMK style config shift
     checkAddLabel(VK_SHFCFG0, "SHFCFG0", arr);
     checkAddLabel(VK_SHFCFG1, "SHFCFG1", arr);
