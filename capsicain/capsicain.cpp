@@ -81,6 +81,7 @@ struct Options
     bool holdRepeatsAllKeys = false;
     bool disableAHKDelay = false;
     string defaultFunction = "key(%s, m)";
+    bool enableMouse = false;
 } options;
 static const struct Options defaultOptions;
 
@@ -309,19 +310,6 @@ void unloadAHK()
     ahk.threadid = 0;
 }
 
-map<int, int> MOUSE_TO_KEY{
-    { INTERCEPTION_MOUSE_LEFT_BUTTON_DOWN, VM_LEFT },
-    { INTERCEPTION_MOUSE_RIGHT_BUTTON_DOWN, VM_RIGHT },
-    { INTERCEPTION_MOUSE_MIDDLE_BUTTON_DOWN, VM_MIDDLE },
-    { INTERCEPTION_MOUSE_BUTTON_4_DOWN, VM_BUTTON4 },
-    { INTERCEPTION_MOUSE_BUTTON_5_DOWN, VM_BUTTON5 },
-    { INTERCEPTION_MOUSE_LEFT_BUTTON_UP, VM_LEFT },
-    { INTERCEPTION_MOUSE_RIGHT_BUTTON_UP, VM_RIGHT },
-    { INTERCEPTION_MOUSE_MIDDLE_BUTTON_UP, VM_MIDDLE },
-    { INTERCEPTION_MOUSE_BUTTON_4_UP, VM_BUTTON4 },
-    { INTERCEPTION_MOUSE_BUTTON_5_UP, VM_BUTTON5 },
-};
-
 bool mousetoKey(InterceptionMouseStroke &mstroke, InterceptionKeyStroke &kstroke)
 {
     unsigned short code{0};
@@ -426,7 +414,10 @@ int main()
 
     interceptionState.interceptionContext = interception_create_context();
     interception_set_filter(interceptionState.interceptionContext, interception_is_keyboard, INTERCEPTION_FILTER_KEY_ALL);
-    interception_set_filter(interceptionState.interceptionContext, interception_is_mouse, INTERCEPTION_FILTER_MOUSE_ALL & ~INTERCEPTION_FILTER_MOUSE_MOVE);
+    if (options.enableMouse)
+        interception_set_filter(interceptionState.interceptionContext, interception_is_mouse, INTERCEPTION_FILTER_MOUSE_ALL & ~INTERCEPTION_FILTER_MOUSE_MOVE);
+    else
+        interception_set_filter(interceptionState.interceptionContext, interception_is_mouse, INTERCEPTION_FILTER_MOUSE_NONE);
 
     InterceptionDevice device;
     InterceptionStroke stroke;
@@ -1516,6 +1507,10 @@ bool parseIniOptions(std::vector<std::string> assembledIni)
         {
             options.defaultFunction = stringGetRestBehindFirstToken(line);
         }
+        else if (token == "enablemouse")
+        {
+            options.enableMouse = true;
+        }
         else
         {
             cout << endl << "WARNING: ignoring unknown OPTION " << line << endl;
@@ -1852,6 +1847,14 @@ void switchConfig(int config, bool forceReloadSameConfig)
         cout << endl << endl << "ERROR: CANNOT RELOAD CURRENT CONFIG? Switching to config 0";
         globalState.activeConfig = DISABLED_CONFIG_NUMBER;
         globalState.activeConfigName = DISABLED_CONFIG_NAME;
+    }
+
+    if (interceptionState.interceptionContext)
+    {
+        if (options.enableMouse)
+            interception_set_filter(interceptionState.interceptionContext, interception_is_mouse, INTERCEPTION_FILTER_MOUSE_ALL & ~INTERCEPTION_FILTER_MOUSE_MOVE);
+        else
+            interception_set_filter(interceptionState.interceptionContext, interception_is_mouse, INTERCEPTION_FILTER_MOUSE_NONE);
     }
 
     updateTrayIcon(true, globalState.recordingMacro >= 0, globalState.activeConfig);
