@@ -364,7 +364,7 @@ bool parseComboParams(string funcParams, vector<int> &vcodes, string * scLabels)
         isc = getVcode(label, scLabels);
         if (isc < 0)
             continue;
-        vcodes.push_back((unsigned char)isc);
+        vcodes.push_back(isc);
     }
     return vcodes.size() > count;
 }
