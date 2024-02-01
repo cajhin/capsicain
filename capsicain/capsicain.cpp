@@ -277,7 +277,6 @@ void loadAHK()
         script = script.substr(idx + 6);
         if (script.find(L"ersistent") == string::npos && script.find(L"::") == string::npos)
             cout << endl << "AHK: You should add \"Persistent\" to your AHK script if it doesn't have hotkeys...";
-        wcout << script;
         if (script != L"")
         {
             ahk.threadid = ahk.thread(script.c_str(), L"", L"");
@@ -2119,7 +2118,7 @@ void sendAHK(std::string msg)
 {
     if (!ahk.handle)
     {
-        IFDEBUG error("AHK dll not found");
+        IFDEBUG error("AHK dll is not loaded");
         return;
     }
     if (!ahk.threadid)
