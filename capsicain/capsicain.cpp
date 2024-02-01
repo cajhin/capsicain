@@ -324,16 +324,36 @@ map<int, int> MOUSE_TO_KEY{
 
 bool mousetoKey(InterceptionMouseStroke &mstroke, InterceptionKeyStroke &kstroke)
 {
-    unsigned short code;
-    unsigned short state;
-    if (mstroke.state < INTERCEPTION_MOUSE_WHEEL && MOUSE_TO_KEY.find(mstroke.state) != MOUSE_TO_KEY.end())
+    unsigned short code{0};
+    unsigned short state{0};
+    // FIXME: Single mouse events can change multiple buttons, but this will only return the first match, sorry
+    if (mstroke.state & INTERCEPTION_MOUSE_BUTTON_1_DOWN || mstroke.state & INTERCEPTION_MOUSE_BUTTON_1_UP)
     {
-        code = MOUSE_TO_KEY[mstroke.state];
-        state = (int)(bool)(mstroke.state & 0xAAAA);
+        code = VM_LEFT;
+        state = (int)(bool)(mstroke.state & INTERCEPTION_MOUSE_BUTTON_1_DOWN);
     }
-    else if(mstroke.state == INTERCEPTION_MOUSE_WHEEL || mstroke.state == INTERCEPTION_MOUSE_HWHEEL)
+    else if (mstroke.state & INTERCEPTION_MOUSE_BUTTON_2_DOWN || mstroke.state & INTERCEPTION_MOUSE_BUTTON_2_UP)
     {
-        state = 0;
+        code = VM_RIGHT;
+        state = (int)(bool)(mstroke.state & INTERCEPTION_MOUSE_BUTTON_2_DOWN);
+    }
+    else if (mstroke.state & INTERCEPTION_MOUSE_BUTTON_3_DOWN || mstroke.state & INTERCEPTION_MOUSE_BUTTON_3_UP)
+    {
+        code = VM_MIDDLE;
+        state = (int)(bool)(mstroke.state & INTERCEPTION_MOUSE_BUTTON_3_DOWN);
+    }
+    else if (mstroke.state & INTERCEPTION_MOUSE_BUTTON_4_DOWN || mstroke.state & INTERCEPTION_MOUSE_BUTTON_4_UP)
+    {
+        code = VM_BUTTON4;
+        state = (int)(bool)(mstroke.state & INTERCEPTION_MOUSE_BUTTON_4_DOWN);
+    }
+    else if (mstroke.state & INTERCEPTION_MOUSE_BUTTON_5_DOWN || mstroke.state & INTERCEPTION_MOUSE_BUTTON_5_UP)
+    {
+        code = VM_BUTTON5;
+        state = (int)(bool)(mstroke.state & INTERCEPTION_MOUSE_BUTTON_5_DOWN);
+    }
+    else if(mstroke.state & INTERCEPTION_MOUSE_WHEEL || mstroke.state & INTERCEPTION_MOUSE_HWHEEL)
+    {
         if (mstroke.rolling > 0)
             code = VM_WHEEL_UP;
         else if (mstroke.rolling < 0)
@@ -343,7 +363,11 @@ bool mousetoKey(InterceptionMouseStroke &mstroke, InterceptionKeyStroke &kstroke
         else if (mstroke.rolling > 0)
             code = VM_WHEEL_RIGHT;
     }
-    if (code >= VM_LEFT)
+    if (code >= VM_LEFT && code <= VM_BUTTON5)
+    {
+        state = (int)(bool)(mstroke.state & 0xAAAA);
+    }
+    if (code >= VM_LEFT && code <= VM_WHEEL_RIGHT)
     {
         kstroke.code = code;
         kstroke.state = state;
@@ -417,10 +441,11 @@ int main()
 
         if (interception_is_mouse(device))
         {
-            interceptionState.lastMouse = device;
             InterceptionMouseStroke &mstroke = *(InterceptionMouseStroke *) &stroke;
+            interceptionState.lastMouse = device;
             InterceptionKeyStroke &kstroke = *(InterceptionKeyStroke *) &stroke;
-            mousetoKey(mstroke, kstroke);
+            if (!mousetoKey(mstroke, kstroke))
+                continue;
             interceptionState.currentIMstroke = *(InterceptionMouseStroke *)stroke;
         }
         else
@@ -2683,9 +2708,6 @@ void sendVKeyEvent(VKeyEvent keyEvent, bool hold)
         }
     }
 
-    if (vkeyToMouse(keyEvent))
-        return;
-
     if (keyEvent.vcode > 0xFF || keyEvent.vcode == VK_CPS_PAUSE)
     {
         sendCapsicainCodeHandler(keyEvent);
@@ -2741,6 +2763,9 @@ void sendVKeyEvent(VKeyEvent keyEvent, bool hold)
             }
         }
     }
+
+    if (vkeyToMouse(keyEvent))
+        return;
 
     InterceptionKeyStroke iks = convertVkeyEvent2ikstroke(keyEvent);
     //hide secret macro recording?
