@@ -93,6 +93,7 @@ struct ModifierCombo
     MOD modNot = 0;
     MOD modTap = 0;
     MOD modTapAnd = 0;
+    string dev;
     vector<VKeyEvent> keyEventSequence;
 };
 
@@ -944,7 +945,9 @@ void processCombos()
     auto process = [](vector<ModifierCombo> &combos, bool clearTapped = false){
         for (ModifierCombo modcombo : combos)
         {
-            if (modcombo.vkey == loopState.vcode)
+            if (modcombo.vkey == loopState.vcode && (modcombo.dev.empty() ||
+                (modcombo.dev[0] == '&' && globalState.deviceIdKeyboard.find(modcombo.dev.substr(1)) != string::npos) ||
+                (modcombo.dev[0] == '^' && globalState.deviceIdKeyboard.find(modcombo.dev.substr(1)) == string::npos)))
             {
                 if (
                     (modifierState.activeDeadkey == modcombo.deadkey) &&
@@ -1464,12 +1467,13 @@ bool parseIniCombos(std::vector<std::string> assembledIni)
         for (string line : sectLines)
         {
             int key;
-            if (parseKeywordCombo(line, key, mods, keyEventSequence, PRETTY_VK_LABELS, options.defaultFunction))
+            string dev;
+            if (parseKeywordCombo(line, key, mods, dev, keyEventSequence, PRETTY_VK_LABELS, options.defaultFunction))
             {
                 bool isDuplicate = false;
                 for (ModifierCombo testcombo : combos)
                 {
-                    if (key == testcombo.vkey && mods[0] == testcombo.deadkey && mods[1] == testcombo.modAnd
+                    if (key == testcombo.vkey && dev == testcombo.dev && mods[0] == testcombo.deadkey && mods[1] == testcombo.modAnd
                         && mods[2] == testcombo.modOr && mods[3] == testcombo.modNot && mods[4] == testcombo.modTap && mods[5] == testcombo.modTapAnd)
                     {
                         //warn only if the combos are different
@@ -1497,7 +1501,7 @@ bool parseIniCombos(std::vector<std::string> assembledIni)
                     }
                 }
                 if(!isDuplicate)
-                    combos.push_back({ key, (unsigned char) mods[0], mods[1], mods[2], mods[3], mods[4], mods[5], keyEventSequence });
+                    combos.push_back({ key, (unsigned char) mods[0], mods[1], mods[2], mods[3], mods[4], mods[5], dev, keyEventSequence });
             }
             else
                 error("Cannot parse combo rule: " + line);

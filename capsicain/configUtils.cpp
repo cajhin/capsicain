@@ -448,7 +448,7 @@ bool parseFunctionHold(std::string funcParams, std::string * scLabels, std::vect
 //parse {deadkey-x} keyLabel  [&|^t ....] > function(param)
 //returns false if the rule is not valid.
 //this translates functions() in the .ini to key sequences (usually with special VK_CPS keys)
-bool parseKeywordCombo(std::string line, int &key, MOD(&mods)[6], std::vector<VKeyEvent> &strokeSequence, std::string scLabels[], std::string defaultFunction)
+bool parseKeywordCombo(std::string line, int &key, MOD(&mods)[6], string &dev, std::vector<VKeyEvent> &strokeSequence, std::string scLabels[], std::string defaultFunction)
 {
     string strkey = stringCutFirstToken(line);
     if (strkey.length() < 1)
@@ -478,8 +478,18 @@ bool parseKeywordCombo(std::string line, int &key, MOD(&mods)[6], std::vector<VK
 
     line.erase(std::remove(line.begin(), line.end(), ' '), line.end());
 
-    string mod;
+    size_t devIdx1 = line.find_first_of('{');
+    size_t devIdx2 = line.find_first_of('}');
+    if (devIdx1 > devIdx2 || (devIdx1 == string::npos) != (devIdx2 == string::npos))
+        return false;
 
+    if (devIdx1 != string::npos && devIdx2 != string::npos)
+    {
+        devIdx1++;
+        dev = line.substr(devIdx1, devIdx2 - devIdx1);
+    }
+
+    string mod;
     size_t modIdx1 = line.find_first_of('[');
     size_t modIdx2 = line.find_first_of(']');
     if (modIdx1 > modIdx2 || (modIdx1 == string::npos) != (modIdx2 == string::npos))
