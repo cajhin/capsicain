@@ -94,14 +94,9 @@ struct ModifierCombo
     MOD modNot = 0;
     MOD modTap = 0;
     MOD modTapAnd = 0;
-    string dev;
+    DEV devAnd = 0;
+    DEV devNot = 0;
     vector<VKeyEvent> keyEventSequence;
-};
-
-struct Device {
-    string id;
-    bool keyboard;
-    bool apple;
 };
 
 struct AllMaps
@@ -257,14 +252,14 @@ void InterceptionSendCurrentKeystroke()
 
 void loadAHK()
 {
-    if (ahk.handle)
-        unloadAHK();
-    ahk.handle = LoadLibrary(TEXT("AutoHotkey64.dll"));
+    if (!ahk.handle)
+        ahk.handle = LoadLibrary(TEXT("AutoHotkey64.dll"));
     if (!ahk.handle)
         ahk.handle = LoadLibrary(TEXT("AutoHotkey.dll"));
-    if (!ahk.handle)
-    {
-        cout << endl << "AHK: No AutoHotkey64.dll found. Get one from https://github.com/thqby/AutoHotkey_H";
+    if (!ahk.handle) {
+        cout << endl
+            << "AHK: No AutoHotkey64.dll found. Get one from "
+                "https://github.com/thqby/AutoHotkey_H";
     }
     else
     {
@@ -291,6 +286,8 @@ void loadAHK()
             cout << endl << "AHK: You should add \"Persistent\" to your AHK script if it doesn't have hotkeys...";
         if (script != L"")
         {
+            if (ahk.threadid)
+                ahk.exec(L"ExitApp", ahk.threadid);
             ahk.threadid = ahk.thread(script.c_str(), L"", L"");
             if (ahk.threadid)
                 cout << endl << "AHK: Loaded [ahk] to AutoHotkey64.dll";
@@ -373,6 +370,8 @@ int main()
         return 0;
     }
 
+    interceptionState.interceptionContext = interception_create_context();
+
     IFPROF profiler.stopwatchRestart();
 
     printHelloHeader();
@@ -412,7 +411,6 @@ int main()
 
     raise_process_priority(); //careful: if we spam key events, other processes get no timeslots to process them. Sleep a bit...
 
-    interceptionState.interceptionContext = interception_create_context();
     interception_set_filter(interceptionState.interceptionContext, interception_is_keyboard, INTERCEPTION_FILTER_KEY_ALL);
     if (options.enableMouse)
         interception_set_filter(interceptionState.interceptionContext, interception_is_mouse, INTERCEPTION_FILTER_MOUSE_ALL & ~INTERCEPTION_FILTER_MOUSE_MOVE);
@@ -507,7 +505,7 @@ int main()
         if (interceptionState.previousInterceptionDevice == NULL    //startup
             || interceptionState.previousInterceptionDevice != interceptionState.interceptionDevice)  //keyboard changed
         {
-            getHardwareId();
+            //getHardwareId();
             //detail to debug the "new device after sleep, reboot after 10 new devices"
             IFTRACE cout << endl
                 << "<" << endl
@@ -1035,14 +1033,22 @@ void processRewireScancodeToVirtualcode()
     loopState.isModifier = isModifier(loopState.vcode) ? true : false;
 }
 
+bool testDeviceMask(DEV maskAnd, DEV maskNot, int dev)
+{
+    if (dev < 1 || dev > INTERCEPTION_MAX_DEVICE)
+        return false;
+    DEV mask = 1 << (dev - 1);
+    if ((mask & maskAnd) == mask && (mask & maskNot) == 0)
+        return true;
+    return false;
+}
+
 void processCombos()
 {
     auto process = [](vector<ModifierCombo> &combos, bool clearTapped = false){
         for (ModifierCombo modcombo : combos)
         {
-            if (modcombo.vkey == loopState.vcode && (modcombo.dev.empty() ||
-                (modcombo.dev[0] == '&' && globalState.deviceIdKeyboard.find(modcombo.dev.substr(1)) != string::npos) ||
-                (modcombo.dev[0] == '^' && globalState.deviceIdKeyboard.find(modcombo.dev.substr(1)) == string::npos)))
+            if (modcombo.vkey == loopState.vcode && testDeviceMask(modcombo.devAnd, modcombo.devNot, interceptionState.interceptionDevice))
             {
                 if (
                     (modifierState.activeDeadkey == modcombo.deadkey) &&
@@ -1176,8 +1182,8 @@ bool processCommand()
         break;
     case SC_R:
         cout << "RELOAD INI";
-        reload();
         getHardwareId();
+        reload();
         cout << endl << (globalState.deviceIsAppleKeyboard ? "APPLE keyboard (flipping Win<>Alt)" : "PC keyboard");
         break;
     case SC_Y:
@@ -1292,32 +1298,36 @@ bool processCommand()
 
 
 
-void getHardwareId()
+std::map<uint8_t, Device>* getHardwareId(bool refresh)
 {
-    allMaps.devices.clear();
-    for (int i = 0; i <= INTERCEPTION_MAX_DEVICE; ++i)
+    if (refresh)
     {
-        wchar_t hardware_id[500] = { 0 };
-        string id;
-        size_t length = interception_get_hardware_id(interceptionState.interceptionContext, i, hardware_id, sizeof(hardware_id));
-        if (length > 0 && length < sizeof(hardware_id))
+        allMaps.devices.clear();
+        for (int i = 0; i <= INTERCEPTION_MAX_DEVICE; ++i)
         {
-            //forced conversion will replace special characters > 127 with "?"
-            for (wchar_t c : hardware_id)
+            wchar_t hardware_id[500] = { 0 };
+            string id;
+            size_t length = interception_get_hardware_id(interceptionState.interceptionContext, i, hardware_id, sizeof(hardware_id));
+            if (length > 0 && length < sizeof(hardware_id))
             {
-                if (c > 127)
-                    id += '?';
-                else if (c == 0)
-                    break;
-                else
-                    id += (char)c;
-            }
-        } 
-        else
-            continue;
-        id = stringToLower(id);
-        allMaps.devices[i] = { id, (bool)interception_is_keyboard(i), (id.find("vid_05ac") != string::npos) || (id.find("vid&000205ac") != string::npos) };
+                //forced conversion will replace special characters > 127 with "?"
+                for (wchar_t c : hardware_id)
+                {
+                    if (c > 127)
+                        id += '?';
+                    else if (c == 0)
+                        break;
+                    else
+                        id += (char)c;
+                }
+            } 
+            else
+                continue;
+            id = stringToLower(id);
+            allMaps.devices[i] = { id, (bool)interception_is_keyboard(i), (id.find("vid_05ac") != string::npos) || (id.find("vid&000205ac") != string::npos) };
+        }
     }
+    return &allMaps.devices;
 }
 
 
@@ -1564,13 +1574,13 @@ bool parseIniCombos(std::vector<std::string> assembledIni)
         for (string line : sectLines)
         {
             int key;
-            string dev;
-            if (parseKeywordCombo(line, key, mods, dev, keyEventSequence, PRETTY_VK_LABELS, options.defaultFunction))
+            DEV devs[2] = { 0 };
+            if (parseKeywordCombo(line, key, mods, devs, keyEventSequence, PRETTY_VK_LABELS, options.defaultFunction))
             {
                 bool isDuplicate = false;
                 for (ModifierCombo testcombo : combos)
                 {
-                    if (key == testcombo.vkey && dev == testcombo.dev && mods[0] == testcombo.deadkey && mods[1] == testcombo.modAnd
+                    if (key == testcombo.vkey && devs[0] == testcombo.devAnd && devs[1] == testcombo.devNot && mods[0] == testcombo.deadkey && mods[1] == testcombo.modAnd
                         && mods[2] == testcombo.modOr && mods[3] == testcombo.modNot && mods[4] == testcombo.modTap && mods[5] == testcombo.modTapAnd)
                     {
                         //warn only if the combos are different
@@ -1598,7 +1608,7 @@ bool parseIniCombos(std::vector<std::string> assembledIni)
                     }
                 }
                 if(!isDuplicate)
-                    combos.push_back({ key, (unsigned char) mods[0], mods[1], mods[2], mods[3], mods[4], mods[5], dev, keyEventSequence });
+                    combos.push_back({ key, (unsigned char) mods[0], mods[1], mods[2], mods[3], mods[4], mods[5], devs[0], devs[1], keyEventSequence });
             }
             else
                 error("Cannot parse combo rule: " + line);
@@ -1758,6 +1768,9 @@ void initializeAllMaps()
 {
     for (auto kv : allMaps.modCombos)
         kv.second.clear();
+
+    allMaps.executables.clear();
+    getHardwareId();
 
     //resetAlphamap()
     {
@@ -1926,9 +1939,13 @@ void reload()
 void releaseAllSentKeys()
 {
     IFDEBUG cout << endl << "Resetting all sent DOWN keys to UP: " << endl;
+
+    modifierState.modifierForceDown = 0;
+
     // release backwards to release modifiers and esc last
     for (int i = 255; i >= 0; --i)
     {
+        globalState.holdKeys[i].clear();
         if (globalState.keysDownSent[i])
         {
             sendVKeyEvent({ i, false });
@@ -2025,7 +2042,7 @@ void printLoopState1Input()
 {
     cout
         << " ["
-        << hex << setw(2) << interceptionState.currentIKstroke.code << " " << interceptionState.currentIKstroke.state
+        << dec << setw(2) << interceptionState.interceptionDevice << " " << hex << interceptionState.currentIKstroke.code << " " << interceptionState.currentIKstroke.state
         << "= " << setw(8) << (loopState.vcode == loopState.scancode ? "" : PRETTY_VK_LABELS[loopState.scancode] + " > ")
         << setw(8) << getPrettyVKLabel(loopState.vcode) << setw(2) << left << getSymbolForIKStrokeState(interceptionState.currentIKstroke.state) << right
         << "] ";
@@ -2312,7 +2329,7 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
 
     IFDEBUG
         if (!globalState.secretSequencePlayback && keyEventSequence.at(0).vcode != VK_CPS_OBFUSCATED_SEQUENCE_START)
-             cout << "  --> SEQUENCE (" << dec << keyEventSequence.size() << ")  ";
+             cout << "  --> SEQUENCE (" << dec << keyEventSequence.size() << ") ";
 
     for (VKeyEvent keyEvent : keyEventSequence)
     {
@@ -2325,6 +2342,7 @@ void playKeyEventSequence(vector<VKeyEvent> keyEventSequence)
         //test if this is the param for the preceding func key in "command + value" sequence
         if (expectParamForFuncKey != -1)
         {
+            IFDEBUG cout << "{" + PRETTY_VK_LABELS[expectParamForFuncKey] + "}";
             switch (expectParamForFuncKey)
             {
             case VK_CPS_SLEEP:

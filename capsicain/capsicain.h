@@ -1,4 +1,5 @@
 #include <string>
+#include <map>
 
 #include "interception.h"
 #include "utils.h"
@@ -19,6 +20,12 @@ struct Executable
     HANDLE proc;
     DWORD pid;
     HWND hwnd;
+};
+
+struct Device {
+    std::string id;
+    bool keyboard;
+    bool apple;
 };
 
 enum KEYSTATE
@@ -59,7 +66,7 @@ VKeyEvent convertIkstroke2VKeyEvent(InterceptionKeyStroke ikStroke);
 
 void normalizeIKStroke(InterceptionKeyStroke &ikstroke);
 InterceptionKeyStroke convertVkeyEvent2ikstroke(VKeyEvent keyEvent);
-void getHardwareId();
+std::map<uint8_t, Device>* getHardwareId(bool refresh = true);
 
 bool initConsoleWindow();
 void parseIniGlobals();

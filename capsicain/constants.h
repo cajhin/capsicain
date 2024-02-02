@@ -42,3 +42,5 @@ const std::string INI_TAG_ALPHA_FROM = "ALPHA_FROM";
 const std::string INI_TAG_ALPHA_TO = "ALPHA_TO";
 const std::string INI_TAG_ALPHA_END = "ALPHA_END";
 const std::string INI_TAG_EXE = "EXE";
+
+using DEV = uint32_t;

@@ -445,10 +445,32 @@ bool parseFunctionHold(std::string funcParams, std::string * scLabels, std::vect
     return true;
 }
 
+void parseDeviceMask(string devstr, DEV(&devs)[2]) {
+    if (devstr.empty())
+    {
+        devs[0] = 0xFFFFFFFF;
+        devs[1] = 0;
+        return;
+    }
+    auto* devices = getHardwareId();
+    for (auto dev : stringSplit(devstr, ','))
+    {
+        if (dev.empty())
+            continue;
+        for (int i = 1; i <= INTERCEPTION_MAX_DEVICE; ++i)
+        {
+            if (dev[0] == '&' && (*devices)[i].id.find(dev.substr(1)) != string::npos)
+                devs[0] |= 1 << (i - 1);
+            else if (dev[0] == '^' && (*devices)[i].id.find(dev.substr(1)) == string::npos)
+                devs[1] |= 1 << (i - 1);
+        }
+    }
+}
+
 //parse {deadkey-x} keyLabel  [&|^t ....] > function(param)
 //returns false if the rule is not valid.
 //this translates functions() in the .ini to key sequences (usually with special VK_CPS keys)
-bool parseKeywordCombo(std::string line, int &key, MOD(&mods)[6], string &dev, std::vector<VKeyEvent> &strokeSequence, std::string scLabels[], std::string defaultFunction)
+bool parseKeywordCombo(std::string line, int &key, MOD(&mods)[6], DEV(&devs)[2], std::vector<VKeyEvent> &strokeSequence, std::string scLabels[], std::string defaultFunction)
 {
     string strkey = stringCutFirstToken(line);
     if (strkey.length() < 1)
@@ -486,7 +508,7 @@ bool parseKeywordCombo(std::string line, int &key, MOD(&mods)[6], string &dev, s
     if (devIdx1 != string::npos && devIdx2 != string::npos)
     {
         devIdx1++;
-        dev = line.substr(devIdx1, devIdx2 - devIdx1);
+        parseDeviceMask(line.substr(devIdx1, devIdx2 - devIdx1), devs);
     }
 
     string mod;
