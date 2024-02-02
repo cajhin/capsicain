@@ -445,26 +445,27 @@ bool parseFunctionHold(std::string funcParams, std::string * scLabels, std::vect
     return true;
 }
 
-void parseDeviceMask(string devstr, DEV(&devs)[2]) {
+DEV parseDeviceMask(string devstr, char filter) {
     if (devstr.empty())
     {
-        devs[0] = 0xFFFFFFFF;
-        devs[1] = 0;
-        return;
+        if (filter == '&')
+            return 0xFFFFFFFF;
+        else
+            return 0;
     }
-    auto* devices = getHardwareId();
+    DEV mask = 0;
+    auto* devices = getHardwareId(true);
     for (auto dev : stringSplit(devstr, ','))
     {
         if (dev.empty())
             continue;
         for (int i = 1; i <= INTERCEPTION_MAX_DEVICE; ++i)
         {
-            if (dev[0] == '&' && (*devices)[i].id.find(dev.substr(1)) != string::npos)
-                devs[0] |= 1 << (i - 1);
-            else if (dev[0] == '^' && (*devices)[i].id.find(dev.substr(1)) == string::npos)
-                devs[1] |= 1 << (i - 1);
+            if (dev[0] == filter && (*devices)[i].id.find(dev.substr(1)) != string::npos)
+                mask |= 1 << (i - 1);
         }
     }
+    return mask;
 }
 
 //parse {deadkey-x} keyLabel  [&|^t ....] > function(param)
@@ -508,7 +509,8 @@ bool parseKeywordCombo(std::string line, int &key, MOD(&mods)[6], DEV(&devs)[2],
     if (devIdx1 != string::npos && devIdx2 != string::npos)
     {
         devIdx1++;
-        parseDeviceMask(line.substr(devIdx1, devIdx2 - devIdx1), devs);
+        devs[0] = parseDeviceMask(line.substr(devIdx1, devIdx2 - devIdx1), '&');
+        devs[1] = parseDeviceMask(line.substr(devIdx1, devIdx2 - devIdx1), '^');
     }
 
     string mod;

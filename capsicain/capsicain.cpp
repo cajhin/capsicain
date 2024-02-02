@@ -1035,6 +1035,8 @@ void processRewireScancodeToVirtualcode()
 
 bool testDeviceMask(DEV maskAnd, DEV maskNot, int dev)
 {
+    if (maskAnd == 0xFFFFFFFF && maskNot == 0)
+        return true;
     if (dev < 1 || dev > INTERCEPTION_MAX_DEVICE)
         return false;
     DEV mask = 1 << (dev - 1);
@@ -1574,7 +1576,7 @@ bool parseIniCombos(std::vector<std::string> assembledIni)
         for (string line : sectLines)
         {
             int key;
-            DEV devs[2] = { 0 };
+            DEV devs[2] = { 0xFFFFFFFF, 0 };
             if (parseKeywordCombo(line, key, mods, devs, keyEventSequence, PRETTY_VK_LABELS, options.defaultFunction))
             {
                 bool isDuplicate = false;
