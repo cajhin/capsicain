@@ -1281,8 +1281,24 @@ bool processCommand()
             options.delayForKeySequenceMS += 1;
         cout << "delay between characters in key sequences (ms): " << dec << options.delayForKeySequenceMS;
         break;
-    case SC_B:
+    /*case SC_B:
         betaTest();
+        break;*/
+    case SC_M:
+        options.enableMouse ^= true;
+        if (interceptionState.interceptionContext)
+        {
+            if (options.enableMouse)
+            {
+                interception_set_filter(interceptionState.interceptionContext, interception_is_mouse, INTERCEPTION_FILTER_MOUSE_ALL & ~INTERCEPTION_FILTER_MOUSE_MOVE);
+                cout << endl << "MOUSE INPUT ENABLED";
+            }
+            else
+            {
+                interception_set_filter(interceptionState.interceptionContext, interception_is_mouse, INTERCEPTION_FILTER_MOUSE_NONE);
+                cout << endl << "MOUSE INPUT DISABLED";
+            }
+        }
         break;
     default: 
     {
@@ -2102,7 +2118,8 @@ void printHelp()
         << "[Y] autohotkeY stop" << endl
         << "[J][K][L][;] Macro Recording: Start,Stop,Playback,Copy macro definition to clipboard." << endl
         << "[,] and [.]: delay between keys in sequences -/+ 1ms " << endl
-        << "[Q] (dev feature) Stop the debug build if both release and debug are running" << endl
+        /*<< "[Q] (dev feature) Stop the debug build if both release and debug are running" << endl*/
+        << "[M] Toggle mouse input support" << endl
         << endl << "These commands work anywhere, Capsicain does not have to be the active window."
         ;
 }
