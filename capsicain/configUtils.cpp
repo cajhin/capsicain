@@ -64,6 +64,7 @@ int checkSyntax(std::vector<string> iniLines)
             stringStartsWith(*t, "up") ||
             stringStartsWith(*t, "tap") ||
             stringStartsWith(*t, "slow") ||
+            stringStartsWith(*t, "repeat") ||
             stringStartsWith(*t, "option") ||
             stringStartsWith(*t, "exe")
             )

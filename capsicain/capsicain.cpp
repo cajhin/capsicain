@@ -109,7 +109,8 @@ struct AllMaps
         { INI_TAG_COMBOS, {} },
         { INI_TAG_UPCOMBOS, {} },
         { INI_TAG_TAPCOMBOS, {} },
-        { INI_TAG_SLOWCOMBOS, {} }
+        { INI_TAG_SLOWCOMBOS, {} },
+        { INI_TAG_REPEATCOMBOS, {} }
     };
 
     int alphamap[MAX_VCODES] = { }; //MUST initialize this manually to 1 1, 2 2, 3 3, ...
@@ -179,6 +180,7 @@ struct LoopState
     bool tapped = false;
     bool tappedSlow = false;  //autorepeat set in before key release
     bool tapHoldMake = false;  //tap-and-hold action (like LAlt > mod12 // LAlt)
+    bool repeat = false;
 
     vector<VKeyEvent> resultingVKeyEventSequence;
 
@@ -934,6 +936,11 @@ void detectTapping()
         loopState.tapHoldMake = true;
     }
 
+    if ((interceptionState.currentIKstroke.state & 1) == 0 &&
+        (interceptionState.previousIKstroke1.state & 1) == 0 &&
+        interceptionState.previousIKstroke1.code == interceptionState.currentIKstroke.code)
+        loopState.repeat = true;
+
     //cannot detect tapHold Break here. This is done by ProcessRewire()
 }
 
@@ -1087,7 +1094,11 @@ void processCombos()
     };
 
     if (loopState.isDownstroke)
+    {
         process(allMaps.modCombos[INI_TAG_COMBOS], true);
+        if (loopState.repeat)
+            process(allMaps.modCombos[INI_TAG_REPEATCOMBOS]);
+    }
     else
     {
         process(allMaps.modCombos[INI_TAG_UPCOMBOS]);
@@ -1851,6 +1862,7 @@ bool parseProcessIniConfig(int config)
     IFDEBUG cout << endl << "Up     Definitions: " << dec << allMaps.modCombos[INI_TAG_UPCOMBOS].size();
     IFDEBUG cout << endl << "Tap    Definitions: " << dec << allMaps.modCombos[INI_TAG_TAPCOMBOS].size();
     IFDEBUG cout << endl << "Slow   Definitions: " << dec << allMaps.modCombos[INI_TAG_SLOWCOMBOS].size();
+    IFDEBUG cout << endl << "Repeat Definitions: " << dec << allMaps.modCombos[INI_TAG_REPEATCOMBOS].size();
 
     parseIniAlphaLayout(assembledConfig);
     IFDEBUG
