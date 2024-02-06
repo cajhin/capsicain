@@ -127,7 +127,6 @@ struct InterceptionState
     InterceptionKeyStroke currentIKstroke = { SC_NOP, 0 };
     InterceptionKeyStroke previousIKstroke1 = { SC_NOP, 0 }; //remember history
     InterceptionKeyStroke previousIKstroke2 = { SC_NOP, 0 };
-    InterceptionMouseStroke currentIMstroke = { 0 };
     InterceptionDevice lastMouse = NULL;
     InterceptionDevice lastKeyboard = NULL;
 } interceptionState;
@@ -307,58 +306,60 @@ void unloadAHK()
     ahk.threadid = 0;
 }
 
-bool mousetoKey(InterceptionMouseStroke &mstroke, InterceptionKeyStroke &kstroke)
+int mousetoKey(InterceptionMouseStroke &mstroke, InterceptionKeyStroke *kstroke)
 {
-    unsigned short code{0};
-    unsigned short state{0};
-    // FIXME: Single mouse events can change multiple buttons, but this will only return the first match, sorry
-    if (mstroke.state & INTERCEPTION_MOUSE_BUTTON_1_DOWN || mstroke.state & INTERCEPTION_MOUSE_BUTTON_1_UP)
+    auto state = mstroke.state;
+    auto roll = mstroke.rolling;
+    int n = 0;
+    if (state & INTERCEPTION_MOUSE_BUTTON_1_DOWN || state & INTERCEPTION_MOUSE_BUTTON_1_UP)
     {
-        code = VM_LEFT;
-        state = (int)(bool)(mstroke.state & INTERCEPTION_MOUSE_BUTTON_1_DOWN);
+        kstroke[n].code = VM_LEFT;
+        kstroke[n].state = (int)(bool)!(state & INTERCEPTION_MOUSE_BUTTON_1_DOWN);
+        n++;
     }
-    else if (mstroke.state & INTERCEPTION_MOUSE_BUTTON_2_DOWN || mstroke.state & INTERCEPTION_MOUSE_BUTTON_2_UP)
+    if (state & INTERCEPTION_MOUSE_BUTTON_2_DOWN || state & INTERCEPTION_MOUSE_BUTTON_2_UP)
     {
-        code = VM_RIGHT;
-        state = (int)(bool)(mstroke.state & INTERCEPTION_MOUSE_BUTTON_2_DOWN);
+        kstroke[n].code = VM_RIGHT;
+        kstroke[n].state = (int)(bool)!(state & INTERCEPTION_MOUSE_BUTTON_2_DOWN);
+        n++;
     }
-    else if (mstroke.state & INTERCEPTION_MOUSE_BUTTON_3_DOWN || mstroke.state & INTERCEPTION_MOUSE_BUTTON_3_UP)
+    if (state & INTERCEPTION_MOUSE_BUTTON_3_DOWN || state & INTERCEPTION_MOUSE_BUTTON_3_UP)
     {
-        code = VM_MIDDLE;
-        state = (int)(bool)(mstroke.state & INTERCEPTION_MOUSE_BUTTON_3_DOWN);
+        kstroke[n].code = VM_MIDDLE;
+        kstroke[n].state = (int)(bool)!(state & INTERCEPTION_MOUSE_BUTTON_3_DOWN);
+        n++;
     }
-    else if (mstroke.state & INTERCEPTION_MOUSE_BUTTON_4_DOWN || mstroke.state & INTERCEPTION_MOUSE_BUTTON_4_UP)
+    if (state & INTERCEPTION_MOUSE_BUTTON_4_DOWN || state & INTERCEPTION_MOUSE_BUTTON_4_UP)
     {
-        code = VM_BUTTON4;
-        state = (int)(bool)(mstroke.state & INTERCEPTION_MOUSE_BUTTON_4_DOWN);
+        kstroke[n].code = VM_BUTTON4;
+        kstroke[n].state = (int)(bool)!(state & INTERCEPTION_MOUSE_BUTTON_4_DOWN);
+        n++;
     }
-    else if (mstroke.state & INTERCEPTION_MOUSE_BUTTON_5_DOWN || mstroke.state & INTERCEPTION_MOUSE_BUTTON_5_UP)
+    if (state & INTERCEPTION_MOUSE_BUTTON_5_DOWN || state & INTERCEPTION_MOUSE_BUTTON_5_UP)
     {
-        code = VM_BUTTON5;
-        state = (int)(bool)(mstroke.state & INTERCEPTION_MOUSE_BUTTON_5_DOWN);
+        kstroke[n].code = VM_BUTTON5;
+        kstroke[n].state = (int)(bool)!(state & INTERCEPTION_MOUSE_BUTTON_5_DOWN);
+        n++;
     }
-    else if(mstroke.state & INTERCEPTION_MOUSE_WHEEL || mstroke.state & INTERCEPTION_MOUSE_HWHEEL)
+    if(state & INTERCEPTION_MOUSE_WHEEL)
     {
-        if (mstroke.rolling > 0)
-            code = VM_WHEEL_UP;
-        else if (mstroke.rolling < 0)
-            code = VM_WHEEL_DOWN;
-        else if (mstroke.rolling < 0)
-            code = VM_WHEEL_LEFT;
-        else if (mstroke.rolling > 0)
-            code = VM_WHEEL_RIGHT;
+        if (roll > 0)
+            kstroke[n].code = VM_WHEEL_UP;
+        else if (roll < 0)
+            kstroke[n].code = VM_WHEEL_DOWN;
+        kstroke[n].state = 0;
+        n++;
     }
-    if (code >= VM_LEFT && code <= VM_BUTTON5)
+    if(state & INTERCEPTION_MOUSE_HWHEEL)
     {
-        state = (int)(bool)(mstroke.state & 0xAAAA);
+        if (roll < 0)
+            kstroke[n].code = VM_WHEEL_LEFT;
+        else if (roll > 0)
+            kstroke[n].code = VM_WHEEL_RIGHT;
+        kstroke[n].state = 0;
+        n++;
     }
-    if (code >= VM_LEFT && code <= VM_WHEEL_RIGHT)
-    {
-        kstroke.code = code;
-        kstroke.state = state;
-        return true;
-    }
-    return false;
+    return n;
 }
 
 int main()
@@ -421,292 +422,306 @@ int main()
     InterceptionStroke stroke;
 
     //CORE LOOP
-    while (true)
+    bool exit = false;
+    while (!exit)
     {
         //wait for the next key from Interception
-        interception_receive(interceptionState.interceptionContext,
-            device = interception_wait(interceptionState.interceptionContext),
+        int n = interception_receive(interceptionState.interceptionContext,
+            device = interception_wait_with_timeout(interceptionState.interceptionContext, 2),
             &stroke, 1);
 
-        if (interception_is_mouse(device))
+        InterceptionKeyStroke strokes[10] = {0};
+
+        if (device && n)
         {
-            InterceptionMouseStroke &mstroke = *(InterceptionMouseStroke *) &stroke;
-            interceptionState.lastMouse = device;
-            InterceptionKeyStroke &kstroke = *(InterceptionKeyStroke *) &stroke;
-            if (!mousetoKey(mstroke, kstroke))
-                continue;
-            interceptionState.currentIMstroke = *(InterceptionMouseStroke *)stroke;
+            if (interception_is_mouse(device))
+            {
+                InterceptionMouseStroke &mstroke = *(InterceptionMouseStroke *) &stroke;
+                interceptionState.lastMouse = device;
+                int m = mousetoKey(mstroke, (InterceptionKeyStroke *)&strokes);
+                if (m == 0)
+                    continue;
+                n = m;
+            }
+            else
+            {
+                interceptionState.lastKeyboard = device;
+                strokes[0] = *(InterceptionKeyStroke *)&stroke;
+            }
+
+            if (allMaps.devices.find(device) == allMaps.devices.end())
+                getHardwareId();
+
+            globalState.deviceIdKeyboard = allMaps.devices[device].id;
+            globalState.deviceIsAppleKeyboard = allMaps.devices[device].apple;
+
+            for (int i = 0; i < n; ++i)
+            {
+                //remember previous two keys to detect tapping and Pause sequence
+                interceptionState.previousIKstroke2 = interceptionState.previousIKstroke1;
+                interceptionState.previousIKstroke1 = interceptionState.currentIKstroke;
+
+                interceptionState.interceptionDevice = device;
+                interceptionState.currentIKstroke = strokes[i];
+
+                IFPROF
+                {
+                    //Measure Timing. sleep() is not precise; just a rough outline. Expect occasional 30ms sleeps from thread scheduling.
+                    profiler.timepointPreviousKeyEvent = profiler.timepointLoopStart;
+                    profiler.timepointLoopStart = profiler.getTimepointNow();
+                    profiler.stopwatchRestart();
+                    profiler.countIncoming++;
+                }
+
+                //low level debugging, show incoming raw key
+                IFTRACE printIKStrokeState(interceptionState.currentIKstroke);
+
+                //clear loop state
+                loopState = defaultLoopState;
+
+                //copy InterceptionKeyStroke (unpleasant to use) to plain VKeyEvent
+                VKeyEvent originalVKeyEvent = convertIkstroke2VKeyEvent(interceptionState.currentIKstroke);
+                loopState.scancode = originalVKeyEvent.vcode;  //scancode is write-once (except for the AppleWinAlt option)
+                loopState.vcode = loopState.scancode;          //vcode may be altered below
+                loopState.isDownstroke = originalVKeyEvent.isDownstroke;
+
+                //if GLOBAL capsicainEnableDisable is configured, it toggles the ON/OFF state
+                if (globals.capsicainOnOffKey != -1)
+                {
+                    if (processOnOffKey())
+                        continue;
+                }
+                //if disabled, just forward
+                if (!globalState.capsicainOn)
+                {
+                    InterceptionSendCurrentKeystroke();
+                    continue;
+                }
+
+                IFDEBUG if(globalState.activeConfig == 0) cout << ". ";
+
+                //ignore secondary keyboard?
+                if (options.processOnlyFirstKeyboard 
+                    && (interceptionState.previousInterceptionDevice != NULL)
+                    && (interceptionState.previousInterceptionDevice != interceptionState.interceptionDevice))
+                {
+                    IFDEBUG cout << endl << "Ignore 2nd board (" << interceptionState.interceptionDevice << ") scancode: " << interceptionState.currentIKstroke.code;
+                    InterceptionSendCurrentKeystroke();
+                    continue;
+                }
+
+                //device id changed / check for Apple Keyboard
+                if (interceptionState.previousInterceptionDevice == NULL    //startup
+                    || interceptionState.previousInterceptionDevice != interceptionState.interceptionDevice)  //keyboard changed
+                {
+                    //getHardwareId();
+                    //detail to debug the "new device after sleep, reboot after 10 new devices"
+                    IFTRACE cout << endl
+                        << "<" << endl
+                        << "new keyboard: " << (globalState.deviceIsAppleKeyboard ? "Apple keyboard" : "IBM keyboard") << endl
+                        << "new keyboard count: " << ++interceptionState.newKeyboardCounter << endl
+                        << "keyboard device id: " << globalState.deviceIdKeyboard << endl
+                        << "interceptionDevice: " << interceptionState.interceptionDevice << endl
+                        << getTimestamp()
+                        << ">" << endl;
+
+
+
+                    interceptionState.previousInterceptionDevice = interceptionState.interceptionDevice;
+                }
+
+                //sanity check
+                if (interceptionState.currentIKstroke.code >= 0x80 && interceptionState.currentIKstroke.code < VM_LEFT)
+                {
+                    error("Received unexpected extended Interception Key Stroke code > 0x79: " + to_string(interceptionState.currentIKstroke.code));
+                    cout << endl << "Please open a ticket on github";
+                    continue;
+                }
+                if (interceptionState.currentIKstroke.code == 0)
+                {
+                    error("Received unexpected SC_NOP Key Stroke code 0. Ignoring this.");
+                    continue;
+                }
+
+                //ESC Commands
+                if (loopState.scancode == SC_ESCAPE)
+                {
+                    IFDEBUG cout << endl << "(Hard ESC" << (loopState.isDownstroke ? "v " : "^ ") << ")";
+                    globalState.realEscapeIsDown = loopState.isDownstroke;
+
+                    //stop macro recording?
+                    if (globalState.recordingMacro > 0)
+                    {
+                        IFDEBUG cout << endl << "Stop recording macro #" << globalState.recordingMacro;
+                        //wrap macro in tokens to tmprelease / restore keys, to deal with the physical 'Ctrl down' that started the macro
+                        if (globalState.recordedMacros[globalState.recordingMacro].size() > 0)
+                            globalState.secretSequenceRecording = false;
+                        {
+                            globalState.recordedMacros[globalState.recordingMacro].push_back({ VK_CPS_TEMPRESTOREKEYS,true });
+                            globalState.recordedMacros[globalState.recordingMacro].insert(globalState.recordedMacros[globalState.recordingMacro].begin(), { VK_CPS_TEMPRELEASEKEYS,true });
+                        }
+                        globalState.recordingMacro = -1;
+                        updateTrayIcon(true, globalState.recordingMacro >= 0, globalState.activeConfig);
+                        continue;
+                    }
+                }
+                else if (globalState.realEscapeIsDown && loopState.isDownstroke)
+                {
+                    if (globals.forwardEscKey.find(loopState.scancode) == globals.forwardEscKey.end())
+                        continue;
+                }
+                else if (globalState.realEscapeIsDown && !loopState.isDownstroke)
+                {
+                    if (globals.disableEscKey.find(loopState.scancode) == globals.disableEscKey.end())
+                    {
+                        if (processCommand())
+                        {
+                            continue;
+                        }
+                        else
+                        {
+                            setLED(SC_NOP, true); // sync LEDs with Windows state.
+                            ShowInTaskbar(); //exit
+                            exit = true;
+                        }
+                    }
+                    if (globals.forwardEscKey.find(loopState.scancode) == globals.forwardEscKey.end())
+                        continue;
+                }
+
+                //TESTING the layer shift feature
+                /*
+                if (loopState.vcode == TESTING_LAYER_SHIFT_KEY)
+                {
+                    if (loopState.isDownstroke)
+                    {
+                        if (globalState.activeConfig != TESTING_LAYER_SHIFT_TO)
+                        {
+                            TESTING_LAYER_SHIFT_FROM = globalState.activeConfig;
+                            switchConfig(TESTING_LAYER_SHIFT_TO, false);
+                        }
+                    }
+                    else if (TESTING_LAYER_SHIFT_FROM >= 0)
+                    {
+                        if (TESTING_LAYER_SHIFT_FROM != globalState.activeConfig)
+                        {
+                            switchConfig(TESTING_LAYER_SHIFT_FROM, false);
+                        }
+
+                        TESTING_LAYER_SHIFT_FROM = -1;
+                    }
+
+                    continue;
+                }
+                */
+                
+                //Config 0: standard keyboard, no further processing, just forward everything
+                if (globalState.activeConfig == DISABLED_CONFIG_NUMBER)
+                {
+                    InterceptionSendCurrentKeystroke();
+                    continue;
+                }
+
+                //consider include/exclude deviceID options
+                if (!globalState.includeDeviceId.empty()
+                    && globalState.deviceIdKeyboard.find(globalState.includeDeviceId) == string::npos)
+                {
+                    IFDEBUG cout << endl << "Ignore board, deviceId is not included with this config";
+                    InterceptionSendCurrentKeystroke();
+                    continue;
+                }
+                if (!globalState.excludeDeviceId.empty()
+                    && globalState.deviceIdKeyboard.find(globalState.excludeDeviceId) != string::npos)
+                {
+                    IFDEBUG cout << endl << "Ignore board, deviceId is excluded in this config";
+                    InterceptionSendCurrentKeystroke();
+                    continue;
+                }
+
+
+
+                //flip Win+Alt only for Apple keyboards.
+                if (options.flipAltWinOnAppleKeyboards && globalState.deviceIsAppleKeyboard)
+                {
+                    switch (loopState.vcode)
+                    {
+                    case SC_LALT: loopState.vcode = SC_LWIN; break;
+                    case SC_LWIN: loopState.vcode = SC_LALT; break;
+                    case SC_RALT: loopState.vcode = SC_RWIN; break;
+                    case SC_RWIN: loopState.vcode = SC_RALT; break;
+                    }
+
+                    loopState.scancode = loopState.vcode;       //only time where scancode is rewritten. Simplifies tapping and rewiring
+                }
+
+                //Handle Sysrq, ScrLock, Pause, NumLock
+                if (!processMessyKeys())
+                    continue;
+
+                //Tapdance
+                detectTapping();
+                //slow tap breaks tapping
+                if (loopState.tappedSlow)
+                    modifierState.modifierTapped = 0;
+
+                //hard rewire all REWIREd keys
+                processRewireScancodeToVirtualcode();
+                if (loopState.vcode == SC_NOP)   //rewired to NOP to disable keys
+                {
+                    IFDEBUG cout << " (r2NOP)";
+                    continue;
+                }
+
+                IFDEBUG
+                {
+                    cout << endl;
+                    IFPROF cout << "(" << setw(5) << dec << timeBetweenTimepointsUS(profiler.timepointPreviousKeyEvent, profiler.timepointLoopStart) / 1000 << " m) ";
+                    printLoopState1Input();
+                }
+
+                //evaluate modifiers
+                processModifierState();
+            
+                IFDEBUG printLoopState2Modifier();
+
+                //evaluate modified keys
+                processCombos();
+
+                //alphakeys: basic character key layout. Don't remap the Ctrl combos?
+                processMapAlphaKeys();
+
+                //break tapped state?
+                if (!isModifier(loopState.vcode))
+                    modifierState.modifierTapped = 0;
+
+                IFPROF
+                {
+                unsigned long mappingtime = profiler.stopwatchRestart();
+                profiler.totalMappingTimeUS += mappingtime;
+                profiler.countOutgoing++;
+                if (mappingtime > profiler.worstMappingTimeUS)
+                    profiler.worstMappingTimeUS = mappingtime;
+                IFDEBUG printLoopStateMappingTime(mappingtime);
+                }
+
+                sendResultingKeyOrSequence();
+                IFPROF
+                {
+                unsigned long sendingtime = profiler.stopwatchReadUS();
+                profiler.totalSendingTimeUS += sendingtime;
+                if (sendingtime > profiler.worstSendingTimeUS)
+                    profiler.worstSendingTimeUS = sendingtime;
+                if (sendingtime > 1000)
+                    cout << "\t (slow send: " << dec << sendingtime << " u)";
+                }
+
+                IFDEBUG printLoopState4TapState();
+            }
         }
         else
         {
-            interceptionState.lastKeyboard = device;
+            // TODO: do other stuff in the loop
         }
-
-        if (allMaps.devices.find(device) == allMaps.devices.end())
-            getHardwareId();
-
-        globalState.deviceIdKeyboard = allMaps.devices[device].id;
-        globalState.deviceIsAppleKeyboard = allMaps.devices[device].apple;
-
-        //remember previous two keys to detect tapping and Pause sequence
-        interceptionState.previousIKstroke2 = interceptionState.previousIKstroke1;
-        interceptionState.previousIKstroke1 = interceptionState.currentIKstroke;
-
-        interceptionState.interceptionDevice = device;
-        interceptionState.currentIKstroke = *(InterceptionKeyStroke *)stroke;
-
-        IFPROF
-        {
-            //Measure Timing. sleep() is not precise; just a rough outline. Expect occasional 30ms sleeps from thread scheduling.
-            profiler.timepointPreviousKeyEvent = profiler.timepointLoopStart;
-            profiler.timepointLoopStart = profiler.getTimepointNow();
-            profiler.stopwatchRestart();
-            profiler.countIncoming++;
-        }
-
-        //low level debugging, show incoming raw key
-        IFTRACE printIKStrokeState(interceptionState.currentIKstroke);
-
-        //clear loop state
-        loopState = defaultLoopState;
-
-        //copy InterceptionKeyStroke (unpleasant to use) to plain VKeyEvent
-        VKeyEvent originalVKeyEvent = convertIkstroke2VKeyEvent(interceptionState.currentIKstroke);
-        loopState.scancode = originalVKeyEvent.vcode;  //scancode is write-once (except for the AppleWinAlt option)
-        loopState.vcode = loopState.scancode;          //vcode may be altered below
-        loopState.isDownstroke = originalVKeyEvent.isDownstroke;
-
-        //if GLOBAL capsicainEnableDisable is configured, it toggles the ON/OFF state
-        if (globals.capsicainOnOffKey != -1)
-        {
-            if (processOnOffKey())
-                continue;
-        }
-        //if disabled, just forward
-        if (!globalState.capsicainOn)
-        {
-            InterceptionSendCurrentKeystroke();
-            continue;
-        }
-
-        IFDEBUG if(globalState.activeConfig == 0) cout << ". ";
-
-        //ignore secondary keyboard?
-        if (options.processOnlyFirstKeyboard 
-            && (interceptionState.previousInterceptionDevice != NULL)
-            && (interceptionState.previousInterceptionDevice != interceptionState.interceptionDevice))
-        {
-            IFDEBUG cout << endl << "Ignore 2nd board (" << interceptionState.interceptionDevice << ") scancode: " << interceptionState.currentIKstroke.code;
-            InterceptionSendCurrentKeystroke();
-            continue;
-        }
-
-        //device id changed / check for Apple Keyboard
-        if (interceptionState.previousInterceptionDevice == NULL    //startup
-            || interceptionState.previousInterceptionDevice != interceptionState.interceptionDevice)  //keyboard changed
-        {
-            //getHardwareId();
-            //detail to debug the "new device after sleep, reboot after 10 new devices"
-            IFTRACE cout << endl
-                << "<" << endl
-                << "new keyboard: " << (globalState.deviceIsAppleKeyboard ? "Apple keyboard" : "IBM keyboard") << endl
-                << "new keyboard count: " << ++interceptionState.newKeyboardCounter << endl
-                << "keyboard device id: " << globalState.deviceIdKeyboard << endl
-                << "interceptionDevice: " << interceptionState.interceptionDevice << endl
-                << getTimestamp()
-                << ">" << endl;
-
-
-
-            interceptionState.previousInterceptionDevice = interceptionState.interceptionDevice;
-        }
-
-        //sanity check
-        if (interceptionState.currentIKstroke.code >= 0x80 && interceptionState.currentIKstroke.code < VM_LEFT)
-        {
-            error("Received unexpected extended Interception Key Stroke code > 0x79: " + to_string(interceptionState.currentIKstroke.code));
-            cout << endl << "Please open a ticket on github";
-            continue;
-        }
-        if (interceptionState.currentIKstroke.code == 0)
-        {
-            error("Received unexpected SC_NOP Key Stroke code 0. Ignoring this.");
-            continue;
-        }
-
-        //ESC Commands
-        if (loopState.scancode == SC_ESCAPE)
-        {
-            IFDEBUG cout << endl << "(Hard ESC" << (loopState.isDownstroke ? "v " : "^ ") << ")";
-            globalState.realEscapeIsDown = loopState.isDownstroke;
-
-            //stop macro recording?
-            if (globalState.recordingMacro > 0)
-            {
-                IFDEBUG cout << endl << "Stop recording macro #" << globalState.recordingMacro;
-                //wrap macro in tokens to tmprelease / restore keys, to deal with the physical 'Ctrl down' that started the macro
-                if (globalState.recordedMacros[globalState.recordingMacro].size() > 0)
-                    globalState.secretSequenceRecording = false;
-                {
-                    globalState.recordedMacros[globalState.recordingMacro].push_back({ VK_CPS_TEMPRESTOREKEYS,true });
-                    globalState.recordedMacros[globalState.recordingMacro].insert(globalState.recordedMacros[globalState.recordingMacro].begin(), { VK_CPS_TEMPRELEASEKEYS,true });
-                }
-                globalState.recordingMacro = -1;
-                updateTrayIcon(true, globalState.recordingMacro >= 0, globalState.activeConfig);
-                continue;
-            }
-        }
-        else if (globalState.realEscapeIsDown && loopState.isDownstroke)
-        {
-            if (globals.forwardEscKey.find(loopState.scancode) == globals.forwardEscKey.end())
-                continue;
-        }
-        else if (globalState.realEscapeIsDown && !loopState.isDownstroke)
-        {
-            if (globals.disableEscKey.find(loopState.scancode) == globals.disableEscKey.end())
-            {
-                if (processCommand())
-                {
-                    continue;
-                }
-                else
-                {
-                    setLED(SC_NOP, true); // sync LEDs with Windows state.
-                    ShowInTaskbar(); //exit
-                    break;
-                }
-            }
-            if (globals.forwardEscKey.find(loopState.scancode) == globals.forwardEscKey.end())
-                continue;
-        }
-
-        //TESTING the layer shift feature
-        /*
-        if (loopState.vcode == TESTING_LAYER_SHIFT_KEY)
-        {
-            if (loopState.isDownstroke)
-            {
-                if (globalState.activeConfig != TESTING_LAYER_SHIFT_TO)
-                {
-                    TESTING_LAYER_SHIFT_FROM = globalState.activeConfig;
-                    switchConfig(TESTING_LAYER_SHIFT_TO, false);
-                }
-            }
-            else if (TESTING_LAYER_SHIFT_FROM >= 0)
-            {
-                if (TESTING_LAYER_SHIFT_FROM != globalState.activeConfig)
-                {
-                    switchConfig(TESTING_LAYER_SHIFT_FROM, false);
-                }
-
-                TESTING_LAYER_SHIFT_FROM = -1;
-            }
-
-            continue;
-        }
-        */
-        
-        //Config 0: standard keyboard, no further processing, just forward everything
-        if (globalState.activeConfig == DISABLED_CONFIG_NUMBER)
-        {
-            InterceptionSendCurrentKeystroke();
-            continue;
-        }
-
-        //consider include/exclude deviceID options
-        if (!globalState.includeDeviceId.empty()
-            && globalState.deviceIdKeyboard.find(globalState.includeDeviceId) == string::npos)
-        {
-            IFDEBUG cout << endl << "Ignore board, deviceId is not included with this config";
-            InterceptionSendCurrentKeystroke();
-            continue;
-        }
-        if (!globalState.excludeDeviceId.empty()
-            && globalState.deviceIdKeyboard.find(globalState.excludeDeviceId) != string::npos)
-        {
-            IFDEBUG cout << endl << "Ignore board, deviceId is excluded in this config";
-            InterceptionSendCurrentKeystroke();
-            continue;
-        }
-
-
-
-        //flip Win+Alt only for Apple keyboards.
-        if (options.flipAltWinOnAppleKeyboards && globalState.deviceIsAppleKeyboard)
-        {
-            switch (loopState.vcode)
-            {
-            case SC_LALT: loopState.vcode = SC_LWIN; break;
-            case SC_LWIN: loopState.vcode = SC_LALT; break;
-            case SC_RALT: loopState.vcode = SC_RWIN; break;
-            case SC_RWIN: loopState.vcode = SC_RALT; break;
-            }
-
-            loopState.scancode = loopState.vcode;       //only time where scancode is rewritten. Simplifies tapping and rewiring
-        }
-
-        //Handle Sysrq, ScrLock, Pause, NumLock
-        if (!processMessyKeys())
-            continue;
-
-        //Tapdance
-        detectTapping();
-        //slow tap breaks tapping
-        if (loopState.tappedSlow)
-            modifierState.modifierTapped = 0;
-
-        //hard rewire all REWIREd keys
-        processRewireScancodeToVirtualcode();
-        if (loopState.vcode == SC_NOP)   //rewired to NOP to disable keys
-        {
-            IFDEBUG cout << " (r2NOP)";
-            continue;
-        }
-
-        IFDEBUG
-        {
-            cout << endl;
-            IFPROF cout << "(" << setw(5) << dec << timeBetweenTimepointsUS(profiler.timepointPreviousKeyEvent, profiler.timepointLoopStart) / 1000 << " m) ";
-            printLoopState1Input();
-        }
-
-        //evaluate modifiers
-        processModifierState();
-    
-        IFDEBUG printLoopState2Modifier();
-
-        //evaluate modified keys
-        processCombos();
-
-        //alphakeys: basic character key layout. Don't remap the Ctrl combos?
-        processMapAlphaKeys();
-
-        //break tapped state?
-        if (!isModifier(loopState.vcode))
-            modifierState.modifierTapped = 0;
-
-        IFPROF
-        {
-        unsigned long mappingtime = profiler.stopwatchRestart();
-        profiler.totalMappingTimeUS += mappingtime;
-        profiler.countOutgoing++;
-        if (mappingtime > profiler.worstMappingTimeUS)
-            profiler.worstMappingTimeUS = mappingtime;
-        IFDEBUG printLoopStateMappingTime(mappingtime);
-        }
-
-        sendResultingKeyOrSequence();
-        IFPROF
-        {
-        unsigned long sendingtime = profiler.stopwatchReadUS();
-        profiler.totalSendingTimeUS += sendingtime;
-        if (sendingtime > profiler.worstSendingTimeUS)
-            profiler.worstSendingTimeUS = sendingtime;
-        if (sendingtime > 1000)
-            cout << "\t (slow send: " << dec << sendingtime << " u)";
-        }
-
-        IFDEBUG printLoopState4TapState();
     }
     interception_destroy_context(interceptionState.interceptionContext);
 
@@ -2060,7 +2075,7 @@ void printLoopState1Input()
 {
     cout
         << " ["
-        << dec << setw(2) << interceptionState.interceptionDevice << " " << hex << interceptionState.currentIKstroke.code << " " << interceptionState.currentIKstroke.state
+        << dec << setw(2) << interceptionState.interceptionDevice << " " << hex << setw(2) << interceptionState.currentIKstroke.code << " " << interceptionState.currentIKstroke.state
         << "= " << setw(8) << (loopState.vcode == loopState.scancode ? "" : PRETTY_VK_LABELS[loopState.scancode] + " > ")
         << setw(8) << getPrettyVKLabel(loopState.vcode) << setw(2) << left << getSymbolForIKStrokeState(interceptionState.currentIKstroke.state) << right
         << "] ";
