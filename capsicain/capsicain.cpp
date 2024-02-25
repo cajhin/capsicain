@@ -2800,12 +2800,15 @@ void sendVKeyEvent(VKeyEvent keyEvent, bool hold)
     }
 
     //consistency check
-    if (globalState.keysDownSent[scancode] == 0 && keyEvent.isDownstroke)
-        globalState.keysDownSentCounter++;
-    else if (globalState.keysDownSent[scancode] == 1 && !keyEvent.isDownstroke)
-        globalState.keysDownSentCounter--;
+    if (scancode < VM_WHEEL_UP)
+    {
+        if (globalState.keysDownSent[scancode] == 0 && keyEvent.isDownstroke)
+            globalState.keysDownSentCounter++;
+        else if (globalState.keysDownSent[scancode] == 1 && !keyEvent.isDownstroke)
+            globalState.keysDownSentCounter--;
 
-    globalState.keysDownSent[scancode] = keyEvent.isDownstroke;
+            globalState.keysDownSent[scancode] = keyEvent.isDownstroke;
+    }
 
     //handle live macro recording
     if (globalState.recordingMacro >= 0)
