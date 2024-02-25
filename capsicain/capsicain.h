@@ -1,4 +1,6 @@
-#define PROGRAM_NAME_AHK "autohotkey.exe"
+#include <string>
+#include <map>
+
 #include "interception.h"
 #include "utils.h"
 #include "configUtils.h"
@@ -8,6 +10,23 @@
 #define IFTRACE if(false)
 #define IFPROF if(false) //measuring time takes some time
 
+struct Executable
+{
+    std::string verb;
+    std::string path;
+    std::string args;
+    std::string dir;
+    int mode;
+    HANDLE proc;
+    DWORD pid;
+    HWND hwnd;
+};
+
+struct Device {
+    std::string id;
+    bool keyboard;
+    bool apple;
+};
 
 enum KEYSTATE
 {
@@ -39,7 +58,7 @@ void playKeyEventSequence(std::vector<VKeyEvent> keyEventSequence);
 
 void printOptions();
 
-void sendVKeyEvent(VKeyEvent keyEvent);
+void sendVKeyEvent(VKeyEvent keyEvent, bool hold = true);
 
 void sendResultingKeyOrSequence();
 
@@ -47,7 +66,7 @@ VKeyEvent convertIkstroke2VKeyEvent(InterceptionKeyStroke ikStroke);
 
 void normalizeIKStroke(InterceptionKeyStroke &ikstroke);
 InterceptionKeyStroke convertVkeyEvent2ikstroke(VKeyEvent keyEvent);
-void getHardwareId();
+std::map<uint8_t, Device>* getHardwareId(bool refresh = true);
 
 bool initConsoleWindow();
 void parseIniGlobals();
@@ -73,3 +92,11 @@ void resetCapsNumScrollLock();
 int obfuscateVKey(int vk);
 int deObfuscateVKey(int vk);
 
+int getKeyHolding(int vcode);
+bool runExecutable(Executable &exe);
+void killExecutable(Executable &exe);
+void killExecutableByPath(std::string path);
+
+void loadAHK();
+void unloadAHK();
+void sendAHK(std::string msg);

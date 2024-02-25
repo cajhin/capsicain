@@ -116,6 +116,7 @@ enum ScanCode {
     SC_LANG2 = 0x71, // (Korean 'Hanja key' according to Firefox spec)
     SC_LANG1 = 0x72, // (Korean 'Han/Yeong key' according to Firefox spec)
     SC_ABNT_C1 = 0x73, // / ? on Portugese (Brazilian) keyboards
+    SC_F24 = 0x76,
     SC_CONVERT = 0x79, // (Japanese keyboard)
     SC_NOCONVERT = 0x7B, // (Japanese keyboard)
     SC_YEN = 0x7D, // (Japanese keyboard)
@@ -136,7 +137,7 @@ enum ScanCode {
     SC_CALCULATOR = 0xA1, // Calculator
     SC_PLAYPAUSE = 0xA2, // Play / Pause
     SC_MEDIASTOP = 0xA4, // Media Stop
-    SC_E0LSHF = 0xAA, // produced by Print key without modifier. '²' on French AZERTY keyboard (same place as ~ ` on QWERTY)
+    SC_E0LSHF = 0xAA, // produced by Print key without modifier. 'Â²' on French AZERTY keyboard (same place as ~ ` on QWERTY)
     SC_VOLUMEDOWN = 0xAE, // Volume -
     SC_VOLUMEUP = 0xB0, // Volume +
     SC_WEBHOME = 0xB2, // Web home
@@ -175,6 +176,15 @@ enum ScanCode {
 //defined by capsicain, non standard
 enum VirtualCode
 {
+    VM_LEFT = 0xF1,
+    VM_RIGHT,
+    VM_MIDDLE,
+    VM_BUTTON4,
+    VM_BUTTON5,
+    VM_WHEEL_UP,
+    VM_WHEEL_DOWN,
+    VM_WHEEL_LEFT,
+    VM_WHEEL_RIGHT,
     //special escape code for Capsicain key sequences
     //VK_CPS_ESC = 0x100,
     VK_CPS_TEMPRELEASEKEYS = 0x101,
@@ -190,13 +200,41 @@ enum VirtualCode
     VK_MOD13 = 0x10D,
     VK_MOD14 = 0x10E,
     VK_MOD15 = 0x10F,
-    VK_CPS_CAPSON = 0x110, //turns CapsLock on, regardless of current state
-    VK_CPS_CAPSOFF = 0x111,
-    VK_CPS_RECORDMACRO = 0x112,
-    VK_CPS_RECORDSECRETMACRO = 0x113,
-    VK_CPS_PLAYMACRO = 0x114,
-    VK_CPS_OBFUSCATED_SEQUENCE_START = 0x115,
-    VK_CPS_PAUSE = 0x116, // not a real scancode; Cherry Pause key sends an escaped key combo E1 LCTRL NUMLOCK
+    VK_MOD16 = 0x110,
+    VK_MOD17 = 0x111,
+    VK_MOD18 = 0x112,
+    VK_MOD19 = 0x113,
+    VK_MOD20 = 0x114,
+    VK_MOD21 = 0x115,
+    VK_MOD22 = 0x116,
+    VK_MOD23 = 0x117,
+    VK_MOD24 = 0x118,
+    VK_MOD25 = 0x119,
+    VK_MOD26 = 0x11A,
+    VK_MOD27 = 0x11B,
+    VK_MOD28 = 0x11C,
+    VK_MOD29 = 0x11D,
+    VK_MOD30 = 0x11E,
+    VK_MOD31 = 0x11F,
+    VK_MOD32 = 0x120,
+    VK_CPS_CAPSON, //turns CapsLock on, regardless of current state
+    VK_CPS_CAPSOFF,
+    VK_CPS_RECORDMACRO,
+    VK_CPS_RECORDSECRETMACRO,
+    VK_CPS_PLAYMACRO,
+    VK_CPS_OBFUSCATED_SEQUENCE_START,
+    VK_CPS_PAUSE, // not a real scancode; Cherry Pause key sends an escaped key combo E1 LCTRL NUMLOCK
+    VK_CPS_HOLDKEY,
+    VK_CPS_HOLDMOD,
+    VK_CPS_RELEASEKEYS,
+    VK_CPS_DELAY,
+    VK_CPS_KEYDOWN,
+    VK_CPS_KEYTOGGLE,
+    VK_CPS_KEYTAP,
+    VK_CPS_EXECUTE,
+    VK_CPS_KILL,
+    VK_CPS_SENDAHK,
+    VK_MAX
 /* testing the VMK style config shift
     VK_SHFCFG0 = 0x117,  //shift config, i.e. shift back when the key is released
     VK_SHFCFG1 = 0x118,
@@ -210,3 +248,6 @@ enum VirtualCode
     VK_SHFCFG9 = 0x120,
 */
 };
+
+int getAHKid(std::string msg);
+std::string getAHKmsg(int id);

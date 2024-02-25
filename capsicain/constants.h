@@ -3,7 +3,7 @@
 #define VERSION "96"
 
 //arbitray limits
-#define MAX_VCODES 0x121  //biggest defined code in scancodes.h must be smaller than this
+#define MAX_VCODES 0x140  //biggest defined code in scancodes.h must be smaller than this
 #define MAX_MACRO_LENGTH 200  //stop recording at some point if it was forgotten.
 #define MAX_NUM_MACROS 21 //max number of stored macros (mapped later to 1..20, and the 'hard' macro 0)
 
@@ -34,7 +34,14 @@ const std::string INI_TAG_INCLUDE = "INCLUDE";
 const std::string INI_TAG_GLOBAL = "GLOBAL";
 const std::string INI_TAG_OPTIONS = "OPTION";
 const std::string INI_TAG_REWIRE = "REWIRE";
-const std::string INI_TAG_COMBOS = "COMBO";
+const std::string INI_TAG_COMBOS = "DOWN";
+const std::string INI_TAG_UPCOMBOS = "UP";
+const std::string INI_TAG_TAPCOMBOS = "TAP";
+const std::string INI_TAG_SLOWCOMBOS = "SLOW";
+const std::string INI_TAG_REPEATCOMBOS = "REPEAT";
 const std::string INI_TAG_ALPHA_FROM = "ALPHA_FROM";
 const std::string INI_TAG_ALPHA_TO = "ALPHA_TO";
 const std::string INI_TAG_ALPHA_END = "ALPHA_END";
+const std::string INI_TAG_EXE = "EXE";
+
+using DEV = uint32_t;

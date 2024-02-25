@@ -1,6 +1,7 @@
 #pragma once
 #include "pch.h"
 #include <iostream>
+#include <map>
 #include <Windows.h>  //for Sleep()
 
 #include "scancodes.h"
@@ -146,6 +147,7 @@ void defineAllPrettyVKLabels(string arr[])
     checkAddLabel(SC_F21, "F21", arr);
     checkAddLabel(SC_F22, "F22", arr);
     checkAddLabel(SC_F23, "F23", arr);
+    checkAddLabel(SC_F24, "F24", arr);
     checkAddLabel(SC_KANA, "KANA", arr);
     checkAddLabel(SC_LANG2, "LANG2", arr);
     checkAddLabel(SC_LANG1, "LANG1", arr);
@@ -209,7 +211,7 @@ void defineAllPrettyVKLabels(string arr[])
 
     //fill all undefined scancodes with "SC_0XNN" so they can be referenced in ini
     char buffer[9];
-    for (int i = 0; i <= 255; i++)
+    for (int i = 0; i <= 0xf0; i++)
     {
         if (arr[i] == "")
         {
@@ -234,6 +236,23 @@ void defineAllPrettyVKLabels(string arr[])
     checkAddLabel(VK_MOD13, "MOD13", arr);
     checkAddLabel(VK_MOD14, "MOD14", arr);
     checkAddLabel(VK_MOD15, "MOD15", arr);
+    checkAddLabel(VK_MOD16, "MOD16", arr);
+    checkAddLabel(VK_MOD17, "MOD17", arr);
+    checkAddLabel(VK_MOD18, "MOD18", arr);
+    checkAddLabel(VK_MOD19, "MOD19", arr);
+    checkAddLabel(VK_MOD20, "MOD20", arr);
+    checkAddLabel(VK_MOD21, "MOD21", arr);
+    checkAddLabel(VK_MOD22, "MOD22", arr);
+    checkAddLabel(VK_MOD23, "MOD23", arr);
+    checkAddLabel(VK_MOD24, "MOD24", arr);
+    checkAddLabel(VK_MOD25, "MOD25", arr);
+    checkAddLabel(VK_MOD26, "MOD26", arr);
+    checkAddLabel(VK_MOD27, "MOD27", arr);
+    checkAddLabel(VK_MOD28, "MOD28", arr);
+    checkAddLabel(VK_MOD29, "MOD29", arr);
+    checkAddLabel(VK_MOD30, "MOD30", arr);
+    checkAddLabel(VK_MOD31, "MOD31", arr);
+    checkAddLabel(VK_MOD32, "MOD32", arr);
     checkAddLabel(VK_CPS_CAPSON, "CAPSON", arr);
     checkAddLabel(VK_CPS_CAPSOFF, "CAPSOFF", arr);
     checkAddLabel(VK_CPS_RECORDMACRO, "RECMAC", arr);
@@ -241,6 +260,26 @@ void defineAllPrettyVKLabels(string arr[])
     checkAddLabel(VK_CPS_PLAYMACRO, "PLAYMAC", arr);
     checkAddLabel(VK_CPS_OBFUSCATED_SEQUENCE_START, "OBFUSEQSTART", arr);
     checkAddLabel(VK_CPS_PAUSE, "PAUSE", arr);  //this is not a real scancode, used to map the PAUSE combo E1 LCTRL SCRLCK
+    checkAddLabel(VK_CPS_HOLDKEY, "HOLDKEY", arr);
+    checkAddLabel(VK_CPS_HOLDMOD, "HOLDMOD", arr);
+    checkAddLabel(VK_CPS_RELEASEKEYS, "RELEASEKEYS", arr);
+    checkAddLabel(VK_CPS_DELAY, "DELAY", arr);
+    checkAddLabel(VK_CPS_KEYDOWN, "KEYDOWN", arr);
+    checkAddLabel(VK_CPS_KEYTOGGLE, "KEYTOGGLE", arr);
+    checkAddLabel(VK_CPS_KEYTAP, "KEYTAP", arr);
+    checkAddLabel(VK_CPS_EXECUTE, "EXECUTE", arr);
+    checkAddLabel(VK_CPS_KILL, "KILL", arr);
+    checkAddLabel(VK_CPS_SENDAHK, "SENDAHK", arr);
+
+    checkAddLabel(VM_LEFT, "MOUSE1", arr);
+    checkAddLabel(VM_RIGHT, "MOUSE2", arr);
+    checkAddLabel(VM_MIDDLE, "MOUSE3", arr);
+    checkAddLabel(VM_BUTTON4, "MOUSE4", arr);
+    checkAddLabel(VM_BUTTON5, "MOUSE5", arr);
+    checkAddLabel(VM_WHEEL_UP, "MWUP", arr);
+    checkAddLabel(VM_WHEEL_DOWN, "MWDOWN", arr);
+    checkAddLabel(VM_WHEEL_LEFT, "MWLEFT", arr);
+    checkAddLabel(VM_WHEEL_RIGHT, "MWRIGHT", arr);
 /* testing the VMK style config shift
     checkAddLabel(VK_SHFCFG0, "SHFCFG0", arr);
     checkAddLabel(VK_SHFCFG1, "SHFCFG1", arr);
@@ -254,4 +293,22 @@ void defineAllPrettyVKLabels(string arr[])
     checkAddLabel(VK_SHFCFG9, "SHFCFG9", arr);
 */
 
+}
+
+std::vector<std::string> AHKids;
+int getAHKid(std::string msg)
+{
+    for (int i = 0; i < AHKids.size(); ++i) {
+        if (AHKids[i] == msg)
+            return i + 1;
+    }
+    AHKids.push_back(msg);
+    return (int)AHKids.size();
+}
+
+std::string getAHKmsg(int id)
+{
+    if (AHKids.size() >= id)
+        return AHKids[id - 1];
+    return "";
 }
