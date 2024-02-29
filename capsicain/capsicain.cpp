@@ -41,6 +41,7 @@ struct Globals
     int capsicainOnOffKey = -1;
     bool protectConsole = true; //drop Pause and Break signals when console is foreground
     bool translateMessyKeys = true; //translate various DOS keys (e.g. Ctrl+Pause=SC_Break -> SC_Pause, Alt+Print=SC_altprint -> sc_print)
+    bool deactivateWinkeyStartmenu = false;
 } globals;
 static const struct Globals defaultGlobals;
 
@@ -108,6 +109,7 @@ struct GlobalState
     int keysDownSentCounter = 0;  //tracks how many keys are actually down that Windows knows about
     bool keysDownSent[256] = { false };  //Remember all forwarded to Windows. Sent keys must be 8 bit
     bool keysDownTempReleased[256] = { false };  //Remember all keys that were temporarily released, e.g. to send an Alt-Numpad combo
+    VKeyEvent lastSentKeyEvent = { SC_NOP, 0 };  //Remember the last key sent to Windows (to detect tapping of a rewired Win key)
 
     bool secretSequenceRecording = false;
     bool secretSequencePlayback = false;
@@ -262,6 +264,7 @@ int main()
     while (true)
     {
         //remember previous two keys to detect tapping and Pause sequence
+        //convert with convertIkstroke2VKeyEvent(interceptionState.previousIKstroke1) before using, or you get problems with codes >=0x80
         interceptionState.previousIKstroke2 = interceptionState.previousIKstroke1;
         interceptionState.previousIKstroke1 = interceptionState.currentIKstroke;
 
@@ -1182,6 +1185,8 @@ void parseIniGlobals()
             globals.translateMessyKeys = false;
         else if (token == "dontprotectconsole")
             globals.protectConsole = false;
+        else if (token == "deactivatewinkeystartmenu")
+            globals.deactivateWinkeyStartmenu = true;
         else if ((token == "activeconfigonstartup") || (token == "activelayeronstartup"))
             cout << endl;
         else
@@ -2047,8 +2052,18 @@ void sendVKeyEvent(VKeyEvent keyEvent)
 
     if (!keyEvent.isDownstroke &&  !globalState.keysDownSent[scancode])  //ignore up when key is already up
     {
-        IFDEBUG cout << " {blocked " << PRETTY_VK_LABELS[scancode] << " UP: was not down}";
+        IFDEBUG cout << " {blocked " << PRETTY_VK_LABELS[scancode] << " UP: was not down.}";
         return;
+    }
+
+    //Cancel the tapped LWIN opening the pesky Start menu
+    if (globals.deactivateWinkeyStartmenu
+        && scancode == SC_LWIN && !keyEvent.isDownstroke && globalState.keysDownSent[SC_LWIN]
+        && ( globalState.lastSentKeyEvent.vcode == SC_LWIN)
+        )
+    {
+        IFDEBUG cout << " { test WINKEY NO MENU send shift down up" << "}";
+        SendShiftDownUp();
     }
 
     //consistency check
@@ -2090,6 +2105,7 @@ void sendVKeyEvent(VKeyEvent keyEvent)
             cout << " {" << PRETTY_VK_LABELS[keyEvent.vcode] << (keyEvent.isDownstroke ? "v" : "^") << " #" << globalState.keysDownSentCounter << "}";
 
     interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke *)&iks, 1);
+    globalState.lastSentKeyEvent = keyEvent;
 
     //restore LEDs for ON/OFF indication?
     if (globals.capsicainOnOffKey >0 
@@ -2102,6 +2118,17 @@ void sendVKeyEvent(VKeyEvent keyEvent)
         Sleep(50); //give Windows time to register e.g. NumLock key event, since soon we will query its state
         setLED(globals.capsicainOnOffKey, true);
     }
+}
+
+//send shift down+up keystrokes; used to break the hardwired tapped Win -> start menu combo
+void SendShiftDownUp()
+{
+    IFDEBUG cout << " { LSHFv^ to deactivateWinkeyStartmenu } ";
+    InterceptionKeyStroke iks = convertVkeyEvent2ikstroke({ SC_LSHIFT , true });
+    iks.state = 0;
+    interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke*)&iks, 1);
+    iks.state = 1;
+    interception_send(interceptionState.interceptionContext, interceptionState.interceptionDevice, (InterceptionStroke*)&iks, 1);
 }
 
 

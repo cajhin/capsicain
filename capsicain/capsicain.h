@@ -5,7 +5,7 @@
 #include "traybar.h"
 
 #define IFDEBUG if(options.debug && !globalState.secretSequenceRecording)
-#define IFTRACE if(false)
+#define IFTRACE if(false)  //set to (true) for extra detail output
 #define IFPROF if(false) //measuring time takes some time
 
 
@@ -40,6 +40,8 @@ void playKeyEventSequence(std::vector<VKeyEvent> keyEventSequence);
 void printOptions();
 
 void sendVKeyEvent(VKeyEvent keyEvent);
+
+void SendShiftDownUp();
 
 void sendResultingKeyOrSequence();
 

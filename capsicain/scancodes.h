@@ -9,6 +9,7 @@ int getVcode(std::string label, std::string prettyVKLabels[]);
 
 //Physical Keyboard scan codes and their labels.
 //These labels are only visible while coding.
+//scancodes are NOT Ascii codes
 
 //Put a space after every SC_X, and do NOT put a second SC_ into a line, not in the comments either
 enum ScanCode {
