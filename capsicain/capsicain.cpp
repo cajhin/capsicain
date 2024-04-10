@@ -840,8 +840,18 @@ void processRewireScancodeToVirtualcode()
 
 void processCombos()
 {
-    if (!loopState.isDownstroke)  //this check breaks 'x []' : // || (modifierState.modifierDown == 0 && modifierState.modifierTapped == 0 && modifierState.activeDeadkey == 0))
-        return;
+    //tmp test let rewired tappings be processed further
+    VKeyEvent break_tapped_modifier = { SC_NOP, 0 }; //hack to remember 'release shift first'
+    if (!loopState.isDownstroke)
+    {
+        if (loopState.tapped && loopState.resultingVKeyEventSequence.size() > 0)
+        {
+            break_tapped_modifier = loopState.resultingVKeyEventSequence.at(0);
+        }
+        else //this check breaks 'x []' : // || (modifierState.modifierDown == 0 && modifierState.modifierTapped == 0 && modifierState.activeDeadkey == 0))
+            
+            return;
+    }
 
     for (ModifierCombo modcombo : allMaps.modCombos)
     {
@@ -856,6 +866,10 @@ void processCombos()
                 )
             {
                 loopState.resultingVKeyEventSequence = modcombo.keyEventSequence;
+                if (break_tapped_modifier.vcode != SC_NOP)
+                {
+                    loopState.resultingVKeyEventSequence.push_back(break_tapped_modifier);
+                }
                 modifierState.modifierTapped = 0;
                 break;
             }
