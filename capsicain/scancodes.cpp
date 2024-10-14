@@ -146,6 +146,7 @@ void defineAllPrettyVKLabels(string arr[])
     checkAddLabel(SC_F21, "F21", arr);
     checkAddLabel(SC_F22, "F22", arr);
     checkAddLabel(SC_F23, "F23", arr);
+    checkAddLabel(SC_F24, "F24", arr);
     checkAddLabel(SC_KANA, "KANA", arr);
     checkAddLabel(SC_LANG2, "LANG2", arr);
     checkAddLabel(SC_LANG1, "LANG1", arr);
