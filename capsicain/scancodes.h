@@ -117,6 +117,7 @@ enum ScanCode {
     SC_LANG2 = 0x71, // (Korean 'Hanja key' according to Firefox spec)
     SC_LANG1 = 0x72, // (Korean 'Han/Yeong key' according to Firefox spec)
     SC_ABNT_C1 = 0x73, // / ? on Portugese (Brazilian) keyboards
+    SC_F24 = 0x76,
     SC_CONVERT = 0x79, // (Japanese keyboard)
     SC_NOCONVERT = 0x7B, // (Japanese keyboard)
     SC_YEN = 0x7D, // (Japanese keyboard)
@@ -137,7 +138,7 @@ enum ScanCode {
     SC_CALCULATOR = 0xA1, // Calculator
     SC_PLAYPAUSE = 0xA2, // Play / Pause
     SC_MEDIASTOP = 0xA4, // Media Stop
-    SC_E0LSHF = 0xAA, // produced by Print key without modifier. '²' on French AZERTY keyboard (same place as ~ ` on QWERTY)
+    SC_E0LSHF = 0xAA, // produced by Print key without modifier. 'Â²' on French AZERTY keyboard (same place as ~ ` on QWERTY)
     SC_VOLUMEDOWN = 0xAE, // Volume -
     SC_VOLUMEUP = 0xB0, // Volume +
     SC_WEBHOME = 0xB2, // Web home
