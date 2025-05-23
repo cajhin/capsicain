@@ -45,7 +45,7 @@ Earlier versions were very focused on my own configuration. Latest versions are 
   - Modular config with `INCLUDE moduleXY`.  
 
 - Modifier remapping   
-  - Examples: `F` and `J` to `Shift`, `CapsLock` to `MOD9`, `LCtrl` to `Return`, Rotate `Alt`>`Shift`>`Ctrl`>`Alt`.
+  - Examples: `CapsLock` to `MOD9`, `LCtrl` to `Return`, Rotate `Alt`>`Shift`>`Ctrl`>`Alt`.
 
   - If it sends a scancode, you can remap it.  
     
