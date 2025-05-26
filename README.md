@@ -164,12 +164,14 @@ Earlier versions were very focused on my own configuration. Latest versions are 
 
     * **Karabiner** is really good, but Mac-only.
 
-    * **Tmk / Qmk with Hasu's Usb-to-Usb stick** is very cool, but it cannot do laptop keyboards.  
+    * **Tmk / Qmk with Hasu's Usb-to-Usb stick** is very cool, but it cannot do wireless or laptop keyboards.
+
+    * **Kanata** looks nice (yay for Win+Mac+Linux). Didn't exist when I started capsicain.
 
     * **Capsicain** does everything I want, the way I want it.
     
   * ### What's with the weird name?
-    * Beer made me do it. I like chilis. This tool defines a lot of CapsLock Hot keys. 'Capsaicin' is the chemical stuff that makes chilis hot, Capsicain just has a better flow to it (and is a unique name. Although that was a mistake - google search still says You Fool! You Spelled capsaicin wrong!)
+    * Beer made me do it. I like chilis. This tool defines a lot of CapsLock Hot keys. 'Capsaicin' is the chemical stuff that makes chilis hot, Capsicain just has a better flow to it (and is a unique name. Although that was a mistake - google search still says You Fool! You spelled capsaicin wrong!)
   * ### What's the old_capsicain_interception repo?
     * v1..12 was created in the capsicain_interception repo. This was an experimental non-VS project, now obsolete, except for the history.
   * ### Why is my keyboard suddenly QWERTZ?!
@@ -192,12 +194,15 @@ Earlier versions were very focused on my own configuration. Latest versions are 
     1. capsicain is completely open source. It does not write to disk, it does not do any networking.
     1. The Interception driver is closed (pay for) source, but it is an established project, and after looking into it, it all seems legit to me.
     1. Reading keyboard input is possible with any binary you run with admin privileges, this caution should be applied universally.
+
   * ### What are the current limitations?
     - Double-taps are not configurable
+    - Character key combos (like "A+B") are not well supported
     - No combos-to-modifier (Ctrl+X -> Alt). Useless?
     - Windows ALT-Numpad combos for special characters ╠═ö€Σε═╣ don't work in Linux VMs.  
       - If you need this, you have to create your own config for Linux special chars.
     - Cannot be triggered by other software. Capsicain listens to the keyboard hardware and nothing else.
+    - There is an old bug in Interception that causes some Bluetooth keyboards to lose connection after 10 disconnects (long sleep), which then requires a reboot.
 
 # Getting Involved
 
