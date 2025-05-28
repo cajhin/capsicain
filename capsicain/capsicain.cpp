@@ -976,6 +976,12 @@ bool processCommand()
         cout << "ERROR LOG: " << endl << errorLog << endl;
         popupConsole = true;
         break;
+#ifdef _WIN32
+    case SC_O:
+        cout << "SHOW INI";
+        system("explorer.exe /select,\"capsicain.ini\"");
+        break;
+#endif
     case SC_R:
         cout << "RELOAD INI";
         reload();
@@ -1753,6 +1759,9 @@ void printHelp()
         << "[E] Error log" << endl
         << "[C] Print list of key labels for all scancodes" << endl
         << "[R] Reset and reload the .ini file" << endl
+#ifdef _WIN32
+        << "[O] Show the .ini file in the file explorer" << endl
+#endif
         << "[T] Move Taskbar icon to Tray and back" << endl
         << "[I] Show processed Ini for the active config" << endl
         << "[A] Autohotkey start" << endl
