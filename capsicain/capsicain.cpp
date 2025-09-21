@@ -1094,7 +1094,13 @@ bool processCommand()
     return continueLooping;
 }
 
-
+bool isAppleKeyboard(string id)
+{
+    return (id.find("vid_05ac") != string::npos)        //I think this was 2011 Macbook Air running Windows, but not sure anymore
+        || (id.find("05ac_pid") != string::npos)        //Apple magic keyboard 1B
+        || (id.find("004c_pid") != string::npos)        //Apple magic keyboard 2A, recharging with Lightning plug. 004c is an unregistered vendor code??
+        ;
+}
 
 void getHardwareId()
 {
@@ -1120,7 +1126,8 @@ void getHardwareId()
 
         id = stringToLower(id);
         globalState.deviceIdKeyboard = id;
-        globalState.deviceIsAppleKeyboard = (id.find("vid_05ac") != string::npos) || (id.find("vid&000205ac") != string::npos);
+
+        globalState.deviceIsAppleKeyboard = isAppleKeyboard(id);
 
         IFDEBUG cout << endl << endl << "getHardwareId:" << id << " / Apple keyboard: " << globalState.deviceIsAppleKeyboard;
     }

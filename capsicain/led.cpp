@@ -103,7 +103,7 @@ bool WINAPI setLED(UINT ledKeySC, bool ledOn)
 
             int res = ledSendCommand(hKeyboard, ledFlags);
             if (res != 0)
-                std::cout << std::endl << "Error: cannot set LED state: " << res;
+                std::cout << std::endl << "Cannot set LED state: " << res << " (KB probably has no LED)";
 
             CloseHandle(hKeyboard);
         }
