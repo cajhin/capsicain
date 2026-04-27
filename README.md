@@ -1,6 +1,8 @@
-### February 2024: new release v97: new global to deactivate the standard Windows shortcut "LWIN tapped -> open Start menu"
-### July 2023: v95 new option to include/exclude specific keyboards, see <a href="https://github.com/cajhin/capsicain/wiki/Keyword%3A-OPTION#option-includedeviceid-searchstring">IncludeDeviceId</a>
-### December 2022: Windows 11 update 22H2 breaks *minimize to tray*, see Wiki for a <a href="https://github.com/cajhin/capsicain/wiki/X-doesn't-work#windows-11-version-22h2-cannot-minimize-to-tray">fix</a>
+#### Update April 2026: this project is alive but little/no activity
+- it does everything i need and more, no new bugs for a long time
+- I'm on Linux for my latest projects, haven't booted Win11 in 2026
+- the creator of the Inception driver seems offline; a future Windows version might require a new driver solution (getting a new code signing key from MS is the biggest hurdle for privateers)
+
 
 # capsicain
 
@@ -38,7 +40,7 @@ Earlier versions were very focused on my own configuration. Latest versions are 
 - It just works. Everywhere.  
     - Like a hardware programmable keyboard, Capsicain can view and remap key strokes before anyone else does.
 
-- Can remap every key that is sent out by the keyboard. (Excptions: 'media keys' that are not registered as keypresses, and the ESC key).
+- Can remap every key that is sent out by the keyboard. (Exceptions: 'media keys' that are not registered as keypresses, and the ESC key).
 
 - Almost everything is configurable via config file.   
   - Nine separate configs, switch with `ESC` + `<1-9>`.   
@@ -62,7 +64,7 @@ Earlier versions were very focused on my own configuration. Latest versions are 
   - On the fly recording and playback of macros.  
   - Secret macros that are only stored, obfuscated, in memory
 
-- Fast. Low-fat C/C++ code. 1 exe 1 dll 1 ini. Never writes, only reads inside its folder.
+- Fast, sub-μs latency. Low-fat C/C++ code. 1 exe, 1 dll, 1 ini. Never writes, only reads inside its folder.
 
   ### Features of the default capsicain.ini
 
